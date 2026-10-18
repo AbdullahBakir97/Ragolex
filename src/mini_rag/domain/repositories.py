@@ -12,9 +12,12 @@ from .models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Card,
+    CardSource,
     Chunk,
     Conversation,
     ConversationMessage,
+    Deck,
     Feedback,
     FeedbackCounts,
     FileRecord,
@@ -23,6 +26,7 @@ from .models import (
     JobStatus,
     Project,
     RatedAnswer,
+    Schedule,
     ScoredChunk,
     SearchFilters,
     Source,
@@ -424,6 +428,44 @@ class SourceRepository(Protocol):
         ...
 
 
+class DeckRepository(Protocol):
+
+    async def create(self, *, deck_id: str, project_id: int, name: str) -> Deck: ...
+
+    async def get(self, project_id: int, deck_id: str) -> Deck | None:
+        """The project's deck with its counts of cards and of cards due; None for another's."""
+        ...
+
+    async def list_for_project(self, project_id: int) -> list[Deck]:
+        """Newest first, with their counts."""
+        ...
+
+    async def delete(self, project_id: int, deck_id: str) -> bool:
+        """Delete the deck and its cards; False when the project has no such deck."""
+        ...
+
+    async def add_cards(self, deck_id: str,
+                        cards: Sequence[tuple[str, str, CardSource]]) -> list[Card]:
+        """Add (front, back, source) cards after the deck's others, new and due now."""
+        ...
+
+    async def list_cards(self, deck_id: str, *, offset: int, limit: int) -> list[Card]:
+        """In the order they were added."""
+        ...
+
+    async def count_cards(self, deck_id: str) -> int: ...
+
+    async def due_cards(self, deck_id: str, *, limit: int) -> list[Card]:
+        """Cards due now: the longest due first, then in the order they were added."""
+        ...
+
+    async def get_card(self, deck_id: str, card_id: str) -> Card | None: ...
+
+    async def schedule_card(self, deck_id: str, card_id: str, schedule: Schedule) -> Card | None:
+        """Note a review now: the card is due again ``schedule.interval_days`` from now."""
+        ...
+
+
 class UnitOfWork(Protocol):
     """Repositories that share one transaction.
 
@@ -443,6 +485,7 @@ class UnitOfWork(Protocol):
     tenants: TenantRepository
     api_keys: ApiKeyRepository
     usage: UsageRepository
+    decks: DeckRepository
 
     async def commit(self) -> None: ...
 

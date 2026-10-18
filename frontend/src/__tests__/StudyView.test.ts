@@ -29,14 +29,17 @@ const BASE = {
 
 afterEach(() => vi.unstubAllGlobals());
 
-function respond(body: unknown) {
-  const fetch = vi.fn().mockResolvedValue(Response.json(body));
+/** Answers the study request with `body`, and the project's decks with `decks`. */
+function respond(body: unknown, decks: unknown[] = []) {
+  const fetch = vi.fn((url: string, _init?: RequestInit) =>
+    Promise.resolve(Response.json(String(url).includes("/decks") ? decks : body)),
+  );
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
 
 function mountView() {
-  return mount(StudyView, { global: { stubs: { RouterLink: RouterLinkStub, ChunkDrawer: true } } });
+  return mount(StudyView, { global: { stubs: { RouterLink: RouterLinkStub, ChunkDrawer: true, StudyDecks: true } } });
 }
 
 async function write(wrapper: ReturnType<typeof mountView>, kind: string) {
@@ -55,7 +58,7 @@ describe("StudyView", () => {
 
     const [url, init] = fetch.mock.calls[0]!;
     expect(String(url)).toContain("/api/v1/study/demo");
-    expect(JSON.parse(init.body)).toEqual({ file_id: "b2_notes.txt", kind: "summary", count: 5 });
+    expect(JSON.parse(String(init!.body))).toEqual({ file_id: "b2_notes.txt", kind: "summary", count: 5 });
     expect(wrapper.text()).toContain("The model wrote nothing usable");
   });
 
@@ -96,6 +99,48 @@ describe("StudyView", () => {
     expect(wrapper.find(".result-head .btn").text()).toBe("Hide the answers");
   });
 
+  it("saves flashcards to a new deck, with where each card comes from", async () => {
+    const fetch = respond({
+      ...BASE,
+      kind: "flashcards",
+      items: [
+        { front: "When do cats purr?", back: "When content.", sources: [1] },
+        { front: "When do kittens purr?", back: "While nursing.", sources: [2] },
+      ],
+    });
+    const wrapper = mountView();
+    await write(wrapper, "flashcards");
+
+    expect((wrapper.find(".save input").element as HTMLInputElement).value).toBe("guide.pdf flashcards");
+    await wrapper.find(".save input").setValue("Cats");
+    await wrapper.find(".save").trigger("submit");
+    await flushPromises();
+
+    const [, init] = fetch.mock.calls.find(([url, options]) => url.endsWith("/projects/demo/decks") && options?.method === "POST")!;
+    expect(JSON.parse(String(init!.body))).toEqual({
+      name: "Cats",
+      cards: [
+        { front: "When do cats purr?", back: "When content.", file_id: "a1_guide.pdf", chunk_index: 0, page: 3, section: null },
+        { front: "When do kittens purr?", back: "While nursing.", file_id: "a1_guide.pdf", chunk_index: 4, page: null, section: "Kittens > Care" },
+      ],
+    });
+    expect(wrapper.find(".save button").attributes("disabled")).toBeDefined();
+  });
+
+  it("adds flashcards to a deck the project has", async () => {
+    const deck = { id: "d-1", name: "Cats", cards: 4, due: 1, created_at: "2026-10-18T10:00:00Z" };
+    const fetch = respond({ ...BASE, kind: "flashcards", items: [{ front: "Q", back: "A", sources: [1] }] }, [deck]);
+    const wrapper = mountView();
+    await write(wrapper, "flashcards");
+
+    await wrapper.find(".save select").setValue("d-1");
+    expect(wrapper.find(".save input").exists()).toBe(false);
+    await wrapper.find(".save").trigger("submit");
+    await flushPromises();
+
+    expect(fetch.mock.calls.some(([url]) => String(url).endsWith("/projects/demo/decks/d-1/cards"))).toBe(true);
+  });
+
   it("marks quiz answers, explains them and keeps the score", async () => {
     const question = {
       question: "When do cats purr?",
@@ -133,7 +178,7 @@ describe("StudyView", () => {
   });
 
   it("points to processing when the document has no chunks yet", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ signal: "file_not_processed" }, { status: 409 })));
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(Response.json({ signal: "file_not_processed" }, { status: 409 }))));
     const wrapper = mountView();
     await write(wrapper, "quiz");
 

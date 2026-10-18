@@ -11,12 +11,13 @@ from pydantic import (
     AnyHttpUrl,
     BaseModel,
     Field,
+    StringConstraints,
     field_validator,
     model_validator,
 )
 
 from mini_rag.core.errors import AppError
-from mini_rag.domain.models import SearchFilters
+from mini_rag.domain.models import ReviewGrade, SearchFilters
 from mini_rag.domain.signals import ResponseSignal
 from mini_rag.domain.tags import MAX_TAGS_PER_FILE, normalize_tags
 
@@ -800,3 +801,80 @@ class StudyResponse(BaseModel):
     chunks: int = Field(description="Chunks of the document: more than `passages` when the "
                                     "document is longer than the model reads at once, and only "
                                     "chunks spread over it were used.")
+
+
+DeckIdPath = Annotated[UUID, Path(description="The deck's id.")]
+CardIdPath = Annotated[UUID, Path(description="The card's id.")]
+DeckName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class CardRequest(BaseModel):
+    front: str = Field(min_length=1, max_length=2000, description="The question or term.")
+    back: str = Field(min_length=1, max_length=2000, description="Its answer.")
+    file_id: FileId | None = Field(default=None, description="The document it comes from.")
+    chunk_index: int | None = Field(default=None, ge=0, description="The passage it comes from.")
+    page: int | None = Field(default=None, ge=1)
+    section: str | None = Field(default=None, max_length=500)
+
+
+class DeckRequest(BaseModel):
+    name: DeckName
+    cards: list[CardRequest] = Field(default_factory=list, max_length=500,
+                                     description="Flashcards to start with, e.g. from "
+                                                 "`POST /study` with `kind: flashcards`.")
+
+
+class CardsRequest(BaseModel):
+    cards: list[CardRequest] = Field(min_length=1, max_length=500)
+
+
+class ReviewRequest(BaseModel):
+    grade: ReviewGrade = Field(description="How well the card was remembered: `again` (not at "
+                                           "all), `hard`, `good` or `easy`.")
+
+
+class DeckResponse(BaseModel):
+    id: str
+    name: str
+    cards: int = Field(description="Cards in the deck.")
+    due: int = Field(description="Cards due for review now.")
+    created_at: datetime
+
+
+class CardSourceResponse(BaseModel):
+    file_id: str | None
+    chunk_index: int | None
+    page: int | None
+    section: str | None
+
+
+class CardResponse(BaseModel):
+    id: str
+    front: str
+    back: str
+    source: CardSourceResponse = Field(description="Where it comes from; all null when unknown.")
+    due_at: datetime = Field(description="When it is next due for review.")
+    interval_days: float = Field(description="Days from the last review to `due_at`; 0 for a "
+                                             "card never reviewed.")
+    ease: float = Field(description="How much the interval grows after a good review.")
+    repetitions: int = Field(description="Reviews in a row it was remembered.")
+    lapses: int = Field(description="Times it was forgotten after being learnt.")
+    last_reviewed_at: datetime | None
+    created_at: datetime
+
+
+class CardListResponse(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    items: list[CardResponse]
+
+
+class ReviewCardResponse(CardResponse):
+    intervals: dict[ReviewGrade, float] = Field(
+        description="Days until the card is due again for each grade, to show on the buttons.")
+
+
+class ReviewQueueResponse(BaseModel):
+    deck: DeckResponse
+    cards: list[ReviewCardResponse] = Field(description="Cards due now, the longest due first.")

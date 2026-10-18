@@ -371,3 +371,42 @@ export type StudyMaterial =
   | (StudyBase & { kind: "summary"; items: KeyPoint[] })
   | (StudyBase & { kind: "flashcards"; items: Flashcard[] })
   | (StudyBase & { kind: "quiz"; items: QuizQuestion[] });
+
+export type ReviewGrade = "again" | "hard" | "good" | "easy";
+
+export interface Deck {
+  id: string;
+  name: string;
+  cards: number;
+  /** Cards due for review now. */
+  due: number;
+  created_at: string;
+}
+
+export interface Card {
+  id: string;
+  front: string;
+  back: string;
+  source: { file_id: string | null; chunk_index: number | null; page: number | null; section: string | null };
+  due_at: string;
+  interval_days: number;
+  ease: number;
+  repetitions: number;
+  lapses: number;
+  last_reviewed_at: string | null;
+  created_at: string;
+}
+
+/** A card due for review, with the days until it is due again for each grade. */
+export interface ReviewCard extends Card {
+  intervals: Record<ReviewGrade, number>;
+}
+
+export interface NewCard {
+  front: string;
+  back: string;
+  file_id?: string | null;
+  chunk_index?: number | null;
+  page?: number | null;
+  section?: string | null;
+}

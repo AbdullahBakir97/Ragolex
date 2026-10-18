@@ -70,6 +70,23 @@ class FileNotProcessed(AppError):
     status_code = HTTPStatus.CONFLICT
 
 
+class DeckNotFound(AppError):
+    signal = ResponseSignal.DECK_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class DeckFull(AppError):
+    """The cards would take the deck over the cards it may hold."""
+
+    signal = ResponseSignal.DECK_FULL
+    status_code = HTTPStatus.CONFLICT
+
+
+class CardNotFound(AppError):
+    signal = ResponseSignal.CARD_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
 class ProjectNotFound(AppError):
     signal = ResponseSignal.PROJECT_NOT_FOUND
     status_code = HTTPStatus.NOT_FOUND

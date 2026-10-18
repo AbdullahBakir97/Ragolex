@@ -87,6 +87,47 @@ class BodyUploadData(Model):
     tags: str | None = Field(default=None, description='Comma-separated. Tags: letters, digits and hyphens, up to 32 characters each; they are lowercased, with spaces and underscores turned into hyphens.')
 
 
+class CardListResponse(Model):
+    total: int
+    offset: int
+    limit: int
+    items: list[CardResponse]
+
+
+class CardRequest(Model):
+    front: str = Field(description='The question or term.')
+    back: str = Field(description='Its answer.')
+    file_id: str | None = Field(default=None, description='The document it comes from.')
+    chunk_index: int | None = Field(default=None, description='The passage it comes from.')
+    page: int | None = Field(default=None)
+    section: str | None = Field(default=None)
+
+
+class CardResponse(Model):
+    id: str
+    front: str
+    back: str
+    source: CardSourceResponse = Field(description='Where it comes from; all null when unknown.')
+    due_at: datetime = Field(description='When it is next due for review.')
+    interval_days: float = Field(description='Days from the last review to `due_at`; 0 for a card never reviewed.')
+    ease: float = Field(description='How much the interval grows after a good review.')
+    repetitions: int = Field(description='Reviews in a row it was remembered.')
+    lapses: int = Field(description='Times it was forgotten after being learnt.')
+    last_reviewed_at: datetime | None
+    created_at: datetime
+
+
+class CardSourceResponse(Model):
+    file_id: str | None
+    chunk_index: int | None
+    page: int | None
+    section: str | None
+
+
+class CardsRequest(Model):
+    cards: list[CardRequest]
+
+
 class ChunkListResponse(Model):
     total: int
     offset: int
@@ -136,6 +177,19 @@ class ConversationResponse(Model):
     created_at: datetime
     updated_at: datetime = Field(description='When the last question was answered.')
     widget_id: str | None = Field(default=None, description='The chat widget a visitor started it in; null otherwise.')
+
+
+class DeckRequest(Model):
+    name: str
+    cards: list[CardRequest] | None = Field(default=None, description='Flashcards to start with, e.g. from `POST /study` with `kind: flashcards`.')
+
+
+class DeckResponse(Model):
+    id: str
+    name: str
+    cards: int = Field(description='Cards in the deck.')
+    due: int = Field(description='Cards due for review now.')
+    created_at: datetime
 
 
 class DeliveryListResponse(Model):
@@ -344,7 +398,31 @@ class RatedAnswerResponse(Model):
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
-ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+
+
+class ReviewCardResponse(Model):
+    id: str
+    front: str
+    back: str
+    source: CardSourceResponse = Field(description='Where it comes from; all null when unknown.')
+    due_at: datetime = Field(description='When it is next due for review.')
+    interval_days: float = Field(description='Days from the last review to `due_at`; 0 for a card never reviewed.')
+    ease: float = Field(description='How much the interval grows after a good review.')
+    repetitions: int = Field(description='Reviews in a row it was remembered.')
+    lapses: int = Field(description='Times it was forgotten after being learnt.')
+    last_reviewed_at: datetime | None
+    created_at: datetime
+    intervals: dict[str, float] = Field(description='Days until the card is due again for each grade, to show on the buttons.')
+
+
+class ReviewQueueResponse(Model):
+    deck: DeckResponse
+    cards: list[ReviewCardResponse] = Field(description='Cards due now, the longest due first.')
+
+
+class ReviewRequest(Model):
+    grade: Literal['again', 'hard', 'good', 'easy'] | str = Field(description='How well the card was remembered: `again` (not at all), `hard`, `good` or `easy`.')
 
 
 class SearchFiltersRequest(Model):
@@ -567,5 +645,5 @@ class WidgetUpdateRequest(Model):
     tags: list[str] | None = Field(default=None, description='Answer only from files with any of these tags; [] or null for all files.')
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
+for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
     _model.model_rebuild()
