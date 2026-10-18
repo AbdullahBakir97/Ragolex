@@ -115,7 +115,7 @@ curl -X POST http://localhost:8000/api/v1/ask/demo \
 | [Architecture](docs/architecture.md) | Layers, rules and extension points |
 | [Web app](docs/web.md) | Pages, how it is built, running it |
 | [Evaluation](docs/evaluation.md) | Datasets, retrieval metrics and the CI check |
-| [Operations](docs/operations.md) | Health, logs, metrics and the audit log |
+| [Operations](docs/operations.md) | Health, logs, metrics, the audit log, and backups with tested restores |
 | [Development](docs/development.md) | Tests, migrations and workflow |
 | [Roadmap](docs/roadmap.md) | Completed and planned work |
 

@@ -59,3 +59,37 @@ Administrative actions (API keys, webhooks, chat widgets, deleted files and proj
 ## Malware scanning
 
 With `CLAMAV_URL` set, every new upload is scanned by ClamAV before it is kept, and refused when it cannot be scanned. `docker compose --profile scan up` starts a ClamAV daemon next to the API; point `CLAMAV_URL` at `tcp://clamav:3310`. See [API › Upload a file](api.md#upload-a-file).
+
+## Backups and restores
+
+A backup is the database and the uploaded files together, taken at the same time: one without the other cannot be restored. `tools/backup.sh` makes one archive of both and restores it.
+
+```bash
+# With docker compose: the backup service, written to ./backups
+docker compose --profile backup run --rm backup create /backups
+
+# Without docker: pg_dump, pg_restore and psql of the server's version or newer
+DATABASE_URL=postgresql://user:password@host:5432/mini_rag FILES_DIR=assets/files \
+    tools/backup.sh create /var/backups/mini-rag
+```
+
+| In the archive | |
+|---|---|
+| `database.dump` | `pg_dump`'s custom format: every table, the vector extension and the embeddings, so nothing needs indexing again |
+| `files.tar` | `FILES_DIR` as it was, with its owners |
+| `manifest.txt` | When it was made, the schema revision (`alembic_version`) and how many files |
+| `SHA256SUMS` | Checked before anything is restored: a damaged archive is refused |
+
+The compose `backup` service runs in the database's own image, so its `pg_dump` matches the server, and it reaches the database through its socket, which needs no password. Schedule it like any command, e.g. from cron on the host: `0 3 * * * cd /srv/mini-rag && docker compose --profile backup run --rm backup create /backups`. Keep copies somewhere else as well: a backup on the same disk as the data goes with it.
+
+To restore, stop what writes (the API and any `mini-rag worker`), restore, then start them again: a restore recreates the vector extension, which connections opened before it no longer recognize.
+
+```bash
+docker compose stop app
+docker compose --profile backup run --rm backup restore /backups/mini-rag-20261018-030000.tar.gz --force
+docker compose start app
+```
+
+A restore refuses a database that has tables, or a files folder that is not empty, so it never mixes two states; `--force` replaces them. Restore with the same version of Mini RAG, or an older backup: the API's migrations then bring the schema up to date when it starts. The schema revision in the manifest tells which version made it.
+
+Restores are tested in CI (`tests/test_backup.py`): an indexed project is backed up and restored into a new database and folder, where the files are byte for byte the same and search finds the same passages; restoring over a deleted project brings it back; a restore into a database with data is refused, and so is a damaged archive.
