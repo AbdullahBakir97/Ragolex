@@ -165,10 +165,13 @@ def test_private_addresses_are_not_crawled():
 class ScriptedCrawler:
     """Yields the pages given for each crawl in turn; an exception is raised instead."""
 
-    def __init__(self, *crawls):
+    def __init__(self, *crawls, removes_missing=True):
         self.crawls = list(crawls)
+        self.removes_missing = removes_missing
+        self.urls = []
 
     async def crawl(self, start_url, max_pages):
+        self.urls.append(start_url)
         crawl = self.crawls.pop(0)
         if isinstance(crawl, Exception):
             raise crawl
@@ -191,8 +194,9 @@ def sync(db, files_dir):
             engine = create_engine(db)
             try:
                 syncer = SourceSyncer(unit_of_work_factory(create_session_factory(engine)),
-                                      FileStorage(root=files_dir), crawler,
-                                      allowed_types=["text/html", "text/plain"],
+                                      FileStorage(root=files_dir),
+                                      {"website": crawler, "feed": crawler, "github": crawler},
+                                      allowed_types=["text/html", "text/plain", "text/markdown"],
                                       max_bytes=1_000_000, read_size=1024, max_attempts=3,
                                       limits=Limits(requests_per_minute=0, answers_per_month=0,
                                                     storage_mb=0))
@@ -246,6 +250,33 @@ def test_a_sources_pages_get_its_tags(client, sync):
     assert {tuple(f["tags"]) for f in tagged["items"]} == {("docs", "v2")}
     assert client.post("/api/v1/projects/docs/sources",
                        json={"url": f"{SITE}/x/", "tags": ["a b/c"]}).status_code == 422
+
+
+def test_a_feeds_older_entries_stay_when_they_drop_off_it(client, sync):
+    source = add_source(client, kind="feed", url=f"{SITE}/blog/feed.xml", sync_interval_hours=0)
+    assert source["kind"] == "feed"
+    entries = ScriptedCrawler([page("/blog/one", "First post"), page("/blog/two", "Second")],
+                              [page("/blog/three", "Third post"), page("/blog/two", "Second")],
+                              removes_missing=False)
+
+    sync(entries)
+    client.post(f"/api/v1/projects/docs/sources/{source['id']}/sync")
+    sync(entries)
+
+    assert set(files(client)) == {f"{SITE}/blog/one", f"{SITE}/blog/two", f"{SITE}/blog/three"}
+    assert entries.urls == [f"{SITE}/blog/feed.xml"] * 2
+
+
+def test_github_sources_need_a_repository_address(client):
+    added = add_source(client, kind="github", url="https://github.com/acme/handbook/tree/main/docs")
+    refused = client.post("/api/v1/projects/docs/sources",
+                          json={"kind": "github", "url": "https://github.com/acme"})
+    unknown = client.post("/api/v1/projects/docs/sources",
+                          json={"kind": "ftp", "url": f"{SITE}/x"})
+
+    assert (added["kind"], added["url"]) == ("github", "https://github.com/acme/handbook/tree/main/docs")
+    assert refused.status_code == unknown.status_code == 422
+    assert "github.com/<owner>/<repo>" in refused.text
 
 
 def test_later_syncs_add_replace_and_remove_pages(client, sync):

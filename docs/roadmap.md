@@ -61,7 +61,8 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] More formats: DOCX, Markdown and HTML, split by section.
 - [ ] OCR for scanned PDFs.
 - [x] A website connector: crawled within its site and folder, obeying robots.txt, synced on a schedule, adding, replacing and removing pages.
-- [ ] More connectors: GitHub, Notion, Google Drive, RSS.
+- [x] RSS and Atom feeds, and GitHub repositories' documents, as sources synced like websites.
+- [ ] Connectors that need each user's sign-in (OAuth): Notion, Google Drive.
 - [x] Signed outgoing webhooks for automation tools such as n8n, Make and Zapier.
 - [ ] Telegram, Slack and WhatsApp bots.
 

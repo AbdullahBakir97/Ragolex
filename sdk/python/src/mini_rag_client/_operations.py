@@ -248,15 +248,16 @@ class Operations:
         project_id: str,
         *,
         url: str,
+        kind: Literal['website', 'feed', 'github'] | str | Unset = UNSET,
         max_pages: int | Unset = UNSET,
         sync_interval_hours: int | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
     ) -> SourceResponse:
-        """Keep a website's pages in the project
+        """Keep a website's pages, a feed's entries or a GitHub repository's documents
 
-        The site's pages under the URL's folder are crawled, following their links (robots.txt is obeyed), and each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone. The first sync starts at once. The project is created if it has no files yet.
+        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
         """
-        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
 
     def list_sources(
         self,
@@ -818,15 +819,16 @@ class AsyncOperations:
         project_id: str,
         *,
         url: str,
+        kind: Literal['website', 'feed', 'github'] | str | Unset = UNSET,
         max_pages: int | Unset = UNSET,
         sync_interval_hours: int | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
     ) -> SourceResponse:
-        """Keep a website's pages in the project
+        """Keep a website's pages, a feed's entries or a GitHub repository's documents
 
-        The site's pages under the URL's folder are crawled, following their links (robots.txt is obeyed), and each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone. The first sync starts at once. The project is created if it has no files yet.
+        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
         """
-        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
 
     async def list_sources(
         self,

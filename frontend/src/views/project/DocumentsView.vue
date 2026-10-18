@@ -843,6 +843,13 @@ onMounted(() => load(0));
   white-space: nowrap;
 }
 
+/* Long ids (a source's pages are named after their address) stay within a phone's width. */
+@media (max-width: 560px) {
+  .file-id {
+    max-width: 150px;
+  }
+}
+
 .count-skeleton {
   display: inline-block;
   width: 32px;

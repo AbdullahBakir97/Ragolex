@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import logging
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -76,13 +76,14 @@ class SourceSyncer:
     """
 
     def __init__(self, unit_of_work: Callable[..., AbstractAsyncContextManager[UnitOfWork]],
-                 storage: FileStorage, crawler: Crawler, *, allowed_types: Sequence[str],
+                 storage: FileStorage, crawlers: Mapping[str, Crawler], *,
+                 allowed_types: Sequence[str],
                  max_bytes: int, read_size: int, max_attempts: int, limits: Limits,
                  scanner: MalwareScanner | None = None, lease_seconds: int = 3600,
                  poll_seconds: float = 5.0):
         self.unit_of_work = unit_of_work
         self.storage = storage
-        self.crawler = crawler
+        self.crawlers = crawlers
         self.allowed_types = list(allowed_types)
         self.max_bytes = max_bytes
         self.read_size = read_size
@@ -95,8 +96,9 @@ class SourceSyncer:
     @classmethod
     def from_settings(cls, settings: Settings,
                       unit_of_work: Callable[..., AbstractAsyncContextManager[UnitOfWork]],
-                      crawler: Crawler, scanner: MalwareScanner | None) -> "SourceSyncer":
-        return cls(unit_of_work, FileStorage(root=settings.FILES_DIR), crawler,
+                      crawlers: Mapping[str, Crawler],
+                      scanner: MalwareScanner | None) -> "SourceSyncer":
+        return cls(unit_of_work, FileStorage(root=settings.FILES_DIR), crawlers,
                    allowed_types=settings.FILE_ALLOWED_TYPES,
                    max_bytes=settings.max_upload_bytes, read_size=settings.FILE_DEFAULT_CHUNK_SIZE,
                    max_attempts=settings.JOB_MAX_ATTEMPTS, scanner=scanner,
@@ -134,8 +136,9 @@ class SourceSyncer:
         async with self.unit_of_work(source.tenant_id) as uow:
             known = {page.url: page for page in await uow.sources.pages(source.id)}
             seen: set[str] = set()
+            crawler = self.crawlers[source.kind]
             try:
-                async for item in self.crawler.crawl(source.url, source.max_pages):
+                async for item in crawler.crawl(source.url, source.max_pages):
                     seen.add(item.url)
                     if not isinstance(item, UnreachablePage):
                         await self._keep(uow, source, item.url, item.content_type, item.body,
@@ -145,7 +148,9 @@ class SourceSyncer:
             except Exception as exc:
                 logger.exception("Syncing %s failed", source.url)
                 result.error = f"the sync failed unexpectedly ({type(exc).__name__})"
-            if result.error is None:
+            # Only a complete crawl shows what is gone, and only where pages go away:
+            # a feed lists its latest entries, so older ones stay.
+            if result.error is None and crawler.removes_missing:
                 for url in sorted(known.keys() - seen):
                     await self._forget(uow, source, known[url])
                     result.removed += 1

@@ -356,7 +356,7 @@ class Widget:
     tags: tuple[str, ...] = ()
 
 
-SourceKind = Literal["website"]
+SourceKind = Literal["website", "feed", "github"]
 
 
 @dataclass(frozen=True)

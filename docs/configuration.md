@@ -35,6 +35,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `CRAWLER_ALLOW_PRIVATE_URLS` | `false` | Let website sources reach `localhost` and private networks, e.g. an intranet wiki. Off, only public addresses are crawled |
 | `CRAWLER_DELAY_SECONDS` | `0.5` | Pause between a crawl's requests (0–10); a site's robots.txt `Crawl-delay` can make it longer |
 | `CRAWLER_TIMEOUT_SECONDS` | `15` | How long one page may take to arrive (up to 120) |
+| `GITHUB_TOKEN` | unset | A GitHub token for [GitHub sources](api.md#feeds-and-github-repositories): reads private repositories (fine-grained, with *Contents: read*) and raises the rate limit from 60 requests an hour to 5000 |
 | `WEBHOOK_TIMEOUT_SECONDS` | `10` | How long a webhook's receiver has to answer (up to 60) |
 | `SEARCH_MODE` | `"hybrid"` | `hybrid` ranks chunks by meaning and by the words they share with the question, merged by reciprocal rank fusion; `vector` by meaning only. Scores are the cosine similarity either way |
 | `ANSWER_MIN_SCORE` | `0.3` | Chunks scoring below this cosine similarity are not used for answers; with none left the answer is `no_answer`. The default suits `text-embedding-3-small`; other models may need another value |

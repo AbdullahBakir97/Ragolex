@@ -15,6 +15,7 @@ from pydantic import (
     model_validator,
 )
 
+from mini_rag.connectors.github import parse_repository
 from mini_rag.core.errors import AppError
 from mini_rag.domain.models import SearchFilters
 from mini_rag.domain.signals import ResponseSignal
@@ -698,9 +699,19 @@ class WidgetAnswer(BaseModel):
 SourceIdPath = Annotated[UUID, Path(description="The source's id.")]
 
 
+SourceKind = Literal["website", "feed", "github"]
+
+
 class SourceRequest(BaseModel):
-    url: AnyHttpUrl = Field(description="Where to start: the site's pages under this URL's "
-                                        "folder are crawled, following their links.",
+    kind: SourceKind = Field(
+        default="website",
+        description="`website`: the site's pages under the URL's folder, found by following "
+                    "their links. `feed`: an RSS or Atom feed's entries. `github`: the "
+                    "documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one "
+                    "folder of it.")
+    url: AnyHttpUrl = Field(description="The website's start page, the feed's address, or the "
+                                        "repository's: `https://github.com/owner/repo`, "
+                                        "optionally with `/tree/<branch>/<folder>`.",
                             examples=["https://docs.example.com/guide/"])
     max_pages: int = Field(default=50, ge=1, le=1000, description="Most pages to keep.")
     sync_interval_hours: int = Field(
@@ -715,10 +726,17 @@ class SourceRequest(BaseModel):
             raise ValueError("the URL is longer than 2000 characters")
         return url
 
+    @model_validator(mode="after")
+    def check_repository(self) -> "SourceRequest":
+        if self.kind == "github" and parse_repository(str(self.url)) is None:
+            raise ValueError("a github source's url must be https://github.com/<owner>/<repo>, "
+                             "optionally with /tree/<branch>/<folder>")
+        return self
+
 
 class SourceResponse(BaseModel):
     id: str
-    kind: Literal["website"]
+    kind: SourceKind
     url: str
     max_pages: int
     sync_interval_hours: int

@@ -379,7 +379,8 @@ class SourcePagesResponse(Model):
 
 
 class SourceRequest(Model):
-    url: str = Field(description="Where to start: the site's pages under this URL's folder are crawled, following their links.")
+    kind: Literal['website', 'feed', 'github'] | str = Field(default='website', description="`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.")
+    url: str = Field(description="The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.")
     max_pages: int = Field(default=50, description='Most pages to keep.')
     sync_interval_hours: int = Field(default=24, description='Sync again after this many hours; 0 syncs only when asked.')
     tags: list[str] | None = Field(default=None, description='Given to the pages it stores.')
@@ -387,7 +388,7 @@ class SourceRequest(Model):
 
 class SourceResponse(Model):
     id: str
-    kind: Literal['website']
+    kind: Literal['website', 'feed', 'github'] | str
     url: str
     max_pages: int
     sync_interval_hours: int
