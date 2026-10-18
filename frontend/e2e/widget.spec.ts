@@ -17,5 +17,6 @@ test("a chat widget is added, and its live preview answers", async ({ page, requ
   const input = widget.locator("textarea");
   await input.fill("How many days of paid leave do employees get?");
   await input.press("Enter");
-  await expect(widget.getByText("Employees get 25 days of paid leave each year")).toBeVisible();
+  // The answer first; the widget may also show the source it quotes.
+  await expect(widget.getByText("Employees get 25 days of paid leave each year").first()).toBeVisible();
 });
