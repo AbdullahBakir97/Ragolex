@@ -2,8 +2,10 @@ from collections.abc import Mapping
 from pathlib import PurePath
 
 from mini_rag.core.errors import UnsupportedFileType
+from mini_rag.domain.file_types import CODE_LANGUAGES
 
 from .base import DocumentLoader
+from .code_loader import CodeLoader
 from .docx_loader import DocxLoader
 from .html_loader import HtmlLoader
 from .markdown_loader import MarkdownLoader
@@ -35,7 +37,9 @@ class LoaderRegistry:
 
 def default_loader_registry() -> LoaderRegistry:
     markdown, html = MarkdownLoader(), HtmlLoader()
+    code = {language: CodeLoader(language) for language in set(CODE_LANGUAGES.values())}
     return LoaderRegistry({
+        **{extension: code[language] for extension, language in CODE_LANGUAGES.items()},
         ".txt": TextLoader(),
         ".md": markdown,
         ".markdown": markdown,

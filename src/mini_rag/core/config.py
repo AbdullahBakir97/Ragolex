@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from mini_rag.domain.file_types import CODE_TYPES
 from mini_rag.domain.llm import TokenPrices
 
 BYTES_PER_MB = 1024 * 1024
@@ -48,6 +49,7 @@ class Settings(BaseSettings):
     FILE_ALLOWED_TYPES: list[str] = [
         "text/plain", "text/markdown", "text/html", "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        *sorted(set(CODE_TYPES.values())),
     ]
     FILE_MAX_SIZE: int = Field(default=10, gt=0, description="Maximum upload size in MB")
     FILE_DEFAULT_CHUNK_SIZE: int = Field(default=512_000, gt=0,

@@ -82,7 +82,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 - [ ] Summaries, flashcards and quizzes generated from documents, each answer linked to its source page.
 - [ ] Spaced-repetition review and export to Anki.
-- [ ] Code-aware chunking for source repositories.
+- [x] Code-aware chunking for source repositories.
 
 ### Phase 8: Security and privacy
 

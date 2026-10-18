@@ -28,6 +28,10 @@ def test_every_setting_has_a_default(no_settings):
     assert settings.FILE_ALLOWED_TYPES == [
         "text/plain", "text/markdown", "text/html", "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        # Source code
+        "text/javascript", "text/x-c", "text/x-c++", "text/x-csharp", "text/x-go", "text/x-java",
+        "text/x-kotlin", "text/x-php", "text/x-python", "text/x-rust", "text/x-swift",
+        "text/x-typescript",
     ]
     assert (settings.FILE_MAX_SIZE, settings.FILE_DEFAULT_CHUNK_SIZE) == (10, 512_000)
 

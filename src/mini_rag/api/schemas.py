@@ -224,7 +224,8 @@ class CitationResponse(BaseModel):
     page: int | None = Field(description="Page number for PDFs, starting at 1; null otherwise.")
     section: str | None = Field(default=None, description=(
         "The headings above the passage in Markdown, HTML and Word files, "
-        "e.g. \"Setup > Install\"; null otherwise."))
+        "e.g. \"Setup > Install\"; the function or class in source code, e.g. "
+        "\"Parser.parse\"; null otherwise."))
     score: float = Field(description="Cosine similarity to the question: 1 is the best match.")
     text: str
 

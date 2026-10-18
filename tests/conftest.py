@@ -35,7 +35,6 @@ TEST_ENV = {
     "APP_NAME": "mini-RAG-test",
     "APP_VERSION": "0.0.1",
     "OPENAI_API_KEY": "test-key",
-    "FILE_ALLOWED_TYPES": '["text/plain", "text/markdown", "text/html", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]',
     "FILE_MAX_SIZE": "1",
     "FILE_DEFAULT_CHUNK_SIZE": "1024",
     "DATABASE_URL": TEST_DATABASE_URL,

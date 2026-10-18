@@ -116,7 +116,8 @@ def _document(directory: Path, name: str) -> DatasetDocument:
     path = directory / "documents" / name
     content_type = CONTENT_TYPES.get(path.suffix.lower())
     if content_type is None:
-        raise DatasetError(f"{path}: only {', '.join(CONTENT_TYPES)} documents are supported")
+        raise DatasetError(f"{path}: {path.suffix or 'a file with no extension'} is not a "
+                           "supported document type")
     if not path.is_file():
         raise DatasetError(f"{path}: the document does not exist")
     return DatasetDocument(name=name, path=path, content_type=content_type)
