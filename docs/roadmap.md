@@ -108,6 +108,6 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] A chat interface with citations, conversation history and feedback.
 - [x] Document management with upload, job status and website sources.
 - [ ] An admin dashboard for keys, usage, cost and evaluation scores.
-- [ ] Accessible, responsive, tested end to end with Playwright.
+- [x] Accessible, responsive, tested end to end with Playwright.
 
 Ideas and feedback are welcome in [issues](https://github.com/AbdullahBakir97/Mini-RAG/issues).
