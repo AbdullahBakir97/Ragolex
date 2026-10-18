@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal, TypeVar
 
-from ._types import UNSET, Unset, _body, _list, _none, _path, _raw
+from ._types import UNSET, Unset, _body, _bytes, _list, _none, _path, _raw
 from .models import (
     ApiKeyCreatedResponse,
     ApiKeyRequest,
@@ -512,6 +512,15 @@ class Operations:
         Administrative actions: API keys created and revoked, webhooks and chat widgets added, changed and removed, files and projects deleted, and limits changed, each with the key that did it and its request id. Kept as long as the tenant.
         """
         return self._request('GET', '/api/v1/audit', query={'action': action, 'offset': offset, 'limit': limit}, json=None, response=AuditListResponse.model_validate)
+
+    def export_tenant(
+        self,
+    ) -> bytes:
+        """Everything the tenant has, as a ZIP archive
+
+        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+        """
+        return self._request('GET', '/api/v1/export', query={}, json=None, response=_bytes)
 
     def tool_schemas(
         self,
@@ -1082,6 +1091,15 @@ class AsyncOperations:
         Administrative actions: API keys created and revoked, webhooks and chat widgets added, changed and removed, files and projects deleted, and limits changed, each with the key that did it and its request id. Kept as long as the tenant.
         """
         return await self._request('GET', '/api/v1/audit', query={'action': action, 'offset': offset, 'limit': limit}, json=None, response=AuditListResponse.model_validate)
+
+    async def export_tenant(
+        self,
+    ) -> bytes:
+        """Everything the tenant has, as a ZIP archive
+
+        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+        """
+        return await self._request('GET', '/api/v1/export', query={}, json=None, response=_bytes)
 
     async def tool_schemas(
         self,

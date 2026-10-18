@@ -10,7 +10,7 @@ from typing import IO, Any, TypeVar
 import httpx
 
 from ._operations import AsyncOperations, Operations
-from ._types import UNSET, Unset, _body, _path
+from ._types import UNSET, Unset, _body, _bytes, _path
 from .errors import MiniRagError
 from .models import (
     AskRequest,
@@ -52,6 +52,8 @@ class _Base:
 
     @staticmethod
     def _parse(response: httpx.Response, parse: Callable[[Any], T]) -> T:
+        if parse is _bytes:
+            return parse(response.content)
         return parse(response.json() if response.content else None)
 
     @staticmethod

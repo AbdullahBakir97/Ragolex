@@ -50,6 +50,10 @@ class TenantRepository(Protocol):
         """In name order."""
         ...
 
+    async def delete(self, tenant_id: int) -> bool:
+        """Delete the tenant with what is left of it (keys, audit log); False if there was none."""
+        ...
+
     async def set_limits(self, tenant_id: int, limits: Mapping[str, int | None]) -> None:
         """Change the limits named in ``limits``; None returns one to the server's default."""
         ...

@@ -56,6 +56,7 @@ from mini_rag.services.job_runner import JobRunner
 from mini_rag.services.processing_service import ProcessingService
 from mini_rag.services.search_service import SearchService
 from mini_rag.services.source_syncer import SourceSyncer
+from mini_rag.services.tenant_data_service import TenantDataService
 from mini_rag.services.upload_service import UploadService
 from mini_rag.services.webhook_dispatcher import WebhookDispatcher
 from mini_rag.storage.file_storage import FileStorage
@@ -399,6 +400,40 @@ async def _export_feedback(args: argparse.Namespace) -> int:
     return PASSED
 
 
+async def _tenant_data(args: argparse.Namespace, session) -> int:
+    """`mini-rag tenants export` and `mini-rag tenants delete`."""
+    tenant = await SqlUnitOfWork(session).tenants.get_by_name(args.name)
+    if tenant is None:
+        print(f"There is no tenant {args.name!r}.", file=sys.stderr)
+        return 1
+    settings = get_settings()
+    service = TenantDataService(SqlUnitOfWork(session, tenant.id),
+                                FileStorage(root=settings.FILES_DIR))
+    if args.action == "export":
+        if args.output.exists():
+            print(f"{args.output} exists already; choose a new file.", file=sys.stderr)
+            return 1
+        export = await service.export(tenant)
+        with args.output.open("xb") as target:
+            export.write(target, settings.APP_VERSION)
+        counts = ", ".join(f"{count} {name.replace('_', ' ')}"
+                           for name, count in export.counts.items())
+        print(f"Exported tenant {tenant.name} to {args.output}: {counts}.")
+        for missing in export.missing_files:
+            print(f"  Not on disk, left out: {missing}", file=sys.stderr)
+        return 0
+    if not args.yes:
+        projects = await SqlUnitOfWork(session, tenant.id).projects.count()
+        print(f"This deletes tenant {tenant.name} for good: its {projects} projects with their "
+              f"files on disk, its API keys and its audit log. Export it first with "
+              f"`mini-rag tenants export {tenant.name} <file.zip>`, then run this again with "
+              f"--yes.", file=sys.stderr)
+        return 1
+    deleted = await service.delete(tenant)
+    print(f"Deleted tenant {tenant.name} with its {deleted} projects.")
+    return 0
+
+
 async def _tenants_and_keys(args: argparse.Namespace) -> int:
     """`mini-rag tenants …`, `mini-rag keys …` and `mini-rag audit`."""
     engine = create_engine(get_settings().DATABASE_URL)
@@ -424,6 +459,8 @@ async def _tenants_and_keys(args: argparse.Namespace) -> int:
                 await uow.commit()
                 print(_limits_line(await uow.tenants.get_by_id(limited.id)))
                 return 0
+            if args.command == "tenants" and args.action in ("export", "delete"):
+                return await _tenant_data(args, session)
             if args.command == "tenants":
                 for tenant in await uow.tenants.list_all():
                     print(f"{tenant.id}\t{tenant.name}\t{tenant.created_at:%Y-%m-%d}\t"
@@ -557,7 +594,7 @@ def main(argv: list[str] | None = None) -> int:
                     "queues jobs.")
     worker.add_argument("--workers", type=_positive,
                         help="jobs to run at once (default JOB_WORKERS, or 1 when it is 0)")
-    tenants = commands.add_parser("tenants", help="create and list tenants",
+    tenants = commands.add_parser("tenants", help="create, list, export and delete tenants",
                                   description="Tenants keep their projects apart; API keys "
                                               "belong to one.")
     tenant_actions = tenants.add_subparsers(dest="action", required=True, metavar="action")
@@ -571,6 +608,19 @@ def main(argv: list[str] | None = None) -> int:
     tenant_limits.add_argument("name")
     for option in ("requests-per-minute", "answers-per-month", "storage-mb"):
         tenant_limits.add_argument(f"--{option}", type=_limit, metavar="N|default")
+    export_tenant = tenant_actions.add_parser(
+        "export", help="write everything a tenant has to a ZIP archive",
+        description="Projects with their files, sources, widgets, webhooks (without secrets) "
+                    "and conversations, and the tenant's API keys (names only) and audit log. "
+                    "Chunks and embeddings are left out.")
+    export_tenant.add_argument("name")
+    export_tenant.add_argument("output", type=Path, help="a new .zip file")
+    delete_tenant = tenant_actions.add_parser(
+        "delete", help="delete a tenant with all its projects, files, keys and audit log",
+        description="There is no undo: export the tenant first. Without --yes, only says "
+                    "what would be deleted.")
+    delete_tenant.add_argument("name")
+    delete_tenant.add_argument("--yes", action="store_true", help="really delete it")
     keys = commands.add_parser("keys", help="create, list and revoke a tenant's API keys")
     key_actions = keys.add_subparsers(dest="action", required=True, metavar="action")
     create_key = key_actions.add_parser("create", help="create a key; it is printed once")

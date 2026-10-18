@@ -102,6 +102,17 @@ def test_no_content_and_keys_are_optional():
     assert server.requests[0].method == "DELETE"
 
 
+def test_files_come_back_as_bytes():
+    zip_bytes = b"PK\x03\x04 an archive"
+    server = Server(httpx.Response(200, content=zip_bytes,
+                                   headers={"Content-Type": "application/zip"}))
+
+    with server.client() as rag:
+        assert rag.export_tenant() == zip_bytes
+
+    assert server.requests[0].url.path == "/api/v1/export"
+
+
 def test_errors_carry_the_signal_and_retry_after():
     server = Server(httpx.Response(429, json={"signal": "rate_limited"}, headers={"Retry-After": "12"}),
                     httpx.Response(422, json={"detail": [{"msg": "bad"}]}),

@@ -17,6 +17,7 @@ from mini_rag.api.routes import (
     base,
     conversations,
     data,
+    export,
     index,
     jobs,
     keys,
@@ -139,6 +140,7 @@ def create_app() -> FastAPI:
     app.include_router(widgets.public_router)
     app.include_router(keys.router)
     app.include_router(audit.router)
+    app.include_router(export.router)
     app.include_router(mcp.router)
     app.include_router(search.router)
     app.include_router(ask.router)

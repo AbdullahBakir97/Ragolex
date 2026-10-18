@@ -224,6 +224,11 @@ class SqlTenantRepository:
         rows = await self.session.scalars(select(TenantRow).order_by(TenantRow.name))
         return [_tenant(row) for row in rows]
 
+    async def delete(self, tenant_id: int) -> bool:
+        deleted = await self.session.scalar(
+            delete(TenantRow).where(TenantRow.id == tenant_id).returning(TenantRow.id))
+        return deleted is not None
+
     async def set_limits(self, tenant_id: int, limits: Mapping[str, int | None]) -> None:
         allowed = {"requests_per_minute", "answers_per_month", "storage_mb"}
         if unknown := set(limits) - allowed:

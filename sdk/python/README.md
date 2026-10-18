@@ -30,7 +30,7 @@ with MiniRag("https://rag.example.com", api_key="mrag_…") as rag:
 
 ## Every endpoint
 
-Each operation of the API is a method named after its `operationId`: `list_projects`, `list_files`, `set_file_tags`, `create_job`, `get_job`, `search_project`, `ask_project`, `create_conversation`, `create_source`, `create_webhook`, `create_widget`, `create_key`, `list_audit_events`… Path parameters come first; query parameters and body fields are keyword arguments. Results are the API's models, from `mini_rag_client.models`.
+Each operation of the API is a method named after its `operationId`: `list_projects`, `list_files`, `set_file_tags`, `create_job`, `get_job`, `search_project`, `ask_project`, `create_conversation`, `create_source`, `create_webhook`, `create_widget`, `create_key`, `list_audit_events`… Path parameters come first; query parameters and body fields are keyword arguments. Results are the API's models, from `mini_rag_client.models`, and files are `bytes`: `rag.export_tenant()` returns everything the tenant has as a ZIP archive (with an `admin` key).
 
 ```python
 files = rag.list_files("handbook", tag="hr", limit=50)

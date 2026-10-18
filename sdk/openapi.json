@@ -3732,6 +3732,32 @@
         }
       }
     },
+    "/api/v1/export": {
+      "get": {
+        "tags": [
+          "export"
+        ],
+        "summary": "Everything the tenant has, as a ZIP archive",
+        "description": "Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.",
+        "operationId": "export_tenant",
+        "responses": {
+          "200": {
+            "description": "The archive, named <tenant>-<date>.zip.",
+            "content": {
+              "application/zip": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
     "/api/v1/mcp": {
       "post": {
         "tags": [
