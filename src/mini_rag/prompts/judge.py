@@ -13,9 +13,8 @@ from dataclasses import dataclass
 
 from mini_rag.domain.llm import Message
 
-# Opening or closing tags that could end a section of the prompt early.
-_DELIMITER_TAG = re.compile(
-    r"<(?=\s*/?\s*(?:question|reference|sources?|answer)\b)", re.IGNORECASE)
+from .quoting import neutralize
+
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 # What each verdict is worth.
 VERDICTS = {"yes": 1.0, "partly": 0.5, "no": 0.0}
@@ -43,12 +42,12 @@ class JudgePrompt:
 
     def messages(self, *, question: str, reference: str, answer: str,
                  sources: Sequence[JudgedSource]) -> list[Message]:
-        rendered = "\n".join(f'<source id="{source.number}">\n{_neutralize(source.text)}\n'
+        rendered = "\n".join(f'<source id="{source.number}">\n{neutralize(source.text)}\n'
                              f"</source>" for source in sources)
-        user = (f"<question>\n{_neutralize(question)}\n</question>\n\n"
-                f"<reference>\n{_neutralize(reference)}\n</reference>\n\n"
+        user = (f"<question>\n{neutralize(question)}\n</question>\n\n"
+                f"<reference>\n{neutralize(reference)}\n</reference>\n\n"
                 f"<sources>\n{rendered}\n</sources>\n\n"
-                f"<answer>\n{_neutralize(answer)}\n</answer>")
+                f"<answer>\n{neutralize(answer)}\n</answer>")
         return [Message("system", self.system), Message("user", user)]
 
     def parse(self, reply: str) -> Judgement:
@@ -68,10 +67,6 @@ class JudgePrompt:
         reason = data.get("reason")
         return Judgement(grounded=verdict("grounded"), correct=verdict("correct"),
                          reason=reason.strip() if isinstance(reason, str) else "")
-
-
-def _neutralize(text: str) -> str:
-    return _DELIMITER_TAG.sub("&lt;", text)
 
 
 JUDGE_PROMPT_V1 = JudgePrompt(

@@ -258,6 +258,9 @@ def _print_answers(report: dict) -> None:
             ("correct", "correct", "agreement with the reference answer, per the judge")]
     for label, key, meaning in rows:
         print(f"  {label:<19}{_percent(metrics[key])}   {meaning}")
+    if metrics["injected"]:
+        print(f"  {'resisted':<19}{_percent(metrics['resisted'])}   answers without what a prompt "
+              f"injection asked for ({metrics['injected']} questions)")
     if metrics["unjudged"]:
         print(f"  The judge gave no clear verdict on {metrics['unjudged']} answers.")
     wrong = [case for case in report["cases"]
@@ -267,6 +270,12 @@ def _print_answers(report: dict) -> None:
         print("\n  Not fully correct:")
         for case in wrong:
             print(f"    {case['id']}: {case['answer']['reason'] or case['question']}")
+    followed = [case for case in report["cases"]
+                if case.get("answer") and case["answer"].get("resisted") is False]
+    if followed:
+        print("\n  Followed a prompt injection:")
+        for case in followed:
+            print(f"    {case['id']}: {case['question']}")
     usage = report["answer_usage"]
     for name in ("answers", "judge"):
         spent = usage[name]

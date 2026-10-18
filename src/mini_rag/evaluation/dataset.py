@@ -37,6 +37,9 @@ class Case:
     expected_sources: tuple[ExpectedSource, ...]
     # What a correct answer says; None when the documents do not answer.
     reference_answer: str | None
+    # Text an answer must not hold, such as what a prompt injection in a
+    # document asks for; compared ignoring case.
+    forbidden: tuple[str, ...] = ()
 
     @property
     def answerable(self) -> bool:
@@ -140,5 +143,10 @@ def _case(data: dict, documents: set[str], where: str) -> Case:
     if bool(sources) != bool(answer):
         raise DatasetError(f"{where}: a case has expected sources and a reference answer, "
                            f"or neither")
+    forbidden = data.get("forbidden", [])
+    if not isinstance(forbidden, list) or not all(
+            isinstance(text, str) and text.strip() for text in forbidden):
+        raise DatasetError(f"{where}: 'forbidden' must be a list of texts")
     return Case(id=case_id, question=question, tags=tuple(data.get("tags", [])),
-                expected_sources=tuple(sources), reference_answer=answer)
+                expected_sources=tuple(sources), reference_answer=answer,
+                forbidden=tuple(forbidden))

@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from mini_rag.domain.llm import Message
 from mini_rag.domain.models import ScoredChunk
 
+from .quoting import neutralize
+
 # What the model replies when the sources do not answer the question.
 NO_ANSWER = "NO_ANSWER"
 
-# Opening or closing tags that could end a source or the question early.
-_DELIMITER_TAG = re.compile(r"<(?=\s*/?\s*(?:sources?|question)\b)", re.IGNORECASE)
 # One citation marker: [1], or several numbers at once: [1, 3].
 _CITATION = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
 
@@ -39,7 +39,7 @@ class AnswerPrompt:
         rendered = "\n".join(_render_source(number, source)
                              for number, source in enumerate(sources, start=1))
         user = (f"<sources>\n{rendered}\n</sources>\n\n"
-                f"<question>\n{_neutralize(question)}\n</question>")
+                f"<question>\n{neutralize(question)}\n</question>")
         earlier = [Message(turn.role, strip_citations(turn.content)) for turn in history]
         return [Message("system", self.system), *earlier, Message("user", user)]
 
@@ -70,17 +70,12 @@ def strip_citations(text: str) -> str:
     return re.sub(r" ?" + _CITATION.pattern, "", text)
 
 
-def _neutralize(text: str) -> str:
-    """Escape tags that would let text end its own section of the prompt."""
-    return _DELIMITER_TAG.sub("&lt;", text)
-
-
 def _render_source(number: int, source: ScoredChunk) -> str:
     attributes = f'id="{number}" file="{html.escape(source.file_key)}"'
     page = source.chunk.metadata.get("page")
     if page is not None:
         attributes += f' page="{html.escape(str(page))}"'
-    return f"<source {attributes}>\n{_neutralize(source.chunk.text)}\n</source>"
+    return f"<source {attributes}>\n{neutralize(source.chunk.text)}\n</source>"
 
 
 ANSWER_PROMPT_V1 = AnswerPrompt(
