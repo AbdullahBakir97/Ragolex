@@ -208,6 +208,15 @@ class AskRequest(BaseModel):
                     "answer to it. Omit for a question on its own.")
     filters: SearchFiltersRequest | None = Field(
         default=None, description="Answer only from the chunks these filters leave.")
+    research: bool = Field(
+        default=False,
+        description="Research mode, for questions with several parts: the model plans the "
+                    "searches, and reviews what they found, searching again for what is still "
+                    "missing. Slower, and each step is a model call that counts in `usage`.")
+    max_steps: int = Field(
+        default=3, ge=1, le=5,
+        description="In research mode, the most planning and review steps; the server's "
+                    "RESEARCH_MAX_STEPS caps it.")
 
     @field_validator("question")
     @classmethod
@@ -215,6 +224,16 @@ class AskRequest(BaseModel):
         if not question.strip():
             raise ValueError("question must not be blank")
         return question
+
+    @property
+    def research_steps(self) -> int:
+        """The steps research mode may take; 0 without it."""
+        return self.max_steps if self.research else 0
+
+
+class SearchStepResponse(BaseModel):
+    query: str = Field(description="What was searched for.")
+    results: int = Field(description="How many chunks the search found.")
 
 
 class CitationResponse(BaseModel):
@@ -253,6 +272,8 @@ class AskResponse(BaseModel):
     message_id: int | None = Field(
         default=None, description="In a conversation: the answer's message, to rate it with "
                                   "PUT .../messages/{message_id}/feedback.")
+    research: list[SearchStepResponse] | None = Field(
+        default=None, description="In research mode: the searches made, in order; null otherwise.")
 
 
 class ProjectResponse(BaseModel):

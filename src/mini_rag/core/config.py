@@ -73,6 +73,10 @@ class Settings(BaseSettings):
         default=None, ge=0, le=2, description="Sampling temperature; empty uses the model's default")
     LLM_STREAM_USAGE: bool = Field(
         default=True, description="Ask for token usage at the end of streamed answers")
+    RESEARCH_MAX_STEPS: int = Field(
+        default=3, ge=1, le=5,
+        description="The most planning and review steps research mode may take per question; "
+                    "each is one model call before the answer, followed by its searches")
     LLM_INPUT_PRICE_PER_MILLION: float | None = Field(
         default=None, ge=0, description="US dollars per million prompt tokens; empty: cost unknown")
     LLM_OUTPUT_PRICE_PER_MILLION: float | None = Field(
