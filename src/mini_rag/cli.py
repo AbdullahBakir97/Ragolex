@@ -27,6 +27,7 @@ from mini_rag.evaluation.report import (
 )
 from mini_rag.llm.factory import create_llm
 from mini_rag.loaders.registry import default_loader_registry
+from mini_rag.ocr.factory import create_ocr
 from mini_rag.persistence.database import (
     EmbeddingDimensionsMismatch,
     create_engine,
@@ -474,7 +475,8 @@ async def _work(workers: int) -> int:
     sender = create_webhook_sender(settings)
     unit_of_work = unit_of_work_factory(create_session_factory(engine))
     runner = JobRunner(unit_of_work, FileStorage(root=settings.FILES_DIR),
-                       default_loader_registry(), embedder, settings.EMBEDDING_BATCH_SIZE)
+                       default_loader_registry(create_ocr(settings)), embedder,
+                       settings.EMBEDDING_BATCH_SIZE)
     dispatcher = WebhookDispatcher(unit_of_work, sender)
     crawler = create_crawler(settings)
     scanner = create_scanner(settings)

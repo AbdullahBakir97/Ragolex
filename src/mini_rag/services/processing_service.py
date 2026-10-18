@@ -2,7 +2,12 @@ from pathlib import Path
 
 import anyio.to_thread
 
-from mini_rag.core.errors import FileNotFound, NoTextExtracted, ProcessingFailed
+from mini_rag.core.errors import (
+    AppError,
+    FileNotFound,
+    NoTextExtracted,
+    ProcessingFailed,
+)
 from mini_rag.domain.models import Chunk, Document
 from mini_rag.domain.repositories import UnitOfWork
 from mini_rag.loaders.base import DocumentLoader
@@ -48,6 +53,8 @@ class ProcessingService:
                         splitter: RecursiveTextSplitter) -> list[Chunk]:
         try:
             documents = loader.load(path, source=source)
+        except AppError:
+            raise  # e.g. OcrFailed, which says what failed, and may pass on a retry
         except Exception as exc:
             raise ProcessingFailed(f"Could not read {source}") from exc
 

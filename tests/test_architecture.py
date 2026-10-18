@@ -10,10 +10,10 @@ PACKAGE = Path(__file__).resolve().parents[1] / "src" / "mini_rag"
 # Which mini_rag layers each layer may import. Web frameworks are only
 # allowed in the API layer, so everything below it works without HTTP, and
 # only persistence (and the API, which wires it up) may use SQLAlchemy.
-# Only embeddings and llm may use a model provider's SDK.
+# Only embeddings, llm and ocr may use a model provider's SDK.
 ALLOWED_LAYERS = {
     "api": {"api", "core", "domain", "services", "storage", "loaders", "text", "persistence",
-            "embeddings", "llm", "rerankers", "webhooks", "scanners", "connectors"},
+            "embeddings", "llm", "rerankers", "webhooks", "scanners", "connectors", "ocr"},
     # Services use the repository interfaces in domain, never persistence.
     "services": {"core", "domain", "storage", "loaders", "text", "prompts", "evaluation"},
     "persistence": {"core", "domain"},
@@ -23,6 +23,7 @@ ALLOWED_LAYERS = {
     "embeddings": {"core", "domain"},
     "llm": {"core", "domain"},
     "rerankers": {"core", "domain"},
+    "ocr": {"core", "domain"},
     # Sends webhook deliveries over HTTP; services use the WebhookSender interface.
     "webhooks": {"core", "domain"},
     # Scans uploads for malware; services use the MalwareScanner interface.
@@ -68,7 +69,7 @@ def test_layer_imports_follow_the_rules(layer):
                 violations.append(f"{path.name} imports {module}")
             if top in DATABASE_LIBRARIES and layer not in {"persistence", "api"}:
                 violations.append(f"{path.name} imports {module}")
-            if top in PROVIDER_SDKS and layer not in {"embeddings", "llm"}:
+            if top in PROVIDER_SDKS and layer not in {"embeddings", "llm", "ocr"}:
                 violations.append(f"{path.name} imports {module}")
             if top == "mini_rag":
                 target = rest.partition(".")[0]

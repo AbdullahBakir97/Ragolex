@@ -24,7 +24,11 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
+      # Languages to read scans in with OCR_ENGINE=tesseract, e.g. "eng deu".
+      args:
+        TESSERACT_LANGUAGES: ${TESSERACT_LANGUAGES:-}
     image: mini-rag
     env_file: .env
     environment:

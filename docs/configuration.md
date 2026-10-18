@@ -32,6 +32,10 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `WEBHOOK_ALLOW_PRIVATE_URLS` | `false` | Let webhooks reach `localhost` and private networks, e.g. n8n next to the API. Off, they reach only public addresses |
 | `CLAMAV_URL` | unset | ClamAV's daemon, as `tcp://host:port` (e.g. `tcp://clamav:3310` with `docker compose --profile scan`): every new upload is scanned for malware before it is kept, and refused when it cannot be scanned. Unset, uploads are not scanned. clamd refuses files over its `StreamMaxLength` (25 MB by default), so keep `FILE_MAX_SIZE` below it |
 | `CLAMAV_TIMEOUT_SECONDS` | `60` | How long one scan may take (up to 600) |
+| `OCR_ENGINE` | unset | Reads PDF pages that are pictures of text (scans): `tesseract` runs the Tesseract program, `vision` asks a vision model through `LLM_BASE_URL` (or OpenAI with `OPENAI_API_KEY`). Unset, scanned pages have no text. See [Reading scanned PDFs](#reading-scanned-pdfs) |
+| `OCR_LANGUAGES` | `eng` | Tesseract's languages, joined by `+`, such as `eng+deu`; each needs its model installed |
+| `OCR_MODEL` | `LLM_MODEL` | The vision model for `OCR_ENGINE=vision`, such as `gpt-4.1-mini`, or a local one in Ollama |
+| `OCR_TIMEOUT_SECONDS` | `120` | How long reading one page may take (up to 600) |
 | `CRAWLER_ALLOW_PRIVATE_URLS` | `false` | Let website sources reach `localhost` and private networks, e.g. an intranet wiki. Off, only public addresses are crawled |
 | `CRAWLER_DELAY_SECONDS` | `0.5` | Pause between a crawl's requests (0–10); a site's robots.txt `Crawl-delay` can make it longer |
 | `CRAWLER_TIMEOUT_SECONDS` | `15` | How long one page may take to arrive (up to 120) |
@@ -107,3 +111,16 @@ For example `WEB_PORT=3001` serves the web app on http://localhost:3001. Inside 
 Every setting has a default, so `.env` only needs what you change, typically the model settings above. Settings are validated when the app starts: an invalid value stops it with a message naming the setting. Values are never printed in these messages, so secrets such as `OPENAI_API_KEY` or the database password cannot end up in logs.
 
 `.env` holds secrets and is git-ignored; never commit it. The values in `.env.example` are for local development only.
+
+## Reading scanned PDFs
+
+A scanned PDF is pictures of pages, with no text to extract. With `OCR_ENGINE` set, a PDF page with almost no text of its own (under 20 characters) has its images read instead, skipping small ones such as logos; its chunks' metadata then has `"ocr": true`. Pages with text are read as before, so turning OCR on costs nothing for other files.
+
+| | `tesseract` | `vision` |
+|---|---|---|
+| Runs | Locally, on the API's and the workers' machines | Wherever the model is: OpenAI, or a local server such as Ollama |
+| Needs | The `tesseract` program and a model per language: build the image with `--build-arg TESSERACT_LANGUAGES="eng deu"` (or set `TESSERACT_LANGUAGES` for `docker compose build`) | A model that reads images, such as `gpt-4.1-mini`, or `llama3.2-vision` in Ollama |
+| Good at | Clean scans of printed text, offline and free | Poor scans, handwriting, tables and mixed languages; each page costs a model call |
+
+When a page cannot be read (the program is missing, the model fails), processing fails with `502` `{"signal": "ocr_failed"}`; a background job tries again later, as for other passing failures.
+

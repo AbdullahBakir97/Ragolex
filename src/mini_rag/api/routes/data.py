@@ -15,6 +15,7 @@ from mini_rag.core.errors import (
     FileNotFound,
     FileTooLarge,
     NoTextExtracted,
+    OcrFailed,
     ProcessingFailed,
     TagInvalid,
     UnsupportedFileType,
@@ -57,7 +58,8 @@ async def upload_data(
     summary="Split an uploaded file into chunks and store them",
     description="Processing a file again replaces its previous chunks. "
                 "Read the chunks with GET /api/v1/projects/{project_id}/files/{file_id}/chunks.",
-    responses=error_responses(FileNotFound, UnsupportedFileType, NoTextExtracted, ProcessingFailed),
+    responses=error_responses(FileNotFound, UnsupportedFileType, NoTextExtracted, ProcessingFailed,
+                              OcrFailed),
 )
 async def process_data(project_id: ProjectId, request: ProcessRequest,
                        processing_service: ProcessingServiceDep) -> ProcessResponse:

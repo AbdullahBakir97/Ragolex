@@ -1617,7 +1617,7 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
         /**
          * SearchFiltersRequest
          * @description Narrows the chunks searched; leave a field out not to narrow by it.
@@ -2287,6 +2287,15 @@ export interface operations {
             };
             /** @description Signal: `file_has_no_text`, `processing_failed` */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `ocr_failed` */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

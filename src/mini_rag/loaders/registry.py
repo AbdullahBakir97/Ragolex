@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from pathlib import PurePath
 
 from mini_rag.core.errors import UnsupportedFileType
+from mini_rag.domain.ocr import OcrEngine
 
 from .base import DocumentLoader
 from .docx_loader import DocxLoader
@@ -33,7 +34,8 @@ class LoaderRegistry:
             raise UnsupportedFileType() from None
 
 
-def default_loader_registry() -> LoaderRegistry:
+def default_loader_registry(ocr: OcrEngine | None = None) -> LoaderRegistry:
+    """Every supported file type; with ``ocr``, scanned PDF pages are read too."""
     markdown, html = MarkdownLoader(), HtmlLoader()
     return LoaderRegistry({
         ".txt": TextLoader(),
@@ -41,6 +43,6 @@ def default_loader_registry() -> LoaderRegistry:
         ".markdown": markdown,
         ".html": html,
         ".htm": html,
-        ".pdf": PdfLoader(),
+        ".pdf": PdfLoader(ocr),
         ".docx": DocxLoader(),
     })

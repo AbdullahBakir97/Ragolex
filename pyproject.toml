@@ -27,6 +27,8 @@ dependencies = [
     "pydantic-settings==2.16.0",
     "aiofiles==25.1.0",
     "pypdf==6.21.0",
+    # Reads the images of scanned PDF pages for OCR.
+    "pillow==12.3.0",
     "sqlalchemy[asyncio]==2.1.5",
     "asyncpg==0.32.0",
     "alembic==1.20.0",

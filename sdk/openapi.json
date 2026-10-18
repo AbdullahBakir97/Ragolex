@@ -289,6 +289,23 @@
                 }
               }
             }
+          },
+          "502": {
+            "description": "Signal: `ocr_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ocr_failed": {
+                    "value": {
+                      "signal": "ocr_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -6663,6 +6680,7 @@
           "embedding_failed",
           "llm_not_configured",
           "llm_failed",
+          "ocr_failed",
           "rerank_failed",
           "job_not_found",
           "job_not_failed",

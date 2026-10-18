@@ -235,6 +235,13 @@ class RerankFailed(AppError):
     status_code = HTTPStatus.BAD_GATEWAY
 
 
+class OcrFailed(AppError):
+    """A scanned page could not be read: the OCR engine failed or is missing."""
+
+    signal = ResponseSignal.OCR_FAILED
+    status_code = HTTPStatus.BAD_GATEWAY
+
+
 class LLMFailed(AppError):
     """The language model provider failed or returned something unusable."""
 

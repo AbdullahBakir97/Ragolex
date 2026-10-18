@@ -16,6 +16,7 @@ from mini_rag.domain.llm import LLM
 from mini_rag.domain.models import Limits, Principal, Scope
 from mini_rag.domain.repositories import UnitOfWork
 from mini_rag.loaders.registry import LoaderRegistry, default_loader_registry
+from mini_rag.ocr.factory import create_ocr
 from mini_rag.persistence.repositories import SqlUnitOfWork
 from mini_rag.services.answer_service import AnswerService
 from mini_rag.services.auth_service import AuthService
@@ -171,7 +172,7 @@ UploadServiceDep = Annotated[UploadService, Depends(get_upload_service)]
 
 @lru_cache
 def get_loader_registry() -> LoaderRegistry:
-    return default_loader_registry()
+    return default_loader_registry(create_ocr(get_settings()))
 
 
 LoaderRegistryDep = Annotated[LoaderRegistry, Depends(get_loader_registry)]
