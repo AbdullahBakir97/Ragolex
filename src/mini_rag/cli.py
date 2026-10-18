@@ -415,9 +415,13 @@ async def _tenants_and_keys(args: argparse.Namespace) -> int:
                 if limited is None:
                     print(f"There is no tenant {args.name!r}.", file=sys.stderr)
                     return 1
-                changes = {name: (None if value == "default" else int(value))
-                           for name in ("requests_per_minute", "answers_per_month", "storage_mb")
-                           if (value := getattr(args, name)) is not None}
+                changes: dict[str, int | float | None] = {
+                    name: (None if value == "default" else int(value))
+                    for name in ("requests_per_minute", "answers_per_month", "storage_mb")
+                    if (value := getattr(args, name)) is not None}
+                if args.budget_usd is not None:
+                    changes["budget_usd_per_month"] = (
+                        None if args.budget_usd == "default" else float(args.budget_usd))
                 await uow.tenants.set_limits(limited.id, changes)
                 await record(uow, limited.id, "tenant.limits_changed", limited.name,
                              changes=changes)
@@ -565,12 +569,15 @@ def main(argv: list[str] | None = None) -> int:
     create_tenant.add_argument("name", type=_tenant_name, help="letters, digits, _ and -")
     tenant_actions.add_parser("list", help="list tenants with their limits")
     tenant_limits = tenant_actions.add_parser(
-        "limits", help="set a tenant's rate limit and quotas",
+        "limits", help="set a tenant's rate limit, quotas and monthly budget",
         description="Each value is a number (0 is unlimited) or 'default' for the server's "
-                    "setting (RATE_LIMIT_PER_MINUTE, ANSWERS_PER_MONTH, STORAGE_MB_PER_TENANT).")
+                    "setting (RATE_LIMIT_PER_MINUTE, ANSWERS_PER_MONTH, STORAGE_MB_PER_TENANT, "
+                    "BUDGET_USD_PER_MONTH).")
     tenant_limits.add_argument("name")
     for option in ("requests-per-minute", "answers-per-month", "storage-mb"):
         tenant_limits.add_argument(f"--{option}", type=_limit, metavar="N|default")
+    tenant_limits.add_argument("--budget-usd", type=_budget, metavar="USD|default",
+                               help="US dollars of answers per calendar month, e.g. 25.50")
     keys = commands.add_parser("keys", help="create, list and revoke a tenant's API keys")
     key_actions = keys.add_subparsers(dest="action", required=True, metavar="action")
     create_key = key_actions.add_parser("create", help="create a key; it is printed once")
@@ -630,15 +637,26 @@ def _write_openapi(output: Path | None) -> int:
 def _limits_line(tenant) -> str:
     def show(value):
         return "default" if value is None else ("unlimited" if value == 0 else str(value))
+
+    def show_budget(value):
+        return show(value) if not value else f"${value:,.2f}/month"
     return (f"requests/minute {show(tenant.requests_per_minute)}, "
             f"answers/month {show(tenant.answers_per_month)}, "
-            f"storage MB {show(tenant.storage_mb)}")
+            f"storage MB {show(tenant.storage_mb)}, "
+            f"budget {show_budget(tenant.budget_usd_per_month)}")
 
 
 def _limit(value: str) -> str:
     if value == "default" or (value.isdigit() and int(value) <= 2_000_000_000):
         return value
     raise argparse.ArgumentTypeError("use a number of 0 or more, or 'default'")
+
+
+def _budget(value: str) -> str:
+    if value == "default" or re.fullmatch(r"\d{1,9}(\.\d{1,2})?", value):
+        return value
+    raise argparse.ArgumentTypeError("use an amount of 0 or more, such as 25 or 25.50, "
+                                     "or 'default'")
 
 
 def _key_id(value: str) -> str:

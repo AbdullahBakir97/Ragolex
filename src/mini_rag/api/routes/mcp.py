@@ -51,7 +51,8 @@ async def mcp_endpoint(request: Request, principal: CountedPrincipalDep, uow: Un
             return search
         await limits.check_answers(principal.tenant_id)
         return AnswerService(search=search, llm=get_llm(request), uow=uow,
-                             min_score=settings.ANSWER_MIN_SCORE, prices=settings.llm_prices)
+                             min_score=settings.ANSWER_MIN_SCORE, prices=settings.llm_prices,
+                             limits=limits)
 
     box = mcp.Toolbox(principal, services)
     if isinstance(message, list):  # A batch, from clients of older protocol versions.

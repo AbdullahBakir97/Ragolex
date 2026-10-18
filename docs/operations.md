@@ -30,6 +30,7 @@ The API writes one line per request (`mini_rag.access`: method, path, status and
 | `mini_rag_answers_total` | counter | `answered` | Questions answered (`true`) or that the documents did not answer (`false`) |
 | `mini_rag_llm_tokens_total` | counter | `kind` | Tokens the language model read (`input`) and wrote (`output`) for answers |
 | `mini_rag_llm_cost_usd_total` | counter | | What answers cost, where the model's prices are configured |
+| `mini_rag_budget_alerts_total` | counter | `threshold` | Tenants' answers reaching `80` and `100` percent of their monthly budget |
 | `mini_rag_uploads_total` | counter | `outcome` | Uploads `stored`, `duplicate` (content the project had) and `infected` |
 | `mini_rag_jobs_total` | counter | `outcome` | Job attempts `succeeded`, `retried` and `failed` |
 | `mini_rag_webhook_deliveries_total` | counter | `outcome` | Delivery attempts `delivered`, `retried` and `failed` |
@@ -55,6 +56,25 @@ Worth alerting on: a rising `mini_rag_jobs_in_state{status="queued"}` (workers f
 ## Audit log
 
 Administrative actions (API keys, webhooks, chat widgets, deleted files and projects, tenants' limits) are recorded per tenant, with the key and the request id behind each: `GET /api/v1/audit` with an `admin` key, or `mini-rag audit --tenant <name>`. See [API › Audit log](api.md#audit-log).
+
+## Budgets and cost
+
+The Usage page of the web app shows what answers cost: per day over the last 7, 30 or 90 days, per project and per model, from [`GET /api/v1/usage/history`](api.md#cost-history), with the tenant's budget for the month. Costs need the model's prices, `LLM_INPUT_PRICE_PER_MILLION` and `LLM_OUTPUT_PRICE_PER_MILLION`.
+
+A monthly budget in US dollars (`BUDGET_USD_PER_MONTH` for every tenant, or `mini-rag tenants limits <tenant> --budget-usd 25` for one) stops answers once it is spent, and alerts at 80% and 100%: a `budget.alert` webhook event, an audit event, a warning in the log and `mini_rag_budget_alerts_total`. See [API › Budgets](api.md#budgets-and-their-alerts).
+
+The metrics also suit alerts across the whole server, in Prometheus:
+
+```yaml
+groups:
+  - name: mini-rag-cost
+    rules:
+      - alert: MiniRagSpendingFast
+        # More than $20 of answers in the last 24 hours, over all API processes.
+        expr: sum(increase(mini_rag_llm_cost_usd_total[1d])) > 20
+      - alert: MiniRagBudgetReached
+        expr: sum(increase(mini_rag_budget_alerts_total{threshold="100"}[1h])) > 0
+```
 
 ## Malware scanning
 

@@ -138,6 +138,14 @@ class ConversationResponse(Model):
     widget_id: str | None = Field(default=None, description='The chat widget a visitor started it in; null otherwise.')
 
 
+class DayUsageResponse(Model):
+    answers: int = Field(description='Questions asked, streamed or not.')
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float = Field(description='Known cost, in US dollars.')
+    day: str = Field(description='The day, in UTC.')
+
+
 class DeliveryListResponse(Model):
     total: int
     offset: int
@@ -276,6 +284,14 @@ class Meter(Model):
     limit: int | None = Field(description='Null when unlimited.')
 
 
+class ModelShareResponse(Model):
+    answers: int = Field(description='Questions asked, streamed or not.')
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float = Field(description='Known cost, in US dollars.')
+    model: str | None = Field(description='The language model; null for questions that matched no source, so no model was called.')
+
+
 class ProcessRequest(Model):
     file_id: str = Field(description='The file_id returned by the upload endpoint.')
     chunk_size: int = Field(default=1000, description='Maximum chunk length in characters, overlap included.')
@@ -308,6 +324,14 @@ class ProjectResponse(Model):
     embedded_chunks_count: int = Field(description='Chunks that are indexed for search; equals chunks_count when the index is complete.')
 
 
+class ProjectShareResponse(Model):
+    answers: int = Field(description='Questions asked, streamed or not.')
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float = Field(description='Known cost, in US dollars.')
+    project: str
+
+
 class ProjectUsageResponse(Model):
     answers: int = Field(description='Questions asked, streamed or not.')
     answered: int = Field(description='Of those, how many got an answer rather than `no_answer`.')
@@ -325,7 +349,7 @@ class RatedAnswerResponse(Model):
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
-ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
 
 
 class SearchFiltersRequest(Model):
@@ -418,11 +442,19 @@ class TenantUsageResponse(Model):
     input_tokens: int = Field(description="Prompt tokens of this month's answers.")
     output_tokens: int
     cost_usd: float = Field(description="Known cost of this month's answers, in US dollars.")
+    budget_usd: float | None = Field(default=None, description='The monthly budget, in US dollars; null when there is none. Asking is refused once `cost_usd` reaches it.')
 
 
 class UploadResponse(Model):
     signal: ResponseSignal
     file_id: str
+
+
+class UsageHistoryResponse(Model):
+    start: datetime = Field(description='Start of the first day counted (UTC).')
+    days: list[DayUsageResponse] = Field(description='Every day, oldest first; days without answers have zeros.')
+    projects: list[ProjectShareResponse] = Field(description='Projects with answers in the period, costliest first.')
+    models: list[ModelShareResponse] = Field(description='Likewise, per model.')
 
 
 class UsageResponse(Model):
@@ -457,7 +489,7 @@ class WebhookListResponse(Model):
 
 class WebhookRequest(Model):
     url: str = Field(description='Where to POST events: an http or https URL.')
-    events: list[Literal['file.uploaded', 'file.deleted', 'job.succeeded', 'job.failed', 'source.synced'] | str] = Field(description='The events to send.')
+    events: list[Literal['file.uploaded', 'file.deleted', 'job.succeeded', 'job.failed', 'source.synced', 'budget.alert'] | str] = Field(description='The events to send.')
     description: str | None = Field(default=None)
 
 
@@ -522,5 +554,5 @@ class WidgetUpdateRequest(Model):
     tags: list[str] | None = Field(default=None, description='Answer only from files with any of these tags; [] or null for all files.')
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
+for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, MeResponse, MessageResponse, Meter, ModelShareResponse, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
     _model.model_rebuild()

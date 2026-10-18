@@ -182,6 +182,13 @@ class AnswerQuotaExceeded(AppError):
     status_code = HTTPStatus.TOO_MANY_REQUESTS
 
 
+class BudgetExceeded(AppError):
+    """The tenant's answers cost its whole budget for this calendar month."""
+
+    signal = ResponseSignal.BUDGET_EXCEEDED
+    status_code = HTTPStatus.TOO_MANY_REQUESTS
+
+
 class StorageQuotaExceeded(AppError):
     """The upload would take the tenant's files over its storage limit."""
 

@@ -44,6 +44,7 @@ from mini_rag.core import log_context
 from mini_rag.core.errors import (
     AnswerQuotaExceeded,
     AppError,
+    BudgetExceeded,
     ConversationNotFound,
     EmbeddingFailed,
     EmbeddingNotConfigured,
@@ -150,9 +151,10 @@ WidgetUnitOfWorkDep = Annotated[UnitOfWork, Depends(get_widget_unit_of_work)]
 
 
 def get_widget_answers(request: Request, uow: WidgetUnitOfWorkDep, settings: SettingsDep,
-                       embedder: EmbedderDep, llm: LLMDep) -> AnswerService:
+                       embedder: EmbedderDep, llm: LLMDep,
+                       limits: LimitServiceDep) -> AnswerService:
     search = get_search_service(request, uow, embedder, settings)
-    return get_answer_service(search, llm, uow, settings)
+    return get_answer_service(search, llm, uow, settings, limits)
 
 
 VISITOR_ERRORS = (WidgetNotFound, OriginNotAllowed, RateLimited)
@@ -175,7 +177,8 @@ async def widget_config(widget: WidgetDep) -> WidgetConfigResponse:
     response_class=StreamingResponse,
     responses={200: {"content": {"text/event-stream": {}},
                      "description": "Events: `delta`, then `answer` or `error`."},
-               **error_responses(*VISITOR_ERRORS, AnswerQuotaExceeded, ConversationNotFound,
+               **error_responses(*VISITOR_ERRORS, AnswerQuotaExceeded, BudgetExceeded,
+                                 ConversationNotFound,
                                  EmbeddingFailed, EmbeddingNotConfigured, LLMNotConfigured,
                                  LLMFailed)},
 )

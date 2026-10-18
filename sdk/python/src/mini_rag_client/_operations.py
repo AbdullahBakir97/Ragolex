@@ -47,6 +47,7 @@ from .models import (
     SourceResponse,
     TagListResponse,
     TenantUsageResponse,
+    UsageHistoryResponse,
     WebhookCreatedResponse,
     WebhookListResponse,
     WebhookRequest,
@@ -314,7 +315,7 @@ class Operations:
         project_id: str,
         *,
         url: str,
-        events: list[Literal['file.uploaded', 'file.deleted', 'job.succeeded', 'job.failed', 'source.synced'] | str],
+        events: list[Literal['file.uploaded', 'file.deleted', 'job.succeeded', 'job.failed', 'source.synced', 'budget.alert'] | str],
         description: str | None | Unset = UNSET,
     ) -> WebhookCreatedResponse:
         """Send a project's events to a URL
@@ -499,6 +500,17 @@ class Operations:
         """The tenant's usage this month, and its limits
         """
         return self._request('GET', '/api/v1/usage', query={}, json=None, response=TenantUsageResponse.model_validate)
+
+    def usage_history(
+        self,
+        *,
+        days: int | None = None,
+    ) -> UsageHistoryResponse:
+        """The tenant's answers and their cost per day, project and model
+
+        Over the last `days` days (UTC), today included: for a cost dashboard. Costs are those known, as in `/usage`.
+        """
+        return self._request('GET', '/api/v1/usage/history', query={'days': days}, json=None, response=UsageHistoryResponse.model_validate)
 
     def list_audit_events(
         self,
@@ -884,7 +896,7 @@ class AsyncOperations:
         project_id: str,
         *,
         url: str,
-        events: list[Literal['file.uploaded', 'file.deleted', 'job.succeeded', 'job.failed', 'source.synced'] | str],
+        events: list[Literal['file.uploaded', 'file.deleted', 'job.succeeded', 'job.failed', 'source.synced', 'budget.alert'] | str],
         description: str | None | Unset = UNSET,
     ) -> WebhookCreatedResponse:
         """Send a project's events to a URL
@@ -1069,6 +1081,17 @@ class AsyncOperations:
         """The tenant's usage this month, and its limits
         """
         return await self._request('GET', '/api/v1/usage', query={}, json=None, response=TenantUsageResponse.model_validate)
+
+    async def usage_history(
+        self,
+        *,
+        days: int | None = None,
+    ) -> UsageHistoryResponse:
+        """The tenant's answers and their cost per day, project and model
+
+        Over the last `days` days (UTC), today included: for a cost dashboard. Costs are those known, as in `/usage`.
+        """
+        return await self._request('GET', '/api/v1/usage/history', query={'days': days}, json=None, response=UsageHistoryResponse.model_validate)
 
     async def list_audit_events(
         self,

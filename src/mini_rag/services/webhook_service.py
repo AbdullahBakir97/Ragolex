@@ -18,9 +18,13 @@ async def emit(uow: UnitOfWork, project: Project, event: str, data: Mapping[str,
     Every delivery carries the same envelope: the event, when it happened,
     the project, and the event's ``data``.
     """
-    await uow.webhooks.enqueue(project.id, event, {
-        "event": event, "created_at": datetime.now(UTC).isoformat(),
-        "project": project.name, "data": dict(data)})
+    await uow.webhooks.enqueue(project.id, event, envelope(project, event, data))
+
+
+def envelope(project: Project, event: str, data: Mapping[str, Any]) -> dict[str, Any]:
+    """What a delivery of ``event`` carries."""
+    return {"event": event, "created_at": datetime.now(UTC).isoformat(),
+            "project": project.name, "data": dict(data)}
 
 
 @dataclass(frozen=True)

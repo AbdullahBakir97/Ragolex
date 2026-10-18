@@ -119,7 +119,7 @@ def test_the_cli_shows_and_checks_limits(db, capsys):
     assert cli.main(["tenants", "limits", "acme", "--answers-per-month", "10",
                      "--storage-mb", "0"]) == 0
     assert capsys.readouterr().out.strip() == (
-        "requests/minute default, answers/month 10, storage MB unlimited")
+        "requests/minute default, answers/month 10, storage MB unlimited, budget default")
     cli.main(["tenants", "list"])
     assert "answers/month 10" in capsys.readouterr().out
     with pytest.raises(SystemExit):

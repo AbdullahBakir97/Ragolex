@@ -64,6 +64,8 @@ from mini_rag.domain.models import (
     Tenant,
     TenantUsage,
     UnembeddedChunk,
+    UsageHistory,
+    UsageTotal,
     UsageTotals,
     Webhook,
     WebhookDelivery,
@@ -90,6 +92,7 @@ from .tables import (
     AnswerRow,
     ApiKeyRow,
     AuditEventRow,
+    BudgetAlertRow,
     ChunkRow,
     ConversationMessageRow,
     ConversationRow,
@@ -198,7 +201,8 @@ class SqlProjectRepository:
 def _tenant(row: TenantRow) -> Tenant:
     return Tenant(id=row.id, name=row.name, created_at=row.created_at,
                   requests_per_minute=row.requests_per_minute,
-                  answers_per_month=row.answers_per_month, storage_mb=row.storage_mb)
+                  answers_per_month=row.answers_per_month, storage_mb=row.storage_mb,
+                  budget_usd_per_month=row.budget_usd_per_month)
 
 
 class SqlTenantRepository:
@@ -224,8 +228,10 @@ class SqlTenantRepository:
         rows = await self.session.scalars(select(TenantRow).order_by(TenantRow.name))
         return [_tenant(row) for row in rows]
 
-    async def set_limits(self, tenant_id: int, limits: Mapping[str, int | None]) -> None:
-        allowed = {"requests_per_minute", "answers_per_month", "storage_mb"}
+    async def set_limits(self, tenant_id: int,
+                         limits: Mapping[str, int | float | None]) -> None:
+        allowed = {"requests_per_minute", "answers_per_month", "storage_mb",
+                   "budget_usd_per_month"}
         if unknown := set(limits) - allowed:
             raise ValueError(f"Unknown limits: {sorted(unknown)}")
         if limits:
@@ -236,6 +242,25 @@ class SqlTenantRepository:
 # The start of the current calendar month in UTC, whatever the session's time zone.
 _MONTH_START = literal_column(
     "date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", DateTime(timezone=True))
+# Today's start in UTC, likewise.
+_DAY_START = literal_column(
+    "date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", DateTime(timezone=True))
+
+
+def _usage_totals(key: Any) -> Select:
+    """Answers, tokens and known cost of the answers, by ``key``."""
+    return select(
+        key.label("key"),
+        func.count().label("answers"),
+        func.coalesce(func.sum(AnswerRow.input_tokens), 0).label("input_tokens"),
+        func.coalesce(func.sum(AnswerRow.output_tokens), 0).label("output_tokens"),
+        func.coalesce(func.sum(AnswerRow.cost_usd), 0).label("cost_usd"),
+    ).group_by(key)
+
+
+def _usage_total(row: Any) -> UsageTotal:
+    return UsageTotal(key=row.key, answers=row.answers, input_tokens=row.input_tokens,
+                      output_tokens=row.output_tokens, cost_usd=float(row.cost_usd))
 
 
 class SqlUsageRepository:
@@ -276,6 +301,34 @@ class SqlUsageRepository:
                            input_tokens=answers.input_tokens,
                            output_tokens=answers.output_tokens,
                            cost_usd=float(answers.cost_usd), storage_bytes=storage)
+
+    async def history(self, tenant_id: int, days: int) -> UsageHistory:
+        start: datetime = (await self.session.execute(select(
+            _DAY_START - bindparam("back", timedelta(days=days - 1), type_=Interval)))).scalar_one()
+        mine = and_(ProjectRow.id == AnswerRow.project_id, ProjectRow.tenant_id == tenant_id,
+                    AnswerRow.created_at >= start)
+
+        async def totals(key: Any) -> list[UsageTotal]:
+            rows = await self.session.execute(_usage_totals(key).select_from(AnswerRow).join(
+                ProjectRow, mine).order_by(func.sum(AnswerRow.cost_usd).desc().nulls_last(),
+                                            func.count().desc(), key))
+            return [_usage_total(row) for row in rows]
+
+        by_day = {total.key: total for total in await totals(
+            func.to_char(func.timezone("UTC", AnswerRow.created_at), "YYYY-MM-DD"))}
+        dates = [(start + timedelta(days=offset)).date().isoformat() for offset in range(days)]
+        return UsageHistory(
+            start=start,
+            days=[by_day.get(day, UsageTotal(day, 0, 0, 0, 0.0)) for day in dates],
+            projects=await totals(ProjectRow.name),
+            models=await totals(AnswerRow.model))
+
+    async def add_budget_alert(self, tenant_id: int, threshold: int) -> bool:
+        added = await self.session.scalar(
+            pg_insert(BudgetAlertRow)
+            .values(tenant_id=tenant_id, period_start=_MONTH_START, threshold=threshold)
+            .on_conflict_do_nothing().returning(BudgetAlertRow.threshold))
+        return added is not None
 
 
 def _api_key(row: ApiKeyRow) -> ApiKey:
@@ -944,6 +997,19 @@ class SqlWebhookRepository:
             func.gen_random_uuid(), WebhookRow.id, bindparam("event", event, type_=String),
             bindparam("payload", dict(payload), type_=JSONB),
         ).where(WebhookRow.project_id == project_id,
+                bindparam("wanted", event, type_=String) == any_(WebhookRow.events))
+        result = await self.session.execute(
+            insert(WebhookDeliveryRow)
+            .from_select(["id", "webhook_id", "event", "payload"], subscribed))
+        return _affected(result)
+
+    async def enqueue_for_tenant(self, tenant_id: int, event: str,
+                                 payload: Mapping[str, Any]) -> int:
+        projects = select(ProjectRow.id).where(ProjectRow.tenant_id == tenant_id)
+        subscribed = select(
+            func.gen_random_uuid(), WebhookRow.id, bindparam("event", event, type_=String),
+            bindparam("payload", dict(payload), type_=JSONB),
+        ).where(WebhookRow.project_id.in_(projects),
                 bindparam("wanted", event, type_=String) == any_(WebhookRow.events))
         result = await self.session.execute(
             insert(WebhookDeliveryRow)

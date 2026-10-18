@@ -21,6 +21,7 @@ const EVENT_HELP: Record<WebhookEvent, string> = {
   "job.succeeded": "A file was processed and indexed",
   "job.failed": "Processing a file failed, after its last attempt",
   "source.synced": "A website source was synced: pages added, updated and removed",
+  "budget.alert": "The tenant's answers reached 80% or 100% of its monthly budget",
 };
 
 const webhooks = ref<Webhook[]>([]);
