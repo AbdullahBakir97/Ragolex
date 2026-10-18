@@ -30,6 +30,8 @@ import type {
   SearchOptions,
   SearchResult,
   TagCount,
+  StudyKind,
+  StudyMaterial,
   TenantUsage,
   UploadResult,
   Webhook,
@@ -211,6 +213,9 @@ export const api = {
     post<Job>(`/projects/${project(name)}/jobs`, { file_id: fileId, ...options }),
   job: (name: string, jobId: string) => get<Job>(`/projects/${project(name)}/jobs/${encodeURIComponent(jobId)}`),
   me: () => get<Me>("/me"),
+  /** A summary, flashcards or a quiz from a processed document; one model call. */
+  study: (name: string, fileId: string, kind: StudyKind, count: number) =>
+    post<StudyMaterial>(`/study/${project(name)}`, { file_id: fileId, kind, count }),
   tenantUsage: () => get<TenantUsage>("/usage"),
   webhooks: (name: string, page: PageParams = {}) =>
     get<Page<Webhook>>(`/projects/${project(name)}/webhooks`, { offset: page.offset ?? 0, limit: page.limit ?? 100 }),

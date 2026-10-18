@@ -135,6 +135,7 @@ A `limit` of `null` is unlimited.
 | `POST` | `/api/v1/search/{project_id}` | Find the chunks that best match a question |
 | `POST` | `/api/v1/ask/{project_id}` | Answer a question from the project's documents, with citations |
 | `POST` | `/api/v1/ask/{project_id}/stream` | The same answer, streamed as it is written (Server-Sent Events) |
+| `POST` | `/api/v1/study/{project_id}` | A summary, flashcards or a quiz from a document, each item linked to its source |
 | `GET` | `/api/v1/projects` | List projects in name order (paged) |
 | `GET` | `/api/v1/projects/{project_id}` | Project details with file, chunk and index counts |
 | `GET` | `/api/v1/projects/{project_id}/usage` | Token usage and cost of the project's answers |
@@ -701,3 +702,34 @@ The response is the message with its new `feedback`; rating again replaces it, a
 ```
 
 `mini-rag feedback-export` turns these into evaluation cases; see [Evaluation](evaluation.md#growing-the-test-set-from-feedback).
+
+## Study
+
+`POST /api/v1/study/{project_id}` turns one processed document into study material, for learning it rather than asking it questions:
+
+| `kind` | Items |
+|---|---|
+| `summary` | Key points in the document's order: `text` |
+| `flashcards` | A question or term on the `front`, its answer on the `back` |
+| `quiz` | Multiple-choice questions: the `question`, four `choices`, the position of the right one in `answer` (from 0), and an `explanation` of why it is right |
+
+```bash
+curl -X POST http://localhost:8000/api/v1/study/demo1 \
+  -H "Content-Type: application/json" \
+  -d '{"file_id": "9jaqw1s4jucs_onboarding.pdf", "kind": "flashcards", "count": 10}'
+```
+
+```json
+{"kind": "flashcards", "file_id": "9jaqw1s4jucs_onboarding.pdf", "original_name": "onboarding.pdf",
+ "items": [{"front": "How many vacation days does an employee get?", "back": "25 days a year.", "sources": [3]}],
+ "sources": [{"number": 3, "chunk_index": 7, "page": 2, "section": null, "text": "Every employee gets 25 days of paid vacation a year…"}],
+ "prompt_version": "study-flashcards-v1",
+ "usage": {"input_tokens": 3184, "output_tokens": 412, "cost_usd": 0.0007248},
+ "passages": 12, "chunks": 12}
+```
+
+- **Linked to the source.** The document's chunks go to the model as numbered passages, and every item lists in `sources` the passages it comes from; `sources` in the response gives each one's chunk, page (PDFs) or section (Markdown, HTML, Word) and text. Items that cite no passage of the document are left out.
+- **At most `count` items** (1–30, by default 10), fewer when the document has less to say; `items` is empty when the model wrote nothing usable.
+- **Long documents.** Up to `STUDY_MAX_CHARACTERS` of the document goes to the model at once. A longer document is given in chunks spread evenly over it: `passages` says how many of its `chunks` were used.
+- **Costs an answer.** It needs the `ask` scope, makes one model call and is recorded like an answer: in the project's usage, the tenant's answer quota and its costs. The material itself is not stored.
+- **Errors.** A document that is not processed yet answers `409` `{"signal": "file_not_processed"}`; an unknown project or file `404`; a failing model `502` `{"signal": "llm_failed"}`.

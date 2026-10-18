@@ -11,6 +11,7 @@ class ResponseSignal(Enum):
     FILE_NOT_FOUND = "file_not_found"
     PROJECT_NOT_FOUND = "project_not_found"
     FILE_HAS_NO_TEXT = "file_has_no_text"
+    FILE_NOT_PROCESSED = "file_not_processed"
     PROCESSING_SUCCESS = "processing_success"
     PROCESSING_FAILED = "processing_failed"
     INDEXING_SUCCESS = "indexing_success"

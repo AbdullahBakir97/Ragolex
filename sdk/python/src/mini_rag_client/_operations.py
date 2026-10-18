@@ -45,6 +45,8 @@ from .models import (
     SourcePagesResponse,
     SourceRequest,
     SourceResponse,
+    StudyRequest,
+    StudyResponse,
     TagListResponse,
     TenantUsageResponse,
     WebhookCreatedResponse,
@@ -631,6 +633,20 @@ class Operations:
         """
         return self._request('GET', f'/api/v1/projects/{_path(project_id)}/feedback', query={'rating': rating, 'offset': offset, 'limit': limit}, json=None, response=FeedbackListResponse.model_validate)
 
+    def study(
+        self,
+        project_id: str,
+        *,
+        file_id: str,
+        kind: Literal['summary', 'flashcards', 'quiz'] | str,
+        count: int | Unset = UNSET,
+    ) -> StudyResponse:
+        """Write a summary, flashcards or a quiz from a document
+
+        Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.
+        """
+        return self._request('POST', f'/api/v1/study/{_path(project_id)}', query={}, json=_body(StudyRequest, {'file_id': file_id, 'kind': kind, 'count': count}, optional=False), response=StudyResponse.model_validate)
+
 
 class AsyncOperations:
     """Every operation of the API, as an async method named after its operationId."""
@@ -1200,6 +1216,20 @@ class AsyncOperations:
         """Rated answers, most recently rated first
         """
         return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/feedback', query={'rating': rating, 'offset': offset, 'limit': limit}, json=None, response=FeedbackListResponse.model_validate)
+
+    async def study(
+        self,
+        project_id: str,
+        *,
+        file_id: str,
+        kind: Literal['summary', 'flashcards', 'quiz'] | str,
+        count: int | Unset = UNSET,
+    ) -> StudyResponse:
+        """Write a summary, flashcards or a quiz from a document
+
+        Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.
+        """
+        return await self._request('POST', f'/api/v1/study/{_path(project_id)}', query={}, json=_body(StudyRequest, {'file_id': file_id, 'kind': kind, 'count': count}, optional=False), response=StudyResponse.model_validate)
 
 
 __all__ = ['AsyncOperations', 'Operations']

@@ -63,6 +63,13 @@ class FileNotFound(AppError):
     status_code = HTTPStatus.NOT_FOUND
 
 
+class FileNotProcessed(AppError):
+    """The file has no chunks yet: it must be processed first."""
+
+    signal = ResponseSignal.FILE_NOT_PROCESSED
+    status_code = HTTPStatus.CONFLICT
+
+
 class ProjectNotFound(AppError):
     signal = ResponseSignal.PROJECT_NOT_FOUND
     status_code = HTTPStatus.NOT_FOUND

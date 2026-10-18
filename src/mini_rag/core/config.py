@@ -100,6 +100,10 @@ class Settings(BaseSettings):
         default=0, ge=0, description="Answers per calendar month per tenant; 0 is unlimited")
     STORAGE_MB_PER_TENANT: int = Field(
         default=0, ge=0, description="Megabytes of uploaded files per tenant; 0 is unlimited")
+    STUDY_MAX_CHARACTERS: int = Field(
+        default=32_000, ge=1_000, le=1_000_000,
+        description="Characters of a document given to the model for study material; a longer "
+                    "document is given in chunks spread over it")
     JOB_WORKERS: int = Field(
         default=1, ge=0, le=32,
         description="Background jobs the app runs at once; 0 leaves them to `mini-rag worker`")

@@ -324,3 +324,50 @@ export interface SourcePage {
   file_id: string;
   synced_at: string;
 }
+
+export type StudyKind = "summary" | "flashcards" | "quiz";
+
+/** Items cite their passages by number, in `sources`. */
+export interface KeyPoint {
+  text: string;
+  sources: number[];
+}
+
+export interface Flashcard {
+  front: string;
+  back: string;
+  sources: number[];
+}
+
+export interface QuizQuestion {
+  question: string;
+  choices: string[];
+  /** The position of the right choice, from 0. */
+  answer: number;
+  explanation: string;
+  sources: number[];
+}
+
+export interface StudySource {
+  number: number;
+  chunk_index: number;
+  page: number | null;
+  section: string | null;
+  text: string;
+}
+
+interface StudyBase {
+  file_id: string;
+  original_name: string;
+  sources: StudySource[];
+  prompt_version: string;
+  usage: Usage;
+  /** Chunks given to the model, of `chunks`: fewer for a long document. */
+  passages: number;
+  chunks: number;
+}
+
+export type StudyMaterial =
+  | (StudyBase & { kind: "summary"; items: KeyPoint[] })
+  | (StudyBase & { kind: "flashcards"; items: Flashcard[] })
+  | (StudyBase & { kind: "quiz"; items: QuizQuestion[] });

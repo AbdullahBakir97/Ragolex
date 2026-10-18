@@ -748,3 +748,55 @@ class SourcePagesResponse(BaseModel):
     offset: int
     limit: int
     items: list[SourcePageResponse]
+
+
+class StudyRequest(BaseModel):
+    file_id: FileId = Field(description="The document to study; it must be processed.")
+    kind: Literal["summary", "flashcards", "quiz"] = Field(
+        description="`summary`: key points in the document's order. `flashcards`: a question "
+                    "or term on the front, its answer on the back. `quiz`: multiple-choice "
+                    "questions with four choices, the right one and why.")
+    count: int = Field(default=10, ge=1, le=30, description="Most items to write.")
+
+
+class StudySourceResponse(BaseModel):
+    number: int = Field(description="What items cite in their `sources`.")
+    chunk_index: int
+    page: int | None = Field(description="Page number for PDFs, starting at 1; null otherwise.")
+    section: str | None = Field(description="The headings above the passage, when known.")
+    text: str
+
+
+class KeyPointResponse(BaseModel):
+    text: str
+    sources: list[int]
+
+
+class FlashcardResponse(BaseModel):
+    front: str
+    back: str
+    sources: list[int]
+
+
+class QuizQuestionResponse(BaseModel):
+    question: str
+    choices: list[str] = Field(description="Four choices.")
+    answer: int = Field(description="The position of the right choice, from 0.")
+    explanation: str = Field(description="Why it is right, from the document.")
+    sources: list[int]
+
+
+class StudyResponse(BaseModel):
+    kind: Literal["summary", "flashcards", "quiz"]
+    file_id: str
+    original_name: str
+    items: list[KeyPointResponse] | list[FlashcardResponse] | list[QuizQuestionResponse] = Field(
+        description="Of the requested kind; each cites the passages it comes from. Empty when "
+                    "the model wrote nothing usable.")
+    sources: list[StudySourceResponse] = Field(description="The passages the items cite.")
+    prompt_version: str
+    usage: UsageResponse
+    passages: int = Field(description="Chunks given to the model.")
+    chunks: int = Field(description="Chunks of the document: more than `passages` when the "
+                                    "document is longer than the model reads at once, and only "
+                                    "chunks spread over it were used.")

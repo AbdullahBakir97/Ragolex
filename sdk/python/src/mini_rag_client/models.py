@@ -202,6 +202,12 @@ class FileTagsRequest(Model):
     tags: list[str] = Field(description="The file's tags from now on; [] removes them all.")
 
 
+class FlashcardResponse(Model):
+    front: str
+    back: str
+    sources: list[int]
+
+
 class HTTPValidationError(Model):
     detail: list[ValidationError] | None = Field(default=None)
 
@@ -251,6 +257,11 @@ class JobResponse(Model):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+
+
+class KeyPointResponse(Model):
+    text: str
+    sources: list[int]
 
 
 class MeResponse(Model):
@@ -317,6 +328,14 @@ class ProjectUsageResponse(Model):
     unpriced_answers: int = Field(description='Model calls whose cost is unknown and not included in cost_usd.')
 
 
+class QuizQuestionResponse(Model):
+    question: str
+    choices: list[str] = Field(description='Four choices.')
+    answer: int = Field(description='The position of the right choice, from 0.')
+    explanation: str = Field(description='Why it is right, from the document.')
+    sources: list[int]
+
+
 class RatedAnswerResponse(Model):
     conversation_id: str
     message_id: int
@@ -325,7 +344,7 @@ class RatedAnswerResponse(Model):
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
-ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
 
 
 class SearchFiltersRequest(Model):
@@ -398,6 +417,32 @@ class SourceResponse(Model):
     last_error: str | None = Field(description='Why the last sync could not crawl the site; the pages it had are kept meanwhile.')
     tags: list[str] = Field(description='Given to the pages it stores.')
     created_at: datetime
+
+
+class StudyRequest(Model):
+    file_id: str = Field(description='The document to study; it must be processed.')
+    kind: Literal['summary', 'flashcards', 'quiz'] | str = Field(description="`summary`: key points in the document's order. `flashcards`: a question or term on the front, its answer on the back. `quiz`: multiple-choice questions with four choices, the right one and why.")
+    count: int = Field(default=10, description='Most items to write.')
+
+
+class StudyResponse(Model):
+    kind: Literal['summary', 'flashcards', 'quiz'] | str
+    file_id: str
+    original_name: str
+    items: list[KeyPointResponse] | list[FlashcardResponse] | list[QuizQuestionResponse] = Field(description='Of the requested kind; each cites the passages it comes from. Empty when the model wrote nothing usable.')
+    sources: list[StudySourceResponse] = Field(description='The passages the items cite.')
+    prompt_version: str
+    usage: UsageResponse
+    passages: int = Field(description='Chunks given to the model.')
+    chunks: int = Field(description='Chunks of the document: more than `passages` when the document is longer than the model reads at once, and only chunks spread over it were used.')
+
+
+class StudySourceResponse(Model):
+    number: int = Field(description='What items cite in their `sources`.')
+    chunk_index: int
+    page: int | None = Field(description='Page number for PDFs, starting at 1; null otherwise.')
+    section: str | None = Field(description='The headings above the passage, when known.')
+    text: str
 
 
 class TagListResponse(Model):
@@ -522,5 +567,5 @@ class WidgetUpdateRequest(Model):
     tags: list[str] | None = Field(default=None, description='Answer only from files with any of these tags; [] or null for all files.')
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
+for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
     _model.model_rebuild()
