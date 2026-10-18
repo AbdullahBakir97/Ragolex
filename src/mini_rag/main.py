@@ -1,7 +1,8 @@
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, MutableMapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -32,12 +33,14 @@ from mini_rag.api.widget_cors import WidgetCors
 from mini_rag.connectors.factory import create_crawler
 from mini_rag.core.config import Settings, get_settings
 from mini_rag.core.logging_config import configure_logging
+from mini_rag.core.tracing import setup_tracing
 from mini_rag.embeddings.factory import create_embedder
 from mini_rag.llm.factory import create_llm
 from mini_rag.persistence.database import (
     create_engine,
     create_session_factory,
     match_embedding_dimensions,
+    trace_engine,
 )
 from mini_rag.persistence.repositories import unit_of_work_factory
 from mini_rag.rerankers.factory import create_reranker
@@ -71,6 +74,8 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         # One connection pool and one client each for embeddings, the LLM and
         # reranking per app, closed cleanly on shutdown.
         engine = create_engine(settings.DATABASE_URL)
+        if settings.TRACING_ENABLED:
+            trace_engine(engine)
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
         app.state.embedder = embedder = create_embedder(settings)
@@ -115,6 +120,11 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
     return lifespan
 
 
+def _not_traced(scope: MutableMapping[str, Any]) -> bool:
+    """Health probes and metric scrapes: frequent, and nothing to learn from their traces."""
+    return scope.get("path") in ("/api/v1/health", "/metrics")
+
+
 def _operation_id(route: APIRoute) -> str:
     """The route function's name, e.g. ``upload_data``: SDKs name their methods after it."""
     return route.name
@@ -124,8 +134,12 @@ def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
 
+    if settings.TRACING_ENABLED:
+        setup_tracing("mini-rag", settings.APP_VERSION)
+    # FastAPI traces each request itself, once a tracer provider is set up.
     app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION,
-                  lifespan=_lifespan(settings), generate_unique_id_function=_operation_id)
+                  lifespan=_lifespan(settings), generate_unique_id_function=_operation_id,
+                  telemetry={"exclude": _not_traced})
 
     app.include_router(base.router)
     app.include_router(metrics.router)

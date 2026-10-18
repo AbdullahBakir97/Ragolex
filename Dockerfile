@@ -14,7 +14,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /src
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
-RUN pip install .
+# With tracing, so TRACING_ENABLED works in the image.
+RUN pip install ".[tracing]"
 
 
 # Final stage: the virtual environment and an unprivileged user.

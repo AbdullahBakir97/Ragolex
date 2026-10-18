@@ -15,6 +15,7 @@ from mini_rag.connectors.factory import create_crawler
 from mini_rag.core.config import Settings, get_settings
 from mini_rag.core.errors import AppError
 from mini_rag.core.logging_config import configure_logging
+from mini_rag.core.tracing import setup_tracing
 from mini_rag.domain.models import DEFAULT_TENANT, SCOPES
 from mini_rag.embeddings.factory import create_embedder
 from mini_rag.evaluation.dataset import Dataset, DatasetError, load_dataset
@@ -34,6 +35,7 @@ from mini_rag.persistence.database import (
     match_embedding_dimensions,
     resize_embeddings,
     stored_embedding_dimensions,
+    trace_engine,
 )
 from mini_rag.persistence.repositories import (
     SqlTenantRepository,
@@ -470,6 +472,9 @@ async def _work(workers: int) -> int:
     settings = get_settings()
     configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
     engine = create_engine(settings.DATABASE_URL)
+    if settings.TRACING_ENABLED:
+        setup_tracing("mini-rag-worker", settings.APP_VERSION)
+        trace_engine(engine)
     embedder = create_embedder(settings)
     sender = create_webhook_sender(settings)
     unit_of_work = unit_of_work_factory(create_session_factory(engine))

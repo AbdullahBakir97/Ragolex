@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 
 from mini_rag.core.errors import ConversationNotFound, ProjectNotFound
 from mini_rag.core.metrics import ANSWERS, LLM_COST, LLM_TOKENS
+from mini_rag.core.tracing import annotate, end_span, span, start_span
 from mini_rag.domain.llm import LLM, Message, TokenPrices, TokenUsage
 from mini_rag.domain.models import (
     AnswerRecord,
@@ -119,7 +120,10 @@ class AnswerService:
         if not prepared.sources:
             answer = self._no_answer(prepared, NOT_CALLED)
         else:
-            completion = await self.llm.complete(self._answer_messages(prepared))
+            with span("answer.generate", model=self.llm.model, sources=len(prepared.sources),
+                      prompt_version=self.prompt.version) as current:
+                completion = await self.llm.complete(self._answer_messages(prepared))
+                annotate(current, **_usage_attributes(completion.usage))
             answer = self._finish(prepared, completion.text, completion.usage)
         return await self._record(prepared, answer, streamed=False)
 
@@ -147,7 +151,9 @@ class AnswerService:
         search_question = question
         usage: TokenUsage | None = NOT_CALLED
         if history:
-            completion = await self.llm.complete(self.condense_prompt.messages(history, question))
+            with span("answer.condense", model=self.llm.model, history=len(history)):
+                completion = await self.llm.complete(
+                    self.condense_prompt.messages(history, question))
             search_question = self.condense_prompt.standalone(completion.text, question)
             usage = completion.usage
 
@@ -172,15 +178,22 @@ class AnswerService:
             reply = ""
             usage = None
             holding = True
-            async for piece in self.llm.stream(self._answer_messages(prepared)):
-                if isinstance(piece, TokenUsage):
-                    usage = piece
-                    continue
-                reply += piece
-                if holding and self.prompt.could_be_no_answer(reply):
-                    continue
-                yield AnswerDelta(reply if holding else piece)
-                holding = False
+            # Not made current: the stream yields to its reader between pieces.
+            generation = start_span("answer.generate", model=self.llm.model, streamed=True,
+                                    sources=len(prepared.sources),
+                                    prompt_version=self.prompt.version)
+            try:
+                async for piece in self.llm.stream(self._answer_messages(prepared)):
+                    if isinstance(piece, TokenUsage):
+                        usage = piece
+                        continue
+                    reply += piece
+                    if holding and self.prompt.could_be_no_answer(reply):
+                        continue
+                    yield AnswerDelta(reply if holding else piece)
+                    holding = False
+            finally:
+                end_span(generation, **_usage_attributes(usage))
             answer = self._finish(prepared, reply, usage)
         yield await self._record(prepared, answer, streamed=True)
 
@@ -266,3 +279,11 @@ def _stored(citation: Citation) -> StoredCitation:
 def _title(question: str) -> str:
     title = " ".join(question.split())
     return title if len(title) <= TITLE_LENGTH else title[:TITLE_LENGTH - 1].rstrip() + "…"
+
+
+def _usage_attributes(usage: TokenUsage | None) -> dict[str, int]:
+    """A model call's token counts as span attributes, in OpenTelemetry's names."""
+    if usage is None:
+        return {}
+    return {"gen_ai.usage.input_tokens": usage.input_tokens,
+            "gen_ai.usage.output_tokens": usage.output_tokens}

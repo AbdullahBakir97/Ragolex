@@ -4,6 +4,8 @@
 # Only the database, to run the API with uvicorn: docker compose up -d db
 # With malware scanning of uploads: docker compose --profile scan up --build,
 #   and CLAMAV_URL=tcp://clamav:3310 in .env
+# With traces in Jaeger (http://localhost:16686): docker compose --profile tracing up --build,
+#   and TRACING_ENABLED=true, OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 in .env
 # Settings are read from .env (copy .env.example first).
 services:
   db:
@@ -55,6 +57,15 @@ services:
     profiles: ["scan"]
     volumes:
       - clamav-db:/var/lib/clamav
+    restart: unless-stopped
+
+  jaeger:
+    # Jaeger, to look at the traces the API and workers send (TRACING_ENABLED).
+    # Started only with --profile tracing; it keeps traces in memory.
+    image: jaegertracing/jaeger:2.11.0
+    profiles: ["tracing"]
+    ports:
+      - "127.0.0.1:${JAEGER_PORT:-16686}:16686"
     restart: unless-stopped
 
   web:

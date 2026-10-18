@@ -1,6 +1,6 @@
 # Operations
 
-Running Mini RAG in production: checking it is up, reading its logs, scraping its metrics, and following what was changed.
+Running Mini RAG in production: checking it is up, reading its logs, scraping its metrics, tracing its requests, and following what was changed.
 
 ## Health
 
@@ -13,7 +13,7 @@ The API writes one line per request (`mini_rag.access`: method, path, status and
 - Every line written while a request is handled carries the request's id and its tenant. The id is returned in the `X-Request-ID` header, so a client can quote it when reporting a problem; a proxy in front of the API can send its own `X-Request-ID` to follow a request across services.
 - Background jobs and webhook deliveries tag their lines `job:<id>` and `delivery:<id>`.
 - An unexpected failure is logged with its traceback, and the client gets `500` `{"signal": "internal_error", "request_id": "…"}`.
-- `LOG_FORMAT=json` writes each line as one JSON object (`time`, `level`, `logger`, `message`, `request_id`, `tenant`, and `method`, `path`, `status`, `duration_ms` on access lines), uvicorn's own lines included, for Loki, Elasticsearch, CloudWatch and the like. `LOG_LEVEL` sets the level of the app's lines; libraries log warnings and above.
+- `LOG_FORMAT=json` writes each line as one JSON object (`time`, `level`, `logger`, `message`, `request_id`, `tenant`, `trace_id` when tracing, and `method`, `path`, `status`, `duration_ms` on access lines), uvicorn's own lines included, for Loki, Elasticsearch, CloudWatch and the like. `LOG_LEVEL` sets the level of the app's lines; libraries log warnings and above.
 
 ```
 2026-10-18 11:34:13,963 INFO     mini_rag.access [request_id=3f2a… tenant=acme]: GET /api/v1/projects 200 47ms
@@ -51,6 +51,27 @@ scrape_configs:
 ```
 
 Worth alerting on: a rising `mini_rag_jobs_in_state{status="queued"}` (workers falling behind), `mini_rag_jobs_total{outcome="failed"}` and `mini_rag_webhook_deliveries_total{outcome="failed"}` increasing, the share of `5xx` in `mini_rag_http_requests_total`, and `mini_rag_answers_total{answered="false"}` growing faster than answered ones (documents missing, or a minimum score set too high).
+
+## Tracing
+
+With `TRACING_ENABLED=true`, the API and `mini-rag worker` send [OpenTelemetry](https://opentelemetry.io) traces over OTLP/HTTP to a collector: Jaeger, Grafana Tempo, Honeycomb, an OpenTelemetry Collector. The standard variables configure the export: `OTEL_EXPORTER_OTLP_ENDPOINT` (for example `http://jaeger:4318`), `OTEL_EXPORTER_OTLP_HEADERS` for a vendor's API key, `OTEL_SERVICE_NAME` (by default `mini-rag` for the API and `mini-rag-worker` for workers), `OTEL_TRACES_SAMPLER` to keep a share of traces. The Docker image has what tracing needs; elsewhere install it with `pip install ".[tracing]"`. Off, nothing is recorded.
+
+Each request is a trace, named after its route (`POST /api/v1/ask/{project_id}`), with FastAPI's own spans for dependencies and the endpoint, one span per database query (`db.statement`), and the steps of the pipeline:
+
+| Span | Attributes | What it covers |
+|---|---|---|
+| `search.embed_query` | `model` | Embedding the question |
+| `search.query` | `mode`, `top_k`, `results` | Finding the chunks, by vector or hybrid search |
+| `search.rerank` | `model`, `candidates` | Reranking them, when a reranker is configured |
+| `answer.condense` | `model`, `history` | Rewriting a follow-up question to stand on its own |
+| `answer.generate` | `model`, `sources`, `prompt_version`, `streamed`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | Writing the answer, until the last token of a stream |
+| `job` | `job_id`, `attempt` | A background job, in the worker's trace |
+| `job.process` | `file`, `chunk_size`, `chunks` | Reading and splitting the file |
+| `job.index` | `model`, `chunks` | Embedding and storing its chunks |
+
+Health checks and `/metrics` scrapes are not traced. While tracing, every log line carries the trace's id (`trace_id=…`, or the `trace_id` field in JSON), so a slow request's logs and its trace lead to each other.
+
+To try it, set `TRACING_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318` in `.env`, start the stack with Jaeger, `docker compose --profile tracing up --build`, ask a question, and open http://localhost:16686.
 
 ## Audit log
 

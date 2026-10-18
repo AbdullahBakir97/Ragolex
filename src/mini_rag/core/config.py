@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     METRICS_TOKEN: str | None = None
     # "json" writes one JSON object per line, for log collectors.
     LOG_FORMAT: Literal["text", "json"] = "text"
+    # Spans to the OTLP collector named by the OTEL_* variables (see core/tracing).
+    TRACING_ENABLED: bool = False
 
     DATABASE_URL: str = Field(
         default=LOCAL_DATABASE_URL,
