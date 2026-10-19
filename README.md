@@ -116,6 +116,7 @@ curl -X POST http://localhost:8000/api/v1/ask/demo \
 | [Web app](docs/web.md) | Pages, how it is built, running it |
 | [Evaluation](docs/evaluation.md) | Datasets, retrieval metrics and the CI check |
 | [Operations](docs/operations.md) | Health, logs, metrics and the audit log |
+| [Deployment](docs/deployment.md) | Staging and production from GitHub, releases and rollbacks |
 | [Development](docs/development.md) | Tests, migrations and workflow |
 | [Roadmap](docs/roadmap.md) | Completed and planned work |
 
