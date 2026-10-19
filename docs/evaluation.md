@@ -18,6 +18,8 @@ With Docker, the image includes the datasets:
 docker compose run --rm app mini-rag eval evals/handbook/v1
 ```
 
+Each run is recorded in the database for the [admin dashboard](web.md) and `GET /api/v1/evaluations`: its dataset, parameters and metrics, under the default tenant, or the tenant `--tenant <name>` names. `--no-record` leaves no trace. A run that cannot be recorded still reports its results and exit code.
+
 The documents go into a temporary project, `eval.handbook.v1`, which is deleted afterwards, also when the run fails. No API project can have that name, since project names cannot contain dots. The handbook embeds 27 chunks and 53 questions, a fraction of a cent with OpenAI and free with Ollama.
 
 ```text

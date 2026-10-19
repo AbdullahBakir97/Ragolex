@@ -748,3 +748,28 @@ class SourcePagesResponse(BaseModel):
     offset: int
     limit: int
     items: list[SourcePageResponse]
+
+
+class EvaluationRunResponse(BaseModel):
+    id: str
+    dataset: str = Field(description="The dataset's name, e.g. `handbook`.")
+    dataset_version: str | None
+    cases: int = Field(description="Questions in the dataset.")
+    parameters: dict[str, Any] = Field(
+        description="What the run measured: embedding model, search mode, reranker, top_k, "
+                    "chunk and overlap sizes, minimum score. Runs compare only with the same.")
+    metrics: dict[str, Any] = Field(
+        description="Retrieval: `hit_rate`, `recall`, `mrr`, `above_min_score`, `rejected` "
+                    "(0 to 1, null when not measurable), and the counts of cases.")
+    answer_metrics: dict[str, Any] | None = Field(
+        description="When the run answered the questions (`--answers`): `answered`, "
+                    "`abstained`, `citation_precision`, `grounded`, `correct`.")
+    version: str = Field(description="The version of Mini RAG that ran it.")
+    created_at: datetime
+
+
+class EvaluationRunListResponse(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    items: list[EvaluationRunResponse]

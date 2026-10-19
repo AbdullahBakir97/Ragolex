@@ -162,6 +162,25 @@ class ErrorResponse(Model):
     signal: ResponseSignal
 
 
+class EvaluationRunListResponse(Model):
+    total: int
+    offset: int
+    limit: int
+    items: list[EvaluationRunResponse]
+
+
+class EvaluationRunResponse(Model):
+    id: str
+    dataset: str = Field(description="The dataset's name, e.g. `handbook`.")
+    dataset_version: str | None
+    cases: int = Field(description='Questions in the dataset.')
+    parameters: dict[str, Any] = Field(description='What the run measured: embedding model, search mode, reranker, top_k, chunk and overlap sizes, minimum score. Runs compare only with the same.')
+    metrics: dict[str, Any] = Field(description='Retrieval: `hit_rate`, `recall`, `mrr`, `above_min_score`, `rejected` (0 to 1, null when not measurable), and the counts of cases.')
+    answer_metrics: dict[str, Any] | None = Field(description='When the run answered the questions (`--answers`): `answered`, `abstained`, `citation_precision`, `grounded`, `correct`.')
+    version: str = Field(description='The version of Mini RAG that ran it.')
+    created_at: datetime
+
+
 class FeedbackListResponse(Model):
     up: int = Field(description='Answers rated thumbs up in the project.')
     down: int = Field(description='Answers rated thumbs down in the project.')
@@ -522,5 +541,5 @@ class WidgetUpdateRequest(Model):
     tags: list[str] | None = Field(default=None, description='Answer only from files with any of these tags; [] or null for all files.')
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
+for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
     _model.model_rebuild()

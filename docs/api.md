@@ -68,6 +68,20 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 
 `actor` is the API key that did it, with its name; it is `null` for the server's operators: the command line, or requests while authentication is off. `request_id` matches the request's `X-Request-ID` and its log lines. Events are kept as long as the tenant; a revoked key still shows by name.
 
+## Evaluation runs
+
+Every `mini-rag eval` run is recorded for a tenant (the default tenant, or `--tenant <name>`): its dataset, parameters and metrics. `GET /api/v1/evaluations` (`admin` scope) lists them, most recent first, `?dataset=handbook` for one dataset, to follow retrieval and answer quality as documents, models and settings change. See [Evaluation](evaluation.md).
+
+```json
+{"id": "7c1e…", "dataset": "handbook", "dataset_version": "v1", "cases": 53,
+ "parameters": {"dataset": "handbook/v1", "embedding_model": "nomic-embed-text:v1.5", "search_mode": "hybrid",
+                "reranker": null, "top_k": 5, "chunk_size": 1000, "overlap_size": 200, "min_score": 0.3, "…": "…"},
+ "metrics": {"hit_rate": 0.957, "recall": 0.957, "mrr": 0.902, "above_min_score": 0.957, "rejected": 0.714, "…": "…"},
+ "answer_metrics": null, "version": "0.1.0", "created_at": "2026-10-19T09:12:44Z"}
+```
+
+`answer_metrics` holds the answers' metrics (`answered`, `abstained`, `citation_precision`, `grounded`, `correct`) when the run answered the questions (`--answers`). Metrics compare only between runs with the same `parameters`.
+
 ## Rate limits and quotas
 
 Each tenant can have three limits. The server's settings give the defaults (`RATE_LIMIT_PER_MINUTE`, `ANSWERS_PER_MONTH`, `STORAGE_MB_PER_TENANT`; `0`, the default, is unlimited), and `mini-rag tenants limits <tenant> --requests-per-minute N --answers-per-month N --storage-mb N` gives a tenant its own (a number, `0` for unlimited, or `default`).
@@ -100,6 +114,7 @@ A `limit` of `null` is unlimited.
 | `GET` | `/api/v1/me` | The tenant and scopes of the API key used |
 | `GET` | `/api/v1/usage` | The tenant's usage this month, against its limits |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |
+| `GET` | `/api/v1/evaluations` | The tenant's evaluation runs with their metrics, most recent first (paged; `?dataset=` filters; `admin`) |
 | `POST` | `/api/v1/mcp` | Model Context Protocol server: the tools below, for agents |
 | `GET` | `/api/v1/tools` | The same tools as function-calling schemas |
 | `GET` | `/api/v1/keys` | The tenant's API keys (`admin`) |

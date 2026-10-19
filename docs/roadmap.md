@@ -107,7 +107,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] A first web app: projects, document upload with progress, streamed answers with clickable citations, search and usage ([Web app](web.md)).
 - [x] A chat interface with citations, conversation history and feedback.
 - [x] Document management with upload, job status and website sources.
-- [ ] An admin dashboard for keys, usage, cost and evaluation scores.
+- [x] An admin dashboard for keys, usage, cost and evaluation scores ([Web app](web.md)).
 - [ ] Accessible, responsive, tested end to end with Playwright.
 
 Ideas and feedback are welcome in [issues](https://github.com/AbdullahBakir97/Mini-RAG/issues).

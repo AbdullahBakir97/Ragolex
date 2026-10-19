@@ -24,6 +24,7 @@ from mini_rag.domain.models import (
     Chunk,
     Conversation,
     ConversationMessage,
+    EvaluationRun,
     Feedback,
     FeedbackCounts,
     FileRecord,
@@ -693,6 +694,33 @@ class FakeSources:
                    for sid, rows in self.page_rows.items() for page_url, row in rows.items())
 
 
+class FakeEvaluationRuns:
+
+    def __init__(self):
+        self.runs: list[EvaluationRun] = []
+
+    async def add(self, *, tenant_id, dataset, dataset_version, cases, parameters, metrics,
+                  answer_metrics, version) -> EvaluationRun:
+        run = EvaluationRun(id=str(uuid.uuid4()), tenant_id=tenant_id, dataset=dataset,
+                            dataset_version=dataset_version, cases=cases,
+                            parameters=dict(parameters), metrics=dict(metrics),
+                            answer_metrics=dict(answer_metrics) if answer_metrics else None,
+                            version=version, created_at=datetime.now(UTC))
+        self.runs.append(run)
+        return run
+
+    def _mine(self, tenant_id, dataset):
+        return [run for run in reversed(self.runs) if run.tenant_id == tenant_id
+                and (dataset is None or run.dataset == dataset)]
+
+    async def list_for_tenant(self, tenant_id: int, *, dataset: str | None, offset: int,
+                              limit: int) -> list[EvaluationRun]:
+        return self._mine(tenant_id, dataset)[offset:offset + limit]
+
+    async def count_for_tenant(self, tenant_id: int, *, dataset: str | None) -> int:
+        return len(self._mine(tenant_id, dataset))
+
+
 class FakeUnitOfWork:
 
     def __init__(self):
@@ -709,6 +737,7 @@ class FakeUnitOfWork:
         self.tenants = FakeTenants()
         self.api_keys = FakeApiKeys()
         self.usage = FakeUsage()
+        self.evaluations = FakeEvaluationRuns()
         self.commits = 0
         self.fail_commit_with: Exception | None = None
 

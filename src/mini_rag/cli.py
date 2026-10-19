@@ -11,6 +11,8 @@ import uuid
 from datetime import date
 from pathlib import Path
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from mini_rag.connectors.factory import create_crawler
 from mini_rag.core.config import Settings, get_settings
 from mini_rag.core.errors import AppError
@@ -161,6 +163,35 @@ async def _run(settings: Settings, args: argparse.Namespace, dataset: Dataset) -
             "judge_prompt": answers.judge_prompt.version,
         }, usage={"answers": _usage(run.answer_usage), "judge": _usage(run.judge_usage)})
     return report
+
+
+async def _record_run(settings: Settings, tenant_name: str, report: dict) -> None:
+    """Keep the run's parameters and metrics for the admin dashboard of ``tenant_name``.
+
+    The evaluation stands whether or not it could be recorded.
+    """
+    engine = create_engine(settings.DATABASE_URL)
+    try:
+        async with create_session_factory(engine)() as session:
+            tenants = SqlTenantRepository(session)
+            tenant = await (tenants.get_or_create(tenant_name) if tenant_name == DEFAULT_TENANT
+                            else tenants.get_by_name(tenant_name))
+            if tenant is None:
+                print(f"\nThe run was not recorded: there is no tenant {tenant_name!r}.",
+                      file=sys.stderr)
+                return
+            dataset = report["dataset"]
+            await SqlUnitOfWork(session).evaluations.add(
+                tenant_id=tenant.id, dataset=dataset["name"],
+                dataset_version=dataset.get("version"), cases=dataset["cases"],
+                parameters=report["parameters"], metrics=report["metrics"],
+                answer_metrics=report.get("answer_metrics"), version=report["mini_rag_version"])
+            await session.commit()
+            print(f"\nRecorded for the admin dashboard of tenant {tenant.name}.")
+    except (OSError, SQLAlchemyError) as exc:
+        print(f"\nThe run was not recorded ({exc}).", file=sys.stderr)
+    finally:
+        await engine.dispose()
 
 
 def _usage(usage: Usage | None) -> dict | None:
@@ -323,6 +354,8 @@ async def _evaluate(args: argparse.Namespace) -> int:
                     {**baseline, "metrics": {}})
         report = await _run(settings, args, dataset)
         _print_summary(report)
+        if args.record:
+            await _record_run(settings, args.tenant, report)
         if args.output:
             args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n",
                                    encoding="utf-8")
@@ -535,6 +568,11 @@ def main(argv: list[str] | None = None) -> int:
                           help="how much lower a metric may be than the baseline (default 0.02)")
     evaluate.add_argument("--save-baseline", type=Path,
                           help="write this run's parameters and metrics as a baseline")
+    evaluate.add_argument("--tenant", default=DEFAULT_TENANT,
+                          help="the tenant whose admin dashboard shows the run (default: "
+                               "the default tenant)")
+    evaluate.add_argument("--no-record", dest="record", action="store_false",
+                          help="do not keep the run's metrics in the database")
     export = commands.add_parser(
         "feedback-export",
         help="turn a project's rated answers into an evaluation dataset",

@@ -30,6 +30,11 @@ import type {
   SearchOptions,
   SearchResult,
   TagCount,
+  ApiKeyInfo,
+  AuditEvent,
+  CreatedApiKey,
+  EvaluationRun,
+  Scope,
   TenantUsage,
   UploadResult,
   Webhook,
@@ -212,6 +217,17 @@ export const api = {
   job: (name: string, jobId: string) => get<Job>(`/projects/${project(name)}/jobs/${encodeURIComponent(jobId)}`),
   me: () => get<Me>("/me"),
   tenantUsage: () => get<TenantUsage>("/usage"),
+  keys: () => get<ApiKeyInfo[]>("/keys"),
+  createKey: (name: string, scopes: Scope[]) => post<CreatedApiKey>("/keys", { name, scopes }),
+  revokeKey: (keyId: string) => remove(`/keys/${encodeURIComponent(keyId)}`),
+  audit: (page: PageParams = {}, action?: string) =>
+    get<Page<AuditEvent>>("/audit", {
+      offset: page.offset ?? 0,
+      limit: page.limit ?? 20,
+      ...(action ? { action } : {}),
+    }),
+  evaluations: (page: PageParams = {}) =>
+    get<Page<EvaluationRun>>("/evaluations", { offset: page.offset ?? 0, limit: page.limit ?? 50 }),
   webhooks: (name: string, page: PageParams = {}) =>
     get<Page<Webhook>>(`/projects/${project(name)}/webhooks`, { offset: page.offset ?? 0, limit: page.limit ?? 100 }),
   createWebhook: (name: string, body: { url: string; events: WebhookEvent[]; description?: string | null }) =>
