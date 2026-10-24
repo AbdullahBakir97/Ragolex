@@ -33,7 +33,8 @@ def test_the_export_holds_everything_the_tenant_put_in(client, embedder, llm):
     conversation = client.post("/api/v1/projects/demo/conversations").json()["id"]
     client.post("/api/v1/ask/demo", json={"question": "Where is the embedding vector stored?",
                                           "conversation_id": conversation, "min_score": 0.2})
-    widget = create_widget(client).json()["id"]
+    client.patch("/api/v1/projects/demo/assistant", json={"name": "Ada", "instructions": "Be brief."})
+    widget = create_widget(client, logo_url="https://example.com/logo.png").json()["id"]
     webhook = create_webhook(client, project="demo").json()
 
     zip_file = archive(client.get("/api/v1/export"))
@@ -41,7 +42,7 @@ def test_the_export_holds_everything_the_tenant_put_in(client, embedder, llm):
     manifest = read_json(zip_file, "manifest.json")
 
     assert manifest["format"] == "mini-rag-export" and manifest["tenant"] == "default"
-    assert manifest["counts"] == {"api_keys": 0, "audit_events": 2, "projects": 1, "files": 1,
+    assert manifest["counts"] == {"api_keys": 0, "audit_events": 3, "projects": 1, "files": 1,
                                   "conversations": 1}
     assert {"tenant.json", "api_keys.json", "audit.jsonl", "projects/demo/project.json",
             "projects/demo/files.json", f"projects/demo/files/{file_id}",
@@ -58,8 +59,13 @@ def test_the_export_holds_everything_the_tenant_put_in(client, embedder, llm):
     assert chat["id"] == conversation
     assert [m["role"] for m in chat["messages"]] == ["user", "assistant"]
     assert chat["messages"][1]["citations"][0]["file_key"] == file_id
-    assert read_json(zip_file, "projects/demo/project.json")["usage"]["answers"] == 1
-    assert read_json(zip_file, "projects/demo/widgets.json")[0]["id"] == widget
+    project = read_json(zip_file, "projects/demo/project.json")
+    assert project["usage"]["answers"] == 1
+    # How the project's assistant and its widgets are branded.
+    assert (project["assistant_name"], project["instructions"]) == ("Ada", "Be brief.")
+    [listed_widget] = read_json(zip_file, "projects/demo/widgets.json")
+    assert listed_widget["id"] == widget
+    assert listed_widget["logo_url"] == "https://example.com/logo.png"
     # Secrets never leave: webhooks without their signing secret.
     [hook] = read_json(zip_file, "projects/demo/webhooks.json")
     assert hook["id"] == webhook["id"] and "secret" not in hook
