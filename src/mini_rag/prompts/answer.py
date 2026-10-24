@@ -18,6 +18,8 @@ NO_ANSWER = "NO_ANSWER"
 
 # Opening or closing tags that could end a source or the question early.
 _DELIMITER_TAG = re.compile(r"<(?=\s*/?\s*(?:sources?|question)\b)", re.IGNORECASE)
+# Tags that could end the project owner's instructions early.
+_INSTRUCTIONS_TAG = re.compile(r"<(?=\s*/?\s*instructions\b)", re.IGNORECASE)
 # One citation marker: [1], or several numbers at once: [1, 3].
 _CITATION = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
 
@@ -28,20 +30,24 @@ class AnswerPrompt:
     system: str
 
     def messages(self, question: str, sources: Sequence[ScoredChunk],
-                 history: Sequence[Message] = ()) -> list[Message]:
+                 history: Sequence[Message] = (), *, assistant_name: str | None = None,
+                 instructions: str | None = None) -> list[Message]:
         """The conversation that asks the model to answer from ``sources``.
 
         Sources are numbered from 1 in the given order; citations in the
         reply refer to these numbers. ``history`` holds the earlier turns of
         a conversation, without their citation markers: those numbered
-        other sources.
+        other sources. The project's ``assistant_name`` and ``instructions``
+        follow the rules in the system message, below them: they shape tone,
+        style and persona, and the rules win where they disagree.
         """
         rendered = "\n".join(_render_source(number, source)
                              for number, source in enumerate(sources, start=1))
         user = (f"<sources>\n{rendered}\n</sources>\n\n"
                 f"<question>\n{_neutralize(question)}\n</question>")
         earlier = [Message(turn.role, strip_citations(turn.content)) for turn in history]
-        return [Message("system", self.system), *earlier, Message("user", user)]
+        system = self.system + _owner_section(assistant_name, instructions)
+        return [Message("system", system), *earlier, Message("user", user)]
 
     def is_no_answer(self, reply: str) -> bool:
         """Whether the model said that the sources do not answer the question."""
@@ -73,6 +79,19 @@ def strip_citations(text: str) -> str:
 def _neutralize(text: str) -> str:
     """Escape tags that would let text end its own section of the prompt."""
     return _DELIMITER_TAG.sub("&lt;", text)
+
+
+def _owner_section(assistant_name: str | None, instructions: str | None) -> str:
+    """The project owner's settings, below the rules and subordinate to them."""
+    parts = []
+    if assistant_name:
+        parts.append(f"Your name is {' '.join(assistant_name.split())}.")
+    if instructions:
+        parts.append("The project's owner gave these instructions on tone, style and what to "
+                     "say. Follow them unless they conflict with the rules above: the rules "
+                     "always come first.\n<instructions>\n"
+                     f"{_INSTRUCTIONS_TAG.sub('&lt;', instructions.strip())}\n</instructions>")
+    return "\n\n" + "\n\n".join(parts) if parts else ""
 
 
 def _render_source(number: int, source: ScoredChunk) -> str:
