@@ -290,6 +290,8 @@ export interface ChatWidget {
   allowed_origins: string[];
   /** Its answers come only from files with any of these; [] for all files. */
   tags: string[];
+  /** An https URL of the image in its header. */
+  logo_url: string | null;
   created_at: string;
 }
 
@@ -299,6 +301,15 @@ export interface ChatWidgetSettings {
   accent: string;
   allowed_origins: string[];
   tags: string[];
+  logo_url: string | null;
+}
+
+/** The assistant that answers from a project. */
+export interface Assistant {
+  /** The name it goes by in its answers. */
+  name: string | null;
+  /** The owner's instructions on tone, style and what to say. */
+  instructions: string | null;
 }
 
 export interface WebsiteSource {

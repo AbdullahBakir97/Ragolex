@@ -108,6 +108,11 @@ class ProjectRepository(Protocol):
         """Delete the project with everything in it; False if there was none."""
         ...
 
+    async def set_assistant(self, project_id: int, *, assistant_name: str | None,
+                            instructions: str | None) -> Project:
+        """Set the name and the instructions of the project's assistant."""
+        ...
+
 
 class FileRepository(Protocol):
 
@@ -350,7 +355,7 @@ class WidgetRepository(Protocol):
 
     async def create(self, *, widget_id: str, project_id: int, name: str, welcome: str | None,
                      accent: str, allowed_origins: Sequence[str],
-                     tags: Sequence[str] = ()) -> Widget: ...
+                     tags: Sequence[str] = (), logo_url: str | None = None) -> Widget: ...
 
     async def get(self, widget_id: str) -> Widget | None:
         """Any tenant's widget: widgets are found by their public id alone."""

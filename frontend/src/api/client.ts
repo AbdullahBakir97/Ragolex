@@ -5,6 +5,7 @@ import { readEvents } from "./sse";
 import type {
   Answer,
   AskOptions,
+  Assistant,
   ChatWidget,
   ChatWidgetSettings,
   Chunk,
@@ -175,6 +176,10 @@ export const api = {
   setFileTags: (name: string, fileId: string, tags: string[]) =>
     put<FileInfo>(`/projects/${project(name)}/files/${encodeURIComponent(fileId)}/tags`, { tags }),
   tags: (name: string) => get<{ items: TagCount[] }>(`/projects/${project(name)}/tags`),
+  assistant: (name: string) => get<Assistant>(`/projects/${project(name)}/assistant`),
+  /** Changes the fields given; null clears one. */
+  updateAssistant: (name: string, changes: Partial<Assistant>) =>
+    patch<Assistant>(`/projects/${project(name)}/assistant`, changes),
   chunks: (name: string, fileId: string, page: PageParams = {}) =>
     get<Page<Chunk>>(`/projects/${project(name)}/files/${encodeURIComponent(fileId)}/chunks`, {
       offset: page.offset ?? 0,
