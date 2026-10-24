@@ -92,6 +92,12 @@ export class ChatWidget {
     const header = element("header");
     const restart = iconButton("icon-button", ICONS.restart, "New conversation");
     restart.addEventListener("click", () => this.reset());
+    if (config.logo_url?.startsWith("https://")) {
+      // Decorative: the name beside it says the same. A broken image is left out.
+      const logo = element("img", { class: "logo", src: config.logo_url, alt: "", referrerpolicy: "no-referrer" });
+      logo.addEventListener("error", () => logo.remove());
+      header.append(logo);
+    }
     header.append(element("h2", {}, config.name), restart);
     if (!this.inline) {
       const close = iconButton("icon-button", ICONS.close, "Close");

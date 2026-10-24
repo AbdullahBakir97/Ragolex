@@ -140,7 +140,8 @@ def test_visitors_see_only_what_the_widget_shows(client, widget):
 
     assert response.status_code == 200
     assert response.json() == {"id": widget["id"], "name": "Helper",
-                               "welcome": "Ask me about the guide.", "accent": "#2563eb"}
+                               "welcome": "Ask me about the guide.", "accent": "#2563eb",
+                               "logo_url": None}
     assert response.headers["Access-Control-Allow-Origin"] == "*"
 
 

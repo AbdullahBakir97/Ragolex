@@ -134,6 +134,20 @@ describe("ChatWidget", () => {
     expect(shadow.querySelector<HTMLElement>(".root")!.style.getPropertyValue("--accent")).toBe("#0f766e");
   });
 
+  it("shows its logo, only from an https URL", async () => {
+    fetch.mockReset();
+    fetch.mockResolvedValueOnce(Response.json({ ...CONFIG, logo_url: "https://example.com/logo.png" }));
+    const { shadow } = await mount();
+
+    const logo = shadow.querySelector<HTMLImageElement>("header .logo")!;
+    expect(logo.getAttribute("src")).toBe("https://example.com/logo.png");
+    expect(logo.getAttribute("alt")).toBe("");
+
+    fetch.mockResolvedValueOnce(Response.json({ ...CONFIG, logo_url: "http://example.com/logo.png" }));
+    const plain = await mount();
+    expect(plain.shadow.querySelector("header .logo")).toBeNull();
+  });
+
   it("streams answers, links their citations to the sources, and takes ratings", async () => {
     const storage = new MemoryStorage();
     const { widget, shadow } = await mount(storage);

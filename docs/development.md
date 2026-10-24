@@ -105,6 +105,7 @@ alembic upgrade head
 
 - Branch from `start-001`, the default branch, and keep each pull request to one topic.
 - Every change comes with tests; CI runs `ruff check .`, `mypy` and `pytest --cov` (failing below 95% coverage) on Python 3.11 and 3.12 against PostgreSQL 16 with pgvector, type-checks, tests and builds the web app, and a pull request merges only when it passes.
+- The API only grows within `/api/v1` ([API versioning](versioning.md)): CI compares `sdk/openapi.json` with the base branch's and fails on a breaking change. Run the same check locally with `python tools/api_compat.py <(git show origin/start-001:sdk/openapi.json) sdk/openapi.json`.
 - The SDKs are generated from `sdk/openapi.json`: after changing the API, regenerate the schema and both SDKs (see [sdk/README.md](../sdk/README.md#after-changing-the-api)). CI fails when the schema or the generated code is out of date, and type-checks and tests both SDKs (the Python one on 3.10 and 3.13).
 - CI also checks the dependencies for known vulnerabilities (`pip-audit` on the Python dependencies, `npm audit` on the web app's, development tools included) and the whole git history for committed secrets (`gitleaks`). A vulnerable dependency fails the build until it is upgraded; Dependabot proposes the upgrades.
 - CI also measures retrieval with `mini-rag eval` and a real embedding model, and fails when it gets worse than the baseline. A change that improves it updates the baseline in the same pull request; see [Evaluation](evaluation.md#baselines-and-ci).

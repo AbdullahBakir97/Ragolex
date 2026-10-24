@@ -6,7 +6,7 @@ import { projectName, seedProject } from "./helpers";
 // Every page, with data on it, in both themes: no WCAG 2.1 A or AA violation
 // that axe can find, and nothing wider than the screen (the phone project
 // runs the tests tagged @phone).
-const PAGES = ["", "ask", "documents", "search", "usage", "widget", "webhooks"];
+const PAGES = ["", "ask", "documents", "search", "assistant", "usage", "widget", "webhooks"];
 
 let project = "";
 

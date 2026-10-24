@@ -132,6 +132,30 @@ jobs:
             frontend/test-results
           retention-days: 7
 
+  api-compat:
+    # Within /api/v1 the API only grows (docs/versioning.md): a pull request
+    # that would break clients of the base branch's API fails, unless it is
+    # labelled api-breaking for a new major version.
+    if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'api-breaking')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: No breaking changes to the API
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if ! git show "origin/${BASE_REF}:sdk/openapi.json" > "$RUNNER_TEMP/base-openapi.json" 2>/dev/null; then
+            echo "The base branch has no sdk/openapi.json yet: nothing to compare."
+            exit 0
+          fi
+          python tools/api_compat.py "$RUNNER_TEMP/base-openapi.json" sdk/openapi.json
+
   sdk-python:
     # The Python client: generated from sdk/openapi.json (which tests/test_openapi.py
     # keeps equal to the API's schema), type-checked and tested on its oldest and

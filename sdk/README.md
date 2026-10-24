@@ -30,4 +30,4 @@ CI fails when any of these is out of date: `tests/test_openapi.py` compares `ope
 
 ## Compatibility
 
-The SDKs follow the API's `/api/v1`: fields and endpoints are only added within it. Responses are read leniently, so a client keeps working with a newer server: unknown fields are kept (`model_extra` in Python), and values of the API's enumerations, such as signals, are read as strings even when they are new.
+The SDKs follow the API's `/api/v1`: fields and endpoints are only added within it. Responses are read leniently, so a client keeps working with a newer server: unknown fields are kept (`model_extra` in Python), and values of the API's enumerations, such as signals, are read as strings even when they are new. A newer Python client reads a nullable field an older server does not send yet as `None`.

@@ -185,7 +185,9 @@ class AnswerService:
         yield await self._record(prepared, answer, streamed=True)
 
     def _answer_messages(self, prepared: Prepared) -> list[Message]:
-        return self.prompt.messages(prepared.search_question, prepared.sources, prepared.history)
+        return self.prompt.messages(prepared.search_question, prepared.sources, prepared.history,
+                                    assistant_name=prepared.project.assistant_name,
+                                    instructions=prepared.project.instructions)
 
     def _finish(self, prepared: Prepared, reply: str, usage: TokenUsage | None) -> Answer:
         if self.prompt.is_no_answer(reply):
