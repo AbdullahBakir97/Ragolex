@@ -187,6 +187,8 @@ class ProjectRow(Base):
     name: Mapped[str] = mapped_column(String(64))
     # The project's folder under FILES_DIR; unique across tenants.
     storage_name: Mapped[str] = mapped_column(String(100), unique=True)
+    assistant_name: Mapped[str | None] = mapped_column(String(60))
+    instructions: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created_at()
 
 
@@ -281,6 +283,7 @@ class WidgetRow(Base):
     accent: Mapped[str] = mapped_column(String(7))
     allowed_origins: Mapped[list[str]] = mapped_column(ARRAY(String(255)))
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    logo_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created_at()
 
 

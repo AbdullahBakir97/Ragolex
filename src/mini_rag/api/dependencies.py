@@ -18,6 +18,7 @@ from mini_rag.domain.repositories import UnitOfWork
 from mini_rag.loaders.registry import LoaderRegistry, default_loader_registry
 from mini_rag.persistence.repositories import SqlUnitOfWork
 from mini_rag.services.answer_service import AnswerService
+from mini_rag.services.assistant_service import AssistantService
 from mini_rag.services.auth_service import AuthService
 from mini_rag.services.conversation_service import ConversationService
 from mini_rag.services.deletion_service import DeletionService
@@ -187,6 +188,13 @@ def get_project_service(uow: UnitOfWorkDep) -> ProjectService:
 
 
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
+
+
+def get_assistant_service(uow: UnitOfWorkDep) -> AssistantService:
+    return AssistantService(uow=uow)
+
+
+AssistantServiceDep = Annotated[AssistantService, Depends(get_assistant_service)]
 
 
 def get_tag_service(uow: UnitOfWorkDep) -> TagService:

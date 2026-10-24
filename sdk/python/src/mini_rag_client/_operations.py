@@ -12,6 +12,8 @@ from .models import (
     ApiKeyResponse,
     AskRequest,
     AskResponse,
+    AssistantResponse,
+    AssistantUpdateRequest,
     AuditListResponse,
     ChunkListResponse,
     ConversationCreateRequest,
@@ -123,6 +125,27 @@ class Operations:
         """Delete a project with all its files, chunks, answers and conversations
         """
         return self._request('DELETE', f'/api/v1/projects/{_path(project_id)}', query={}, json=None, response=_none)
+
+    def get_assistant(
+        self,
+        project_id: str,
+    ) -> AssistantResponse:
+        """The project's assistant: its name and its owner's instructions
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/assistant', query={}, json=None, response=AssistantResponse.model_validate)
+
+    def update_assistant(
+        self,
+        project_id: str,
+        *,
+        name: str | None | Unset = UNSET,
+        instructions: str | None | Unset = UNSET,
+    ) -> AssistantResponse:
+        """Change the project's assistant
+
+        Only the fields sent change; null or blank clears one. Answers follow the instructions in the tone and style they set, but always answer from the documents only, with citations.
+        """
+        return self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/assistant', query={}, json=_body(AssistantUpdateRequest, {'name': name, 'instructions': instructions}, optional=False), response=AssistantResponse.model_validate)
 
     def get_usage(
         self,
@@ -383,12 +406,13 @@ class Operations:
         welcome: str | None | Unset = UNSET,
         accent: str | None | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
+        logo_url: str | None | Unset = UNSET,
     ) -> WidgetResponse:
         """Add a chat widget for a project's documents
 
         Embed it with `<script src="https://<web app>/widget.js" data-widget="<id>" async></script>`. Visitors of the allowed websites can then ask the project, without an API key.
         """
-        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/widgets', query={}, json=_body(WidgetRequest, {'name': name, 'welcome': welcome, 'accent': accent, 'allowed_origins': allowed_origins, 'tags': tags}, optional=False), response=WidgetResponse.model_validate)
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/widgets', query={}, json=_body(WidgetRequest, {'name': name, 'welcome': welcome, 'accent': accent, 'allowed_origins': allowed_origins, 'tags': tags, 'logo_url': logo_url}, optional=False), response=WidgetResponse.model_validate)
 
     def list_widgets(
         self,
@@ -417,12 +441,13 @@ class Operations:
         accent: str | None | Unset = UNSET,
         allowed_origins: list[str] | None | Unset = UNSET,
         tags: list[str] | None | Unset = UNSET,
+        logo_url: str | None | Unset = UNSET,
     ) -> WidgetResponse:
         """Change a chat widget
 
         Only the fields sent change. Pages already open pick the changes up when they are loaded again.
         """
-        return self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/widgets/{_path(widget_id)}', query={}, json=_body(WidgetUpdateRequest, {'name': name, 'welcome': welcome, 'accent': accent, 'allowed_origins': allowed_origins, 'tags': tags}, optional=False), response=WidgetResponse.model_validate)
+        return self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/widgets/{_path(widget_id)}', query={}, json=_body(WidgetUpdateRequest, {'name': name, 'welcome': welcome, 'accent': accent, 'allowed_origins': allowed_origins, 'tags': tags, 'logo_url': logo_url}, optional=False), response=WidgetResponse.model_validate)
 
     def delete_widget(
         self,
@@ -705,6 +730,27 @@ class AsyncOperations:
         """
         return await self._request('DELETE', f'/api/v1/projects/{_path(project_id)}', query={}, json=None, response=_none)
 
+    async def get_assistant(
+        self,
+        project_id: str,
+    ) -> AssistantResponse:
+        """The project's assistant: its name and its owner's instructions
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/assistant', query={}, json=None, response=AssistantResponse.model_validate)
+
+    async def update_assistant(
+        self,
+        project_id: str,
+        *,
+        name: str | None | Unset = UNSET,
+        instructions: str | None | Unset = UNSET,
+    ) -> AssistantResponse:
+        """Change the project's assistant
+
+        Only the fields sent change; null or blank clears one. Answers follow the instructions in the tone and style they set, but always answer from the documents only, with citations.
+        """
+        return await self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/assistant', query={}, json=_body(AssistantUpdateRequest, {'name': name, 'instructions': instructions}, optional=False), response=AssistantResponse.model_validate)
+
     async def get_usage(
         self,
         project_id: str,
@@ -964,12 +1010,13 @@ class AsyncOperations:
         welcome: str | None | Unset = UNSET,
         accent: str | None | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
+        logo_url: str | None | Unset = UNSET,
     ) -> WidgetResponse:
         """Add a chat widget for a project's documents
 
         Embed it with `<script src="https://<web app>/widget.js" data-widget="<id>" async></script>`. Visitors of the allowed websites can then ask the project, without an API key.
         """
-        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/widgets', query={}, json=_body(WidgetRequest, {'name': name, 'welcome': welcome, 'accent': accent, 'allowed_origins': allowed_origins, 'tags': tags}, optional=False), response=WidgetResponse.model_validate)
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/widgets', query={}, json=_body(WidgetRequest, {'name': name, 'welcome': welcome, 'accent': accent, 'allowed_origins': allowed_origins, 'tags': tags, 'logo_url': logo_url}, optional=False), response=WidgetResponse.model_validate)
 
     async def list_widgets(
         self,
@@ -998,12 +1045,13 @@ class AsyncOperations:
         accent: str | None | Unset = UNSET,
         allowed_origins: list[str] | None | Unset = UNSET,
         tags: list[str] | None | Unset = UNSET,
+        logo_url: str | None | Unset = UNSET,
     ) -> WidgetResponse:
         """Change a chat widget
 
         Only the fields sent change. Pages already open pick the changes up when they are loaded again.
         """
-        return await self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/widgets/{_path(widget_id)}', query={}, json=_body(WidgetUpdateRequest, {'name': name, 'welcome': welcome, 'accent': accent, 'allowed_origins': allowed_origins, 'tags': tags}, optional=False), response=WidgetResponse.model_validate)
+        return await self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/widgets/{_path(widget_id)}', query={}, json=_body(WidgetUpdateRequest, {'name': name, 'welcome': welcome, 'accent': accent, 'allowed_origins': allowed_origins, 'tags': tags, 'logo_url': logo_url}, optional=False), response=WidgetResponse.model_validate)
 
     async def delete_widget(
         self,

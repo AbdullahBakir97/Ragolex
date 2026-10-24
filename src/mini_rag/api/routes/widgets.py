@@ -79,7 +79,8 @@ def _widget(widget: Widget) -> WidgetResponse:
     return WidgetResponse(id=widget.id, project=widget.project_name, name=widget.name,
                           welcome=widget.welcome, accent=widget.accent,
                           allowed_origins=list(widget.allowed_origins),
-                          tags=list(widget.tags), created_at=widget.created_at)
+                          tags=list(widget.tags), logo_url=widget.logo_url,
+                          created_at=widget.created_at)
 
 
 @router.post("/{project_id}/widgets", status_code=status.HTTP_201_CREATED,
@@ -91,7 +92,8 @@ def _widget(widget: Widget) -> WidgetResponse:
 async def create_widget(project_id: ProjectId, request: WidgetRequest,
                         service: WidgetServiceDep) -> WidgetResponse:
     return _widget(await service.create(project_id, request.name, request.welcome,
-                                        request.accent, request.allowed_origins, request.tags))
+                                        request.accent, request.allowed_origins, request.tags,
+                                        request.logo_url))
 
 
 @router.get("/{project_id}/widgets", summary="List a project's chat widgets",
@@ -164,7 +166,7 @@ VISITOR_ERRORS = (WidgetNotFound, OriginNotAllowed, RateLimited)
                    responses=error_responses(*VISITOR_ERRORS))
 async def widget_config(widget: WidgetDep) -> WidgetConfigResponse:
     return WidgetConfigResponse(id=widget.id, name=widget.name, welcome=widget.welcome,
-                                accent=widget.accent)
+                                accent=widget.accent, logo_url=widget.logo_url)
 
 
 @public_router.post(

@@ -55,7 +55,7 @@ Worth alerting on: a rising `mini_rag_jobs_in_state{status="queued"}` (workers f
 
 ## Audit log
 
-Administrative actions (API keys, webhooks, chat widgets, deleted files and projects, tenants' limits) are recorded per tenant, with the key and the request id behind each: `GET /api/v1/audit` with an `admin` key, or `mini-rag audit --tenant <name>`. See [API › Audit log](api.md#audit-log).
+Administrative actions (API keys, webhooks, chat widgets, projects' assistants, deleted files and projects, tenants' limits) are recorded per tenant, with the key and the request id behind each: `GET /api/v1/audit` with an `admin` key, or `mini-rag audit --tenant <name>`. See [API › Audit log](api.md#audit-log).
 
 ## Budgets and cost
 
@@ -79,3 +79,21 @@ groups:
 ## Malware scanning
 
 With `CLAMAV_URL` set, every new upload is scanned by ClamAV before it is kept, and refused when it cannot be scanned. `docker compose --profile scan up` starts a ClamAV daemon next to the API; point `CLAMAV_URL` at `tcp://clamav:3310`. See [API › Upload a file](api.md#upload-a-file).
+
+## Your own domain
+
+Nothing in Mini RAG is tied to a host name, so it serves from whichever domain you point at it. The web app's nginx (port 3000 in `compose.yaml`) serves the app, the chat widget's script and the API (it forwards `/api/`, `/docs` and `/openapi.json`), so one domain is enough:
+
+1. Point a DNS record for your domain, such as `rag.example.com`, at the server.
+2. Put a TLS-terminating proxy in front of the web app's port, for example [Caddy](https://caddyserver.com), which gets certificates by itself:
+
+   ```
+   rag.example.com {
+       reverse_proxy localhost:3000
+   }
+   ```
+
+3. Embed widgets from that domain: `<script src="https://rag.example.com/widget.js" data-widget="…" async></script>`. The web app shows each widget's script tag with the address it is opened at.
+
+The widgets' allowed origins are the websites that embed them, not this domain. Answers stream as Server-Sent Events, so a proxy must not buffer responses: Caddy does not; for nginx, the API already sends `X-Accel-Buffering: no`.
+
