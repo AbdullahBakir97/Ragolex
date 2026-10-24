@@ -3,13 +3,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response, status
 
 from mini_rag.api.dependencies import (
+    ADMIN,
     READ,
     WRITE,
+    AssistantServiceDep,
     DeletionServiceDep,
     ProjectServiceDep,
     TagServiceDep,
 )
 from mini_rag.api.schemas import (
+    AssistantResponse,
+    AssistantUpdateRequest,
     ChunkListResponse,
     ChunkResponse,
     FileIdPath,
@@ -28,7 +32,7 @@ from mini_rag.api.schemas import (
     error_responses,
 )
 from mini_rag.core.errors import FileNotFound, ProjectNotFound, TagInvalid
-from mini_rag.domain.models import FileRecord
+from mini_rag.domain.models import FileRecord, Project
 from mini_rag.services.tag_service import clean_tags
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -59,6 +63,31 @@ async def get_project(project_id: ProjectId, service: ProjectServiceDep) -> Proj
     return ProjectResponse(name=summary.project.name, created_at=summary.project.created_at,
                            files_count=summary.files_count, chunks_count=summary.chunks_count,
                            embedded_chunks_count=summary.embedded_chunks_count)
+
+
+def _assistant(project: Project) -> AssistantResponse:
+    return AssistantResponse(name=project.assistant_name, instructions=project.instructions)
+
+
+@router.get("/{project_id}/assistant", dependencies=[READ],
+            summary="The project's assistant: its name and its owner's instructions",
+            responses=error_responses(ProjectNotFound))
+async def get_assistant(project_id: ProjectId, service: AssistantServiceDep) -> AssistantResponse:
+    return _assistant(await service.get(project_id))
+
+
+@router.patch("/{project_id}/assistant", dependencies=[ADMIN],
+              summary="Change the project's assistant",
+              description="Only the fields sent change; null or blank clears one. Answers "
+                          "follow the instructions in the tone and style they set, but always "
+                          "answer from the documents only, with citations.",
+              responses=error_responses(ProjectNotFound))
+async def update_assistant(project_id: ProjectId, request: AssistantUpdateRequest,
+                           service: AssistantServiceDep) -> AssistantResponse:
+    changes = request.model_dump(exclude_unset=True)
+    if "name" in changes:
+        changes["assistant_name"] = changes.pop("name")
+    return _assistant(await service.update(project_id, changes))
 
 
 @router.get("/{project_id}/usage", dependencies=[READ],
