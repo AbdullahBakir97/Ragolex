@@ -72,6 +72,10 @@ jobs:
         run: alembic upgrade head
       - name: Compare chunk sizes and overlaps
         run: mini-rag tune evals/handbook/v1 --chunk-sizes "$CHUNK_SIZES" --overlaps "$OVERLAPS" --output tune.json
+      - name: Show the results as JSON
+        # Every trial's metrics, e.g. to write a baseline from.
+        if: always()
+        run: if [ -f tune.json ]; then cat tune.json; fi
       - name: Keep the results
         if: always()
         uses: actions/upload-artifact@v4
