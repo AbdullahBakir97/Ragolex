@@ -53,7 +53,7 @@ Services depend on the repository **interfaces** in `domain/repositories.py` (`P
 
 ## Prompts
 
-Prompts live in `prompts/`, apart from the code that sends them, so they can be reviewed and versioned on their own. A released prompt never changes: new wording gets a new version (`answer-v2`), and `ANSWER_PROMPT` points to the one in use. `tests/test_answer_prompt.py` pins a hash of every released prompt, so editing one by accident fails CI, and each answer reports the `prompt_version` that produced it.
+Prompts live in `prompts/`, apart from the code that sends them, so they can be reviewed and versioned on their own. A released prompt never changes: new wording gets a new version (`answer-v2`), and `ANSWER_PROMPT` points to the one in use. `tests/test_answer_prompt.py` pins a hash of every released prompt, so editing one by accident fails CI, and each answer reports the `prompt_version` that produced it. A project's [assistant](api.md#the-projects-assistant), its name and its owner's instructions, is added below a prompt's rules at run time, saying that the rules come first; the released wording itself never changes.
 
 Three prompts are in use: `answer-v1` writes the answer, `condense-v1` rewrites a follow-up in a conversation into a standalone question to search with ("And on Fridays?" becomes "Do production deploys happen on Fridays?"), and `judge-v1` grades answers during [evaluation](evaluation.md#answer-metrics). All are pinned the same way.
 

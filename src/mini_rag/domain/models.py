@@ -58,6 +58,10 @@ class Project:
     created_at: datetime
     tenant_id: int
     storage_name: str | None = None
+    # The assistant that answers from the project: the name it goes by and
+    # the owner's instructions on tone and style (see prompts/answer.py).
+    assistant_name: str | None = None
+    instructions: str | None = None
 
     @property
     def folder(self) -> str:
@@ -354,6 +358,8 @@ class Widget:
     tenant_name: str = ""
     # When set, the widget answers only from files with any of these tags.
     tags: tuple[str, ...] = ()
+    # An https URL of the image shown in the widget's header.
+    logo_url: str | None = None
 
 
 SourceKind = Literal["website", "feed", "github"]

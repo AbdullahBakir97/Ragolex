@@ -40,13 +40,13 @@ async function load() {
 
 // The form: a new widget, or the one being edited.
 const editing = ref<Widget | null>(null);
-const form = ref({ name: "", welcome: "", accent: DEFAULT_ACCENT, origins: "", tags: [] as string[] });
+const form = ref({ name: "", welcome: "", accent: DEFAULT_ACCENT, origins: "", tags: [] as string[], logo: "" });
 const tagInput = ref<InstanceType<typeof TagInput> | null>(null);
 const saving = ref(false);
 
 function resetForm() {
   editing.value = null;
-  form.value = { name: "", welcome: "", accent: DEFAULT_ACCENT, origins: "", tags: [] };
+  form.value = { name: "", welcome: "", accent: DEFAULT_ACCENT, origins: "", tags: [], logo: "" };
 }
 
 function edit(widget: Widget) {
@@ -57,6 +57,7 @@ function edit(widget: Widget) {
     accent: widget.accent,
     origins: widget.allowed_origins.join("\n"),
     tags: [...widget.tags],
+    logo: widget.logo_url ?? "",
   };
 }
 
@@ -67,6 +68,7 @@ const origins = computed(() =>
     .filter(Boolean),
 );
 const validAccent = computed(() => /^#[0-9a-fA-F]{6}$/.test(form.value.accent));
+const validLogo = computed(() => !form.value.logo.trim() || /^https:\/\/[^\s/]+\S*$/i.test(form.value.logo.trim()));
 
 async function save() {
   if (tagInput.value && !tagInput.value.commit()) return;
@@ -76,6 +78,7 @@ async function save() {
     accent: form.value.accent,
     allowed_origins: origins.value,
     tags: form.value.tags,
+    logo_url: form.value.logo.trim() || null,
   };
   saving.value = true;
   try {
@@ -226,6 +229,23 @@ onBeforeUnmount(() => {
               refused; <code>*</code> allows any website.
             </span>
           </label>
+          <label class="field">
+            <span>Logo <span class="subtle">(optional)</span></span>
+            <div class="logo-field">
+              <img v-if="validLogo && form.logo.trim()" :src="form.logo.trim()" alt="" class="logo-preview" referrerpolicy="no-referrer" />
+              <input
+                v-model="form.logo"
+                class="input"
+                type="url"
+                maxlength="2000"
+                placeholder="https://example.com/logo.png"
+                :aria-invalid="!validLogo"
+              />
+            </div>
+            <span class="small" :class="validLogo ? 'subtle' : 'error-text'">
+              {{ validLogo ? "An https address of a square image, shown in the widget's header." : "Use an https address." }}
+            </span>
+          </label>
           <div class="field">
             <span>Answer only from documents tagged</span>
             <TagInput
@@ -242,7 +262,7 @@ onBeforeUnmount(() => {
             <button
               class="btn btn-primary"
               type="submit"
-              :disabled="saving || !form.name.trim() || !origins.length || !validAccent"
+              :disabled="saving || !form.name.trim() || !origins.length || !validAccent || !validLogo"
             >
               <LoaderCircle v-if="saving" :size="16" class="spin" />
               <Check v-else-if="editing" :size="16" />
@@ -257,7 +277,8 @@ onBeforeUnmount(() => {
         <ul v-else-if="widgets.length" class="list">
           <li v-for="widget in widgets" :key="widget.id" class="card item" :class="{ selected: previewed === widget.id }">
             <div class="row">
-              <span class="swatch" :style="{ background: widget.accent }" aria-hidden="true" />
+              <img v-if="widget.logo_url" :src="widget.logo_url" alt="" class="swatch logo-swatch" referrerpolicy="no-referrer" />
+              <span v-else class="swatch" :style="{ background: widget.accent }" aria-hidden="true" />
               <div class="info">
                 <p class="name">{{ widget.name }}</p>
                 <p class="subtle small">added {{ formatRelative(widget.created_at) }}</p>
@@ -318,6 +339,29 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.logo-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-swatch {
+  object-fit: cover;
+}
+
+.logo-preview {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.error-text {
+  color: var(--danger);
+}
+
 .widget-page {
   display: flex;
   flex-direction: column;
