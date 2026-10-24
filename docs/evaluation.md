@@ -122,6 +122,50 @@ A question the documents do not answer has no expected sources and a `null` refe
 
 A released version never changes, so its results stay comparable over time: `tests/test_eval_dataset.py` pins a hash of each, and also checks that every evidence phrase fits inside one chunk at the default and at a small chunk size. Changes go into a new version (`v2`), with a new baseline.
 
+## Tuning chunk size and overlap
+
+`mini-rag tune` runs the retrieval evaluation once per chunk size and overlap, and ranks the runs: by hit rate, then MRR, then recall, and fewer chunks between equals, since those cost less to embed and store.
+
+```bash
+mini-rag tune evals/handbook/v1 --chunk-sizes 500,1000,2000 --overlaps 0,200 --output tune.json
+```
+
+Each run embeds the documents again, so a sweep costs as many evaluations as it has runs. The `--search-mode`, `--top-k` and `--min-score` options are those of `mini-rag eval`; the `min score` column of the table is the lowest minimum score that would keep every answerable question while turning away the others, where one does. The [Tune workflow](../.github/workflows/tune.yml) runs the default sweep in CI with the eval job's model; start it from the Actions tab with other sizes, and read the table, or every run as JSON, in its log.
+
+### What the handbook measured
+
+`nomic-embed-text:v1.5`, hybrid search, top 5, on `handbook/v1` (46 answerable questions), best first:
+
+| Chunk | Overlap | Hit rate | MRR | Recall | Chunks |
+|---:|---:|---:|---:|---:|---:|
+| 2000 | 0 | 100.0% | 96.7% | 100.0% | 13 |
+| 1000 | 0 | 100.0% | 95.0% | 100.0% | 24 |
+| 750 | 100 | 100.0% | 94.8% | 100.0% | 33 |
+| 2000 | 200 | 100.0% | 94.6% | 100.0% | 14 |
+| 500 | 0 | 100.0% | 94.2% | 100.0% | 46 |
+| 2000 | 100 | 100.0% | 93.5% | 100.0% | 14 |
+| 750 | 0 | 100.0% | 91.3% | 100.0% | 28 |
+| 500 | 100 | 100.0% | 91.1% | 98.9% | 62 |
+| 1500 | 0 | 100.0% | 89.3% | 100.0% | 16 |
+| 1500 | 100 | 100.0% | 87.3% | 100.0% | 16 |
+| 1000 | 100 | 97.8% | 94.6% | 97.8% | 25 |
+| 1500 | 200 | 97.8% | 92.4% | 97.8% | 16 |
+| **1000** | **200** | **97.8%** | **91.8%** | **97.8%** | **27** |
+| 300 | 0 | 97.8% | 90.4% | 97.8% | 84 |
+| 500 | 200 | 95.7% | 89.2% | 95.7% | 84 |
+| 750 | 200 | 95.7% | 88.4% | 95.7% | 42 |
+| 300 | 200 | 95.7% | 87.9% | 94.6% | 248 |
+| 300 | 100 | 91.3% | 83.2% | 91.3% | 142 |
+
+The default, 1000 characters with 200 overlap (in bold), stays, although it ranks 13th:
+
+- The spread is small. Between the default and the runs above it, the hit rate differs by one question in 46, and the MRR by a few points.
+- The handbook does not test what overlap is for. Its eight documents are short, with short paragraphs, and the splitter cuts at paragraph breaks first, so few passages are split mid-sentence. In long documents with long paragraphs, overlap keeps such a sentence whole in one of the two chunks.
+- 2000-character chunks come first because they hold nearly whole documents here (13 chunks for 8 documents). That does not carry over to long documents, and it doubles what each source adds to the answer prompt.
+- Very small chunks are clearly worse: 300 characters lose up to 4 questions and need 3 to 9 times as many chunks.
+
+To choose for your own documents, measure them: export a dataset with `mini-rag feedback-export` (below) and run `mini-rag tune` on it. The defaults live in `src/mini_rag/domain/chunking.py`, and any upload can choose its own with `chunk_size` and `overlap_size`.
+
 ## Growing the test set from feedback
 
 People rate answers with the thumbs on the Ask page (or [the API](api.md#feedback)). Those ratings become a dataset with:

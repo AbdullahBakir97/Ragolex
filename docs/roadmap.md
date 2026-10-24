@@ -77,7 +77,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] Hybrid search: PostgreSQL full-text search combined with vector search, merged by reciprocal rank fusion (hit rate 95.7% → 97.8% on `handbook/v1`).
 - [x] A reranking step behind a `Reranker` interface (any server with the common `POST /rerank` API).
 - [x] Filters by file, page, date and metadata; diversity in the top results (`max_per_file`).
-- [ ] Index and chunking parameters tuned from measured results.
+- [x] Index and chunking parameters tuned from measured results (`mini-rag tune`, a Tune workflow; see [Evaluation](evaluation.md#tuning-chunk-size-and-overlap)).
 
 ### Phase 7: Study mode
 
