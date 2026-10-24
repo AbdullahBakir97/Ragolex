@@ -113,6 +113,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's assistant: its name and its owner's instructions */
+        get: operations["get_assistant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the project's assistant
+         * @description Only the fields sent change; null or blank clears one. Answers follow the instructions in the tone and style they set, but always answer from the documents only, with citations.
+         */
+        patch: operations["update_assistant"];
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/usage": {
         parameters: {
             query?: never;
@@ -954,6 +975,37 @@ export interface components {
              * @description In a conversation: the answer's message, to rate it with PUT .../messages/{message_id}/feedback.
              */
             message_id?: number | null;
+        };
+        /** AssistantResponse */
+        AssistantResponse: {
+            /**
+             * Name
+             * @description The name the assistant goes by in its answers; null for none.
+             */
+            name: string | null;
+            /**
+             * Instructions
+             * @description The project owner's instructions on tone, style and what to say, given to the model with every answer, below its rules: they cannot make it answer beyond the documents. Null for none.
+             */
+            instructions: string | null;
+        };
+        /**
+         * AssistantUpdateRequest
+         * @description Only the fields sent are changed.
+         */
+        AssistantUpdateRequest: {
+            /**
+             * Name
+             * @description The name the assistant goes by in its answers; null for none.
+             * @example Ada
+             */
+            name?: string | null;
+            /**
+             * Instructions
+             * @description The project owner's instructions on tone, style and what to say, given to the model with every answer, below its rules: they cannot make it answer beyond the documents. Null for none.
+             * @example Be warm and brief. Address the reader as 'you'. When the documents do not cover a question, suggest writing to hr@example.com.
+             */
+            instructions?: string | null;
         };
         /** AuditActor */
         AuditActor: {
@@ -2015,6 +2067,11 @@ export interface components {
             welcome: string | null;
             /** Accent */
             accent: string;
+            /**
+             * Logo Url
+             * @description The image in its header, if any.
+             */
+            logo_url?: string | null;
         };
         /** WidgetListResponse */
         WidgetListResponse: {
@@ -2059,6 +2116,12 @@ export interface components {
              *     ]
              */
             tags?: string[];
+            /**
+             * Logo Url
+             * @description An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.
+             * @example https://example.com/logo.png
+             */
+            logo_url?: string | null;
         };
         /** WidgetResponse */
         WidgetResponse: {
@@ -2082,6 +2145,11 @@ export interface components {
              * @description Its answers come only from files with any of these; [] for all files.
              */
             tags: string[];
+            /**
+             * Logo Url
+             * @description The image in the widget's header, if any.
+             */
+            logo_url: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2114,6 +2182,12 @@ export interface components {
              * @description Answer only from files with any of these tags; [] or null for all files.
              */
             tags?: string[] | null;
+            /**
+             * Logo Url
+             * @description An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.
+             * @example https://example.com/logo.png
+             */
+            logo_url?: string | null;
         };
     };
     responses: never;
@@ -2398,6 +2472,92 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Signal: `project_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_assistant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_assistant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantResponse"];
+                };
             };
             /** @description Signal: `project_not_found` */
             404: {

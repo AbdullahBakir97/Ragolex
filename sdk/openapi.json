@@ -509,6 +509,155 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/assistant": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "The project's assistant: its name and its owner's instructions",
+        "operationId": "get_assistant",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Change the project's assistant",
+        "description": "Only the fields sent change; null or blank clears one. Answers follow the instructions in the tone and style they set, but always answer from the documents only, with citations.",
+        "operationId": "update_assistant",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/usage": {
       "get": {
         "tags": [
@@ -5194,6 +5343,79 @@
         ],
         "title": "AskResponse"
       },
+      "AssistantResponse": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "The name the assistant goes by in its answers; null for none."
+          },
+          "instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions",
+            "description": "The project owner's instructions on tone, style and what to say, given to the model with every answer, below its rules: they cannot make it answer beyond the documents. Null for none."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "instructions"
+        ],
+        "title": "AssistantResponse"
+      },
+      "AssistantUpdateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "The name the assistant goes by in its answers; null for none.",
+            "examples": [
+              "Ada"
+            ]
+          },
+          "instructions": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions",
+            "description": "The project owner's instructions on tone, style and what to say, given to the model with every answer, below its rules: they cannot make it answer beyond the documents. Null for none.",
+            "examples": [
+              "Be warm and brief. Address the reader as 'you'. When the documents do not cover a question, suggest writing to hr@example.com."
+            ]
+          }
+        },
+        "type": "object",
+        "title": "AssistantUpdateRequest",
+        "description": "Only the fields sent are changed."
+      },
       "AuditActor": {
         "properties": {
           "key_id": {
@@ -7630,6 +7852,18 @@
           "accent": {
             "type": "string",
             "title": "Accent"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url",
+            "description": "The image in its header, if any."
           }
         },
         "type": "object",
@@ -7732,6 +7966,22 @@
                 "v2"
               ]
             ]
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url",
+            "description": "An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.",
+            "examples": [
+              "https://example.com/logo.png"
+            ]
           }
         },
         "type": "object",
@@ -7786,6 +8036,18 @@
             "title": "Tags",
             "description": "Its answers come only from files with any of these; [] for all files."
           },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url",
+            "description": "The image in the widget's header, if any."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -7801,6 +8063,7 @@
           "accent",
           "allowed_origins",
           "tags",
+          "logo_url",
           "created_at"
         ],
         "title": "WidgetResponse"
@@ -7890,6 +8153,22 @@
             ],
             "title": "Tags",
             "description": "Answer only from files with any of these tags; [] or null for all files."
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url",
+            "description": "An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.",
+            "examples": [
+              "https://example.com/logo.png"
+            ]
           }
         },
         "type": "object",

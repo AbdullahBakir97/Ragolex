@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { BarChart3, Files, LoaderCircle, MessageCircle, MessageSquareText, Search, Sparkles, TriangleAlert, Webhook } from "@lucide/vue";
+import {
+  BarChart3,
+  Bot,
+  Files,
+  LoaderCircle,
+  MessageCircle,
+  MessageSquareText,
+  Search,
+  Sparkles,
+  TriangleAlert,
+  Webhook,
+} from "@lucide/vue";
 import { computed, ref, toRef } from "vue";
 
 import { ApiError, api } from "@/api/client";
@@ -19,6 +30,7 @@ const tabs = [
   { name: "documents", label: "Documents", icon: Files },
   { name: "search", label: "Search", icon: Search },
   { name: "usage", label: "Usage", icon: BarChart3 },
+  { name: "assistant", label: "Assistant", icon: Bot },
   { name: "widget", label: "Widget", icon: MessageCircle },
   { name: "webhooks", label: "Webhooks", icon: Webhook },
 ];
