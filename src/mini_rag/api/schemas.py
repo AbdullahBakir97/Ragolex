@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import Path, Query
@@ -316,6 +317,29 @@ class FileResponse(BaseModel):
     tags: list[str] = Field(description="The file's tags, in the order given.")
 
 
+ASSISTANT_NAME_DESCRIPTION = "The name the assistant goes by in its answers; null for none."
+INSTRUCTIONS_DESCRIPTION = (
+    "The project owner's instructions on tone, style and what to say, given to the model "
+    "with every answer, below its rules: they cannot make it answer beyond the documents. "
+    "Null for none.")
+
+
+class AssistantResponse(BaseModel):
+    name: str | None = Field(description=ASSISTANT_NAME_DESCRIPTION)
+    instructions: str | None = Field(description=INSTRUCTIONS_DESCRIPTION)
+
+
+class AssistantUpdateRequest(BaseModel):
+    """Only the fields sent are changed."""
+
+    name: str | None = Field(default=None, max_length=60, description=ASSISTANT_NAME_DESCRIPTION,
+                             examples=["Ada"])
+    instructions: str | None = Field(
+        default=None, max_length=4000, description=INSTRUCTIONS_DESCRIPTION,
+        examples=["Be warm and brief. Address the reader as 'you'. When the documents do not "
+                  "cover a question, suggest writing to hr@example.com."])
+
+
 class FileTagsRequest(BaseModel):
     tags: Tags = Field(description="The file's tags from now on; [] removes them all.")
 
@@ -610,6 +634,22 @@ ORIGINS = Field(min_length=1, max_length=20,
                 examples=[["https://example.com", "https://www.example.com"]])
 
 
+LOGO = Field(default=None, max_length=2000,
+             description="An https URL of an image shown in the widget's header (square, "
+                         "at least 64 pixels); null for none.",
+             examples=["https://example.com/logo.png"])
+
+
+def _check_logo(url: str | None) -> str | None:
+    """An https URL, so pages on https websites can show it; blank is none."""
+    if url is None or not url.strip():
+        return None
+    parts = urlsplit(url.strip())
+    if parts.scheme != "https" or not parts.netloc or any(c.isspace() for c in url.strip()):
+        raise ValueError("logo_url must be an https URL")
+    return url.strip()
+
+
 def _check_origin_lengths(origins: list[str] | None) -> list[str] | None:
     if origins is not None and any(len(origin) > 255 for origin in origins):
         raise ValueError("an origin is longer than 255 characters")
@@ -625,8 +665,10 @@ class WidgetRequest(BaseModel):
     accent: str | None = ACCENT
     allowed_origins: list[str] = ORIGINS
     tags: Tags = WIDGET_TAGS
+    logo_url: str | None = LOGO
 
     _origins = field_validator("allowed_origins")(_check_origin_lengths)
+    _logo = field_validator("logo_url")(_check_logo)
 
     @field_validator("name")
     @classmethod
@@ -645,8 +687,10 @@ class WidgetUpdateRequest(BaseModel):
     allowed_origins: list[str] | None = Field(default=None, min_length=1, max_length=20)
     tags: Tags | None = Field(default=None, description="Answer only from files with any of "
                                                         "these tags; [] or null for all files.")
+    logo_url: str | None = LOGO
 
     _origins = field_validator("allowed_origins")(_check_origin_lengths)
+    _logo = field_validator("logo_url")(_check_logo)
 
     @model_validator(mode="after")
     def required_fields_not_null(self) -> "WidgetUpdateRequest":
@@ -667,6 +711,7 @@ class WidgetResponse(BaseModel):
     allowed_origins: list[str]
     tags: list[str] = Field(description="Its answers come only from files with any of these; "
                                         "[] for all files.")
+    logo_url: str | None = Field(description="The image in the widget's header, if any.")
     created_at: datetime
 
 
@@ -681,6 +726,7 @@ class WidgetConfigResponse(BaseModel):
     name: str
     welcome: str | None
     accent: str
+    logo_url: str | None = Field(default=None, description="The image in its header, if any.")
 
 
 class WidgetAskRequest(BaseModel):

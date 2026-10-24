@@ -228,3 +228,15 @@ def test_the_async_client_does_the_same():
     assert answer.answer == "25 days [1]."
     assert events[0] == AnswerDelta("25") and isinstance(events[1], AnswerDone)
     assert len(server.requests) == 5
+
+
+def test_fields_older_servers_do_not_send_read_as_null():
+    server = Server(httpx.Response(200, json={"id": "w1", "project": "docs", "name": "Help",
+                                              "welcome": None, "accent": "#2563eb",
+                                              "allowed_origins": ["*"], "tags": [],
+                                              "created_at": "2026-10-18T10:00:00Z"}))
+
+    with server.client() as rag:
+        widget = rag.get_widget("docs", "w1")
+
+    assert widget.logo_url is None

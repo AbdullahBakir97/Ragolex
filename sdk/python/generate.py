@@ -119,7 +119,10 @@ def models_module(schemas: dict) -> str:
             attr = identifier(prop)
             annotation = types.annotation(prop_schema)
             args = []
-            if prop not in required:
+            if prop in required and "None" in annotation.split(" | "):
+                # Read as null when missing, e.g. a field older servers do not send.
+                args.append("default=None")
+            elif prop not in required:
                 if "default" in prop_schema:
                     default = prop_schema["default"]
                     args.append(f"default_factory=lambda: {default!r}" if isinstance(default, (list, dict))
