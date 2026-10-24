@@ -15,6 +15,7 @@ from mini_rag.connectors.factory import create_crawler
 from mini_rag.core.config import Settings, get_settings
 from mini_rag.core.errors import AppError
 from mini_rag.core.logging_config import configure_logging
+from mini_rag.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
 from mini_rag.domain.models import DEFAULT_TENANT, SCOPES
 from mini_rag.embeddings.factory import create_embedder
 from mini_rag.evaluation.dataset import Dataset, DatasetError, load_dataset
@@ -25,6 +26,7 @@ from mini_rag.evaluation.report import (
     build_report,
     compare,
 )
+from mini_rag.evaluation.tuning import Trial, grid, rank
 from mini_rag.llm.factory import create_llm
 from mini_rag.loaders.registry import default_loader_registry
 from mini_rag.persistence.database import (
@@ -63,6 +65,10 @@ from mini_rag.webhooks.factory import create_webhook_sender
 
 # Exit codes of `mini-rag eval`.
 PASSED, REGRESSED, FAILED = 0, 1, 2
+
+# What `mini-rag tune` tries by default.
+TUNE_CHUNK_SIZES = [300, 500, 750, 1000, 1500, 2000]
+TUNE_OVERLAPS = [0, 100, 200]
 
 
 async def _resize_embeddings() -> int:
@@ -347,6 +353,61 @@ async def _evaluate(args: argparse.Namespace) -> int:
         return FAILED
 
 
+async def _tune(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    pairs = grid(args.chunk_sizes, args.overlaps)
+    if not pairs:
+        print("No overlap is smaller than a chunk size: nothing to try.", file=sys.stderr)
+        return FAILED
+    try:
+        dataset = load_dataset(args.dataset)
+        trials = []
+        parameters = None
+        for number, (chunk_size, overlap_size) in enumerate(pairs, start=1):
+            run = argparse.Namespace(search_mode=args.search_mode, top_k=args.top_k,
+                                     chunk_size=chunk_size, overlap_size=overlap_size,
+                                     min_score=args.min_score, answers=False, judge_model=None)
+            report = await _run(settings, run, dataset)
+            parameters = parameters or report["parameters"]
+            trial = Trial.from_report(report)
+            trials.append(trial)
+            print(f"[{number}/{len(pairs)}] chunks of {chunk_size} with {overlap_size} overlap: "
+                  f"hit rate {_percent(trial.hit_rate).strip()}, MRR {_percent(trial.mrr).strip()}"
+                  f", {trial.chunks} chunks", flush=True)
+    except (DatasetError, _Failure) as exc:
+        print(exc, file=sys.stderr)
+        return FAILED
+    except AppError as exc:
+        cause = f" ({exc.__cause__})" if exc.__cause__ else ""
+        print(f"The evaluation failed: {exc}{cause}", file=sys.stderr)
+        return FAILED
+
+    ranked = rank(trials)
+    assert parameters is not None
+    print(f"\nRetrieval on {parameters['dataset']} with {parameters['embedding_model']}, "
+          f"{parameters['search_mode']} search, top {parameters['top_k']}, best first:\n")
+    print(f"  {'chunk':>6}{'overlap':>9}{'hit rate':>10}{'MRR':>8}{'recall':>8}"
+          f"{'chunks':>8}{'min score':>11}")
+    for trial in ranked:
+        default = (trial.chunk_size, trial.overlap_size) == (DEFAULT_CHUNK_SIZE,
+                                                             DEFAULT_OVERLAP_SIZE)
+        suggestion = "–" if trial.suggested_min_score is None else f"{trial.suggested_min_score}"
+        print(f"  {trial.chunk_size:>6}{trial.overlap_size:>9}{_percent(trial.hit_rate):>10}"
+              f"{_percent(trial.mrr):>8}{_percent(trial.recall):>8}{trial.chunks:>8}"
+              f"{suggestion:>11}" + ("   (the default)" if default else ""))
+    best = ranked[0]
+    print(f"\nBest: chunks of {best.chunk_size} with {best.overlap_size} overlap. The min score "
+          "column is the lowest that keeps every answerable question while turning away the "
+          "others, where one does.")
+    if args.output:
+        result = {"parameters": {key: value for key, value in parameters.items()
+                                 if key not in ("chunk_size", "overlap_size")},
+                  "best": best.as_dict(), "trials": [trial.as_dict() for trial in ranked]}
+        args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        print(f"Results written to {args.output}.")
+    return PASSED
+
+
 async def _export_feedback(args: argparse.Namespace) -> int:
     settings = get_settings()
     output: Path = args.output
@@ -516,10 +577,12 @@ def main(argv: list[str] | None = None) -> int:
                           help="hybrid or vector search (default SEARCH_MODE)")
     evaluate.add_argument("--top-k", type=_positive, default=5,
                           help="results per question (default 5, as for answers)")
-    evaluate.add_argument("--chunk-size", type=_positive, default=1000,
-                          help="characters per chunk (default 1000, as for uploads)")
-    evaluate.add_argument("--overlap-size", type=_non_negative, default=200,
-                          help="characters of overlap between chunks (default 200)")
+    evaluate.add_argument("--chunk-size", type=_positive, default=DEFAULT_CHUNK_SIZE,
+                          help=f"characters per chunk (default {DEFAULT_CHUNK_SIZE}, as for "
+                               "uploads)")
+    evaluate.add_argument("--overlap-size", type=_non_negative, default=DEFAULT_OVERLAP_SIZE,
+                          help=f"characters of overlap between chunks (default "
+                               f"{DEFAULT_OVERLAP_SIZE})")
     evaluate.add_argument("--min-score", type=float,
                           help="the minimum score for an answer (default ANSWER_MIN_SCORE)")
     evaluate.add_argument("--answers", action="store_true",
@@ -535,6 +598,27 @@ def main(argv: list[str] | None = None) -> int:
                           help="how much lower a metric may be than the baseline (default 0.02)")
     evaluate.add_argument("--save-baseline", type=Path,
                           help="write this run's parameters and metrics as a baseline")
+    tune = commands.add_parser(
+        "tune",
+        help="compare chunk sizes and overlaps on a dataset, to choose the best",
+        description="Run the retrieval evaluation once per chunk size and overlap, and rank "
+                    "them: by hit rate, then MRR, then recall, and fewer chunks between equals. "
+                    "Each run embeds the dataset's documents again, with the configured "
+                    "embedding model.")
+    tune.add_argument("dataset", type=Path, help="the dataset folder, e.g. evals/handbook/v1")
+    tune.add_argument("--chunk-sizes", type=_numbers(1), default=TUNE_CHUNK_SIZES,
+                      help="comma-separated chunk sizes in characters (default "
+                           f"{','.join(map(str, TUNE_CHUNK_SIZES))})")
+    tune.add_argument("--overlaps", type=_numbers(0), default=TUNE_OVERLAPS,
+                      help="comma-separated overlaps; each is tried with the larger chunk "
+                           f"sizes (default {','.join(map(str, TUNE_OVERLAPS))})")
+    tune.add_argument("--search-mode", choices=["hybrid", "vector"],
+                      help="hybrid or vector search (default SEARCH_MODE)")
+    tune.add_argument("--top-k", type=_positive, default=5,
+                      help="results per question (default 5, as for answers)")
+    tune.add_argument("--min-score", type=float,
+                      help="the minimum score for an answer (default ANSWER_MIN_SCORE)")
+    tune.add_argument("--output", type=Path, help="write every run's results here as JSON")
     export = commands.add_parser(
         "feedback-export",
         help="turn a project's rated answers into an evaluation dataset",
@@ -607,6 +691,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
     if args.command == "feedback-export":
         return asyncio.run(_export_feedback(args))
+    if args.command == "tune":
+        return asyncio.run(_tune(args))
     if args.command == "eval":
         if args.overlap_size >= args.chunk_size:
             parser.error("--overlap-size must be smaller than --chunk-size")
@@ -652,6 +738,19 @@ def _tenant_name(value: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", value):
         raise argparse.ArgumentTypeError("use 1-64 letters, digits, _ and -")
     return value
+
+
+def _numbers(smallest: int):
+    """An argument type for comma-separated whole numbers of at least ``smallest``."""
+    def parse(value: str) -> list[int]:
+        try:
+            numbers = [int(part) for part in value.split(",") if part.strip()]
+        except ValueError:
+            raise argparse.ArgumentTypeError("use comma-separated whole numbers") from None
+        if not numbers or min(numbers) < smallest:
+            raise argparse.ArgumentTypeError(f"use numbers of {smallest} or more")
+        return numbers
+    return parse
 
 
 def _positive(value: str) -> int:

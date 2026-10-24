@@ -1,0 +1,81 @@
+name: Tune
+
+# Compares chunk sizes and overlaps on the handbook dataset with the same
+# embedding model as the eval job (nomic-embed-text in Ollama). Run it by
+# hand, or it runs when the datasets or the tuning change; the table in its
+# log is what the defaults in src/mini_rag/domain/chunking.py are chosen from.
+on:
+  workflow_dispatch:
+    inputs:
+      chunk_sizes:
+        description: Comma-separated chunk sizes
+        default: 300,500,750,1000,1500,2000
+      overlaps:
+        description: Comma-separated overlaps
+        default: 0,100,200
+  pull_request:
+    paths:
+      - .github/workflows/tune.yml
+      - evals/**
+      - src/mini_rag/evaluation/tuning.py
+
+permissions:
+  contents: read
+
+jobs:
+  tune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: mini_rag
+          # A throwaway database for one job: no password needed.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: mini_rag_tune
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mini_rag -d mini_rag_tune"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://mini_rag@localhost:5432/mini_rag_tune
+      EMBEDDING_BASE_URL: http://localhost:11434/v1
+      EMBEDDING_MODEL: nomic-embed-text:v1.5
+      EMBEDDING_DIMENSIONS: '768'
+      CHUNK_SIZES: ${{ inputs.chunk_sizes || '300,500,750,1000,1500,2000' }}
+      OVERLAPS: ${{ inputs.overlaps || '0,100,200' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Start Ollama with the embedding model
+        run: |
+          docker run --detach --name ollama --publish 11434:11434 ollama/ollama:0.35.1
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:11434/api/version; then break; fi
+            echo "Waiting for Ollama ($attempt)"
+            sleep 2
+          done
+          docker exec ollama ollama pull nomic-embed-text:v1.5
+      - name: Migrate the database
+        run: alembic upgrade head
+      - name: Compare chunk sizes and overlaps
+        run: mini-rag tune evals/handbook/v1 --chunk-sizes "$CHUNK_SIZES" --overlaps "$OVERLAPS" --output tune.json
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tune
+          path: tune.json
+          if-no-files-found: ignore

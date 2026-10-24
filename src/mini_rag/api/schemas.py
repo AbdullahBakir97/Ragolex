@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from mini_rag.core.errors import AppError
+from mini_rag.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
 from mini_rag.domain.models import SearchFilters
 from mini_rag.domain.signals import ResponseSignal
 from mini_rag.domain.tags import MAX_TAGS_PER_FILE, normalize_tags
@@ -100,9 +101,9 @@ class UploadResponse(BaseModel):
 
 class ProcessRequest(BaseModel):
     file_id: FileId
-    chunk_size: int = Field(default=1000, gt=0, le=100_000,
+    chunk_size: int = Field(default=DEFAULT_CHUNK_SIZE, gt=0, le=100_000,
                             description="Maximum chunk length in characters, overlap included.")
-    overlap_size: int = Field(default=200, ge=0,
+    overlap_size: int = Field(default=DEFAULT_OVERLAP_SIZE, ge=0,
                               description="Characters of preceding text repeated at the start of each chunk.")
 
     @model_validator(mode="after")
