@@ -236,8 +236,8 @@ def run_jobs(db, files_dir):
             engine = create_engine(db)
             try:
                 runner = JobRunner(unit_of_work_factory(create_session_factory(engine)),
-                                   FileStorage(root=files_dir), default_loader_registry(),
-                                   embedder, batch_size=2, **options)
+                                   FileStorage.from_settings(get_settings()),
+                                   default_loader_registry(), embedder, batch_size=2, **options)
                 return [await runner.run_next() for _ in range(times)]
             finally:
                 await engine.dispose()

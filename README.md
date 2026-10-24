@@ -26,7 +26,7 @@
 - **Evaluate** retrieval with `mini-rag eval` on a versioned dataset: hit rate, recall and MRR, checked in CI with a real embedding model so a change that makes search worse fails. With `--answers`, answers are graded too: citation precision, groundedness and correctness. Rated answers become new test cases with `mini-rag feedback-export`.
 - **Browse** projects, files and chunks through paged endpoints; check readiness with a health endpoint.
 - **Operate** it with request ids on every log line (text or JSON) and response, and Prometheus metrics for traffic, answers, tokens, cost, jobs and webhooks.
-- **Serve several apps** from one deployment: tenants keep their projects apart, and API keys with scopes (`read`, `write`, `ask`, `admin`) say what each app may do, within its own rate limit and monthly quotas, with an audit log of who changed what.
+- **Serve several apps** from one deployment: tenants keep their projects apart, and API keys with scopes (`read`, `write`, `ask`, `admin`) say what each app may do, within its own rate limit and monthly quotas, with an audit log of who changed what. Uploaded files and webhook secrets can be encrypted at rest, with key rotation.
 - **Use it in the browser** with the web app: projects, drag-and-drop uploads, conversations with streamed answers and clickable sources, search and usage, in light and dark.
 
 Better retrieval, hybrid search and reranking, measured by the evaluation, is next; see the [roadmap](docs/roadmap.md).

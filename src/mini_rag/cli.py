@@ -4,15 +4,16 @@ import argparse
 import asyncio
 import json
 import re
-import shutil
 import sys
 import tempfile
 import uuid
+from collections import Counter
 from datetime import date
 from pathlib import Path
 
 from mini_rag.connectors.factory import create_crawler
 from mini_rag.core.config import Settings, get_settings
+from mini_rag.core.encryption import EncryptionError, new_key
 from mini_rag.core.errors import AppError
 from mini_rag.core.logging_config import configure_logging
 from mini_rag.domain.models import DEFAULT_TENANT, SCOPES
@@ -35,6 +36,7 @@ from mini_rag.persistence.database import (
     resize_embeddings,
     stored_embedding_dimensions,
 )
+from mini_rag.persistence.reencryption import encrypt_secrets, secret_keys
 from mini_rag.persistence.repositories import (
     SqlTenantRepository,
     SqlUnitOfWork,
@@ -363,8 +365,9 @@ async def _export_feedback(args: argparse.Namespace) -> int:
             if tenant is None:
                 print(f"There is no tenant {args.tenant!r}.", file=sys.stderr)
                 return FAILED
+            storage = FileStorage.from_settings(settings)
             service = FeedbackExportService(uow=SqlUnitOfWork(session, tenant.id),
-                                            storage=FileStorage(root=settings.FILES_DIR))
+                                            storage=storage)
             export = await service.export(args.project)
     except AppError as exc:
         print(f"The feedback could not be exported: {exc}", file=sys.stderr)
@@ -377,7 +380,7 @@ async def _export_feedback(args: argparse.Namespace) -> int:
 
     (output / "documents").mkdir(parents=True, exist_ok=True)
     for document in export.documents:
-        shutil.copyfile(document.path, output / "documents" / document.name)
+        storage.copy_plaintext(document.path, output / "documents" / document.name)
     # Its own name, so it is never mistaken for a released dataset or compared with its baseline.
     project = re.sub(r"[^a-z0-9-]+", "-", args.project.lower()).strip("-")
     name = args.name or f"{project}-feedback".lstrip("-")
@@ -396,6 +399,55 @@ async def _export_feedback(args: argparse.Namespace) -> int:
     print("Check the cases, write reference answers and expected sources for the ones in "
           "cases-to-review.jsonl and move them into cases.jsonl, then run "
           f"`mini-rag eval {output}`.")
+    return PASSED
+
+
+async def _encryption(action: str) -> int:
+    """`mini-rag encryption …`."""
+    if action == "new-key":
+        print(new_key())
+        print("Put it first in ENCRYPTION_KEYS to encrypt with it, keeping the keys before "
+              "it after it so what they encrypted stays readable; then run "
+              "`mini-rag encryption encrypt`.", file=sys.stderr)
+        return PASSED
+    settings = get_settings()
+    keys = settings.encryption_keys
+    storage = FileStorage.from_settings(settings)
+    if action == "encrypt" and keys is None:
+        print("ENCRYPTION_KEYS is empty: add a key from `mini-rag encryption new-key` first.",
+              file=sys.stderr)
+        return FAILED
+    engine = create_engine(settings.DATABASE_URL)
+    try:
+        async with create_session_factory(engine)() as session:
+            if action == "status":
+                files = Counter(storage.key_id(path) for path in storage.stored_files())
+                secrets = await secret_keys(session)
+                current = keys.current_id if keys else None
+                for label, counts in (("files", files), ("webhook secrets", secrets)):
+                    parts = [f"{count} with key {kid}" + (" (current)" if kid == current else "")
+                             for kid, count in sorted(counts.items(), key=lambda item: str(item))
+                             if kid is not None]
+                    if counts[None]:
+                        parts.append(f"{counts[None]} not encrypted")
+                    print(f"{label}: {', '.join(parts) or 'none'}")
+                return PASSED
+            assert keys is not None
+            files_changed = 0
+            for path in list(storage.stored_files()):
+                if await asyncio.to_thread(storage.encrypt_file, path):
+                    files_changed += 1
+            secrets_changed = await encrypt_secrets(session, keys)
+    except EncryptionError as exc:
+        print(f"Encryption failed: {exc}.", file=sys.stderr)
+        return FAILED
+    except OSError as exc:
+        print(f"The database or the files are unreachable ({exc}).", file=sys.stderr)
+        return FAILED
+    finally:
+        await engine.dispose()
+    print(f"Encrypted {files_changed} files and {secrets_changed} webhook secrets with key "
+          f"{keys.current_id}.")
     return PASSED
 
 
@@ -473,7 +525,7 @@ async def _work(workers: int) -> int:
     embedder = create_embedder(settings)
     sender = create_webhook_sender(settings)
     unit_of_work = unit_of_work_factory(create_session_factory(engine))
-    runner = JobRunner(unit_of_work, FileStorage(root=settings.FILES_DIR),
+    runner = JobRunner(unit_of_work, FileStorage.from_settings(settings),
                        default_loader_registry(), embedder, settings.EMBEDDING_BATCH_SIZE)
     dispatcher = WebhookDispatcher(unit_of_work, sender)
     crawler = create_crawler(settings)
@@ -593,7 +645,20 @@ def main(argv: list[str] | None = None) -> int:
     audit.add_argument("--tenant", required=True)
     audit.add_argument("--action", help="only actions that start with this, e.g. api_key")
     audit.add_argument("--limit", type=_positive, default=50, help="events to show (default 50)")
+    encryption = commands.add_parser(
+        "encryption", help="encrypt uploaded files and webhook secrets at rest",
+        description="Encryption at rest with ENCRYPTION_KEYS: make a key, see what is "
+                    "encrypted with which key, and encrypt what is not yet encrypted with the "
+                    "first key (after adding a key, or putting a new one first to rotate).")
+    encryption_actions = encryption.add_subparsers(dest="action", required=True,
+                                                   metavar="action")
+    encryption_actions.add_parser("new-key", help="print a new random key")
+    encryption_actions.add_parser("status", help="count files and secrets per key")
+    encryption_actions.add_parser(
+        "encrypt", help="encrypt everything with the first key that is not already")
     args = parser.parse_args(argv)
+    if args.command == "encryption":
+        return asyncio.run(_encryption(args.action))
     if args.command == "openapi":
         return _write_openapi(args.output)
     if args.command in ("tenants", "keys", "audit"):

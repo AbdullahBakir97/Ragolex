@@ -61,6 +61,28 @@ Administrative actions (API keys, webhooks, chat widgets, projects' assistants, 
 
 With `CLAMAV_URL` set, every new upload is scanned by ClamAV before it is kept, and refused when it cannot be scanned. `docker compose --profile scan up` starts a ClamAV daemon next to the API; point `CLAMAV_URL` at `tcp://clamav:3310`. See [API › Upload a file](api.md#upload-a-file).
 
+## Encryption at rest
+
+With `ENCRYPTION_KEYS` set, uploaded files and webhook signing secrets are encrypted with AES-256-GCM before they are stored. Each file and secret names the key it was encrypted with, and every key in `ENCRYPTION_KEYS` decrypts, so a key can be replaced without losing what the old one encrypted.
+
+| Stored | Encrypted |
+|---|---|
+| Uploaded files (`FILES_DIR`) | Yes, as they arrive: the plaintext never reaches the disk. Files are encrypted in 64 KiB segments, so one changed byte, a swapped segment or a file cut short is detected rather than read |
+| Webhook signing secrets | Yes |
+| API keys | Never stored: only their SHA-256 |
+| Chunks, embeddings, conversations, the audit log | No: search needs them as they are. Keep the database on an encrypted disk (most clouds encrypt volumes by default) |
+
+Turning it on for a running deployment:
+
+1. `mini-rag encryption new-key` prints a key. Keep a copy outside the server, e.g. in a password manager: what a lost key encrypted cannot be read again.
+2. Set `ENCRYPTION_KEYS` to it for the API and every `mini-rag worker`, and restart them. New uploads and webhooks are encrypted from then on; what was stored before still reads as it is.
+3. `mini-rag encryption encrypt` encrypts the files and secrets stored before. It is safe to run again, and to stop: each file is replaced in one step.
+4. `mini-rag encryption status` counts what is encrypted, with which key.
+
+Rotating a key: put a new key first and keep the old one after it (`ENCRYPTION_KEYS=<new>,<old>`), restart, run `mini-rag encryption encrypt`, and once `status` shows nothing under the old key, remove it.
+
+Readers that need a file as uploaded (processing, malware scanning, the feedback export) get a decrypted copy in a private temporary folder, removed as soon as they are done. Backups of `FILES_DIR` stay encrypted, so restoring one needs the keys that encrypted it.
+
 ## Your own domain
 
 Nothing in Mini RAG is tied to a host name, so it serves from whichever domain you point at it. The web app's nginx (port 3000 in `compose.yaml`) serves the app, the chat widget's script and the API (it forwards `/api/`, `/docs` and `/openapi.json`), so one domain is enough:

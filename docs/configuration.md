@@ -45,6 +45,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `FILE_ALLOWED_TYPES` | Text, Markdown, HTML, PDF and Word (`.docx`) | MIME types accepted for upload. An upload with no type, or `application/octet-stream`, gets the type of its extension |
 | `FILE_MAX_SIZE` | `10` | Maximum upload size in MB |
 | `FILE_DEFAULT_CHUNK_SIZE` | `512000` | Bytes read per chunk while saving an upload |
+| `ENCRYPTION_KEYS` | `""` | Comma-separated keys from `mini-rag encryption new-key`. Set, uploaded files and webhook secrets are encrypted at rest (AES-256-GCM) with the first key, and any of the keys decrypts. Empty, they are stored as they are. Losing a key loses what it encrypted. See [Operations › Encryption at rest](operations.md#encryption-at-rest) |
 
 ## Model providers
 

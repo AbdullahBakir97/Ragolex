@@ -31,6 +31,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from mini_rag.persistence.encrypted import EncryptedString
+
 # Deterministic constraint names, so migrations are reproducible and
 # constraints can be referenced (and dropped) by name.
 NAMING_CONVENTION = {
@@ -361,8 +363,9 @@ class WebhookRow(Base):
         ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     url: Mapped[str] = mapped_column(Text)
     events: Mapped[list[str]] = mapped_column(ARRAY(String(32)))
-    # Signs each delivery; kept as is, since signing needs it.
-    secret: Mapped[str] = mapped_column(String(128))
+    # Signs each delivery, so it is kept, not hashed: encrypted with
+    # ENCRYPTION_KEYS when set (an encrypted secret is about 120 characters).
+    secret: Mapped[str] = mapped_column(EncryptedString(128))
     description: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created_at()
 

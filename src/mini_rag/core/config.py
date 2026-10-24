@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from mini_rag.core.encryption import KeyRing, parse_keys
 from mini_rag.domain.llm import TokenPrices
 
 BYTES_PER_MB = 1024 * 1024
@@ -118,6 +119,10 @@ class Settings(BaseSettings):
     CRAWLER_TIMEOUT_SECONDS: float = Field(default=15, gt=0, le=120)
     WEBHOOK_TIMEOUT_SECONDS: float = Field(
         default=10, gt=0, le=60, description="How long a webhook's receiver has to answer")
+    ENCRYPTION_KEYS: str = Field(
+        default="", description="Comma-separated keys from `mini-rag encryption new-key`: "
+                                "uploaded files and webhook secrets are encrypted with the "
+                                "first, and any of them decrypts; empty stores them as they are")
 
     @model_validator(mode="before")
     @classmethod
@@ -137,6 +142,12 @@ class Settings(BaseSettings):
         if not url.startswith("postgresql+asyncpg://"):
             raise ValueError("DATABASE_URL must start with postgresql+asyncpg://")
         return url
+
+    @field_validator("ENCRYPTION_KEYS")
+    @classmethod
+    def check_encryption_keys(cls, value: str) -> str:
+        parse_keys(value)
+        return value
 
     @field_validator("EMBEDDING_BASE_URL", "LLM_BASE_URL", "RERANK_BASE_URL")
     @classmethod
@@ -170,6 +181,16 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.FILE_MAX_SIZE * BYTES_PER_MB
+
+    @property
+    def encryption_keys(self) -> KeyRing | None:
+        """The keys that encrypt data at rest; None when it is stored as it is."""
+        return _key_ring(self.ENCRYPTION_KEYS)
+
+
+@lru_cache
+def _key_ring(value: str) -> KeyRing | None:
+    return KeyRing.from_setting(value)
 
 
 @lru_cache

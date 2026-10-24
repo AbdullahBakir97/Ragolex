@@ -147,7 +147,7 @@ AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 
 
 def get_file_storage(settings: SettingsDep) -> FileStorage:
-    return FileStorage(root=settings.FILES_DIR)
+    return FileStorage.from_settings(settings)
 
 
 FileStorageDep = Annotated[FileStorage, Depends(get_file_storage)]

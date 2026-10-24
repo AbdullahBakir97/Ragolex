@@ -85,7 +85,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
             # Background work: jobs, webhook deliveries and website syncs. With JOB_WORKERS=0
             # it is left to `mini-rag worker`.
             unit_of_work = unit_of_work_factory(app.state.session_factory)
-            runner = JobRunner(unit_of_work, FileStorage(root=settings.FILES_DIR),
+            runner = JobRunner(unit_of_work, FileStorage.from_settings(settings),
                                get_loader_registry(), embedder, settings.EMBEDDING_BATCH_SIZE)
             workers = [asyncio.create_task(runner.run(), name=f"job-worker-{n}")
                        for n in range(settings.JOB_WORKERS)]

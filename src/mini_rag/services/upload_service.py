@@ -1,11 +1,13 @@
 import hashlib
 import logging
 from collections.abc import Sequence
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 import aiofiles
+import anyio
 
 from mini_rag.core.errors import (
     AppError,
@@ -127,11 +129,18 @@ class UploadService:
                 path.unlink(missing_ok=True)
 
     async def _copy(self, stream: AsyncReadable, path: Path) -> tuple[int, str, bytes]:
-        """Stream into ``path``; returns the bytes written, their SHA-256 and the first ones."""
+        """Stream into ``path``, encrypted when the storage has keys.
+
+        Returns the bytes read, their SHA-256 and the first ones, all of
+        the upload as sent, so the plaintext never reaches the disk.
+        """
         written = 0
         digest = hashlib.sha256()
         head = b""
+        encryptor = self.storage.encryptor()
         async with aiofiles.open(path, "wb") as out:
+            if encryptor:
+                await out.write(encryptor.header)
             while chunk := await stream.read(self.read_size):
                 written += len(chunk)
                 if written > self.max_bytes:
@@ -139,13 +148,20 @@ class UploadService:
                 digest.update(chunk)
                 if len(head) < HEAD_BYTES:
                     head += chunk[:HEAD_BYTES - len(head)]
-                await out.write(chunk)
+                await out.write(encryptor.update(chunk) if encryptor else chunk)
+            if encryptor:
+                await out.write(encryptor.finish())
         return written, digest.hexdigest(), head
 
     async def _scan(self, path: Path, project_name: str, filename: str) -> None:
         if self.scanner is None:
             return
-        if found := await self.scanner.scan(path):
+        with ExitStack() as stack:
+            # The scanner reads the file as uploaded: decrypted, for as long as it takes.
+            plain = await anyio.to_thread.run_sync(stack.enter_context,
+                                                   self.storage.plaintext(path))
+            found = await self.scanner.scan(plain)
+        if found:
             logger.warning("Upload of %s to %s refused: the scanner found %s",
                            filename, project_name, found)
             UPLOADS.labels(outcome="infected").inc()

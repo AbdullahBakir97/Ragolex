@@ -36,6 +36,8 @@ dependencies = [
     "httpx2==2.13.1",
     "anyio==4.15.1",
     "prometheus-client==0.26.0",
+    # AES-GCM for encryption at rest (ENCRYPTION_KEYS).
+    "cryptography==50.0.2",
 ]
 
 [project.optional-dependencies]

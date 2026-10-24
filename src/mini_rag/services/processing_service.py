@@ -35,9 +35,9 @@ class ProcessingService:
         loader = self.loaders.get(file_key)
         splitter = RecursiveTextSplitter(chunk_size=chunk_size, overlap_size=overlap_size)
 
-        # Parsing and splitting are CPU-bound; keep them off the event loop.
+        # Decrypting, parsing and splitting are CPU-bound; keep them off the event loop.
         chunks = await anyio.to_thread.run_sync(
-            self._load_and_split, loader, path, file_key, splitter)
+            self._load_and_split, loader, path, file_key, splitter, self.storage)
 
         await self.uow.chunks.replace_for_file(record, chunks)
         await self.uow.commit()
@@ -45,9 +45,10 @@ class ProcessingService:
 
     @staticmethod
     def _load_and_split(loader: DocumentLoader, path: Path, source: str,
-                        splitter: RecursiveTextSplitter) -> list[Chunk]:
+                        splitter: RecursiveTextSplitter, storage: FileStorage) -> list[Chunk]:
         try:
-            documents = loader.load(path, source=source)
+            with storage.plaintext(path) as plain:
+                documents = loader.load(plain, source=source)
         except Exception as exc:
             raise ProcessingFailed(f"Could not read {source}") from exc
 
