@@ -21,8 +21,8 @@ class ApiKeyCreatedResponse(Model):
     prefix: str = Field(description='The start of the key, to recognise it.')
     scopes: list[str]
     created_at: datetime
-    last_used_at: datetime | None
-    revoked_at: datetime | None
+    last_used_at: datetime | None = Field(default=None)
+    revoked_at: datetime | None = Field(default=None)
     key: str = Field(description='The key itself: shown only now, so keep it safe.')
 
 
@@ -37,8 +37,8 @@ class ApiKeyResponse(Model):
     prefix: str = Field(description='The start of the key, to recognise it.')
     scopes: list[str]
     created_at: datetime
-    last_used_at: datetime | None
-    revoked_at: datetime | None
+    last_used_at: datetime | None = Field(default=None)
+    revoked_at: datetime | None = Field(default=None)
 
 
 class AskRequest(Model):
@@ -51,7 +51,7 @@ class AskRequest(Model):
 
 class AskResponse(Model):
     signal: ResponseSignal = Field(description='`answer_success`, or `no_answer` when the documents do not answer the question.')
-    answer: str | None = Field(description='The answer with [n] citation markers; null for `no_answer`.')
+    answer: str | None = Field(default=None, description='The answer with [n] citation markers; null for `no_answer`.')
     citations: list[CitationResponse] = Field(description='The sources the answer cites, in order of first citation.')
     prompt_version: str = Field(description='The prompt that produced the answer, e.g. `answer-v1`.')
     usage: UsageResponse = Field(description='Tokens and cost of this answer, including the rewriting of a follow-up question.')
@@ -60,18 +60,30 @@ class AskResponse(Model):
     message_id: int | None = Field(default=None, description="In a conversation: the answer's message, to rate it with PUT .../messages/{message_id}/feedback.")
 
 
+class AssistantResponse(Model):
+    name: str | None = Field(default=None, description='The name the assistant goes by in its answers; null for none.')
+    instructions: str | None = Field(default=None, description="The project owner's instructions on tone, style and what to say, given to the model with every answer, below its rules: they cannot make it answer beyond the documents. Null for none.")
+
+
+class AssistantUpdateRequest(Model):
+    """Only the fields sent are changed."""
+
+    name: str | None = Field(default=None, description='The name the assistant goes by in its answers; null for none.')
+    instructions: str | None = Field(default=None, description="The project owner's instructions on tone, style and what to say, given to the model with every answer, below its rules: they cannot make it answer beyond the documents. Null for none.")
+
+
 class AuditActor(Model):
     key_id: str
-    name: str | None = Field(description="The key's name; null once the key is gone.")
+    name: str | None = Field(default=None, description="The key's name; null once the key is gone.")
 
 
 class AuditEventResponse(Model):
     id: int
     action: str = Field(description='What was done, as `<thing>.<what happened>`.')
-    target: str | None = Field(description='What it was done to: an id or a name.')
+    target: str | None = Field(default=None, description='What it was done to: an id or a name.')
     details: dict[str, Any] = Field(description="The action's particulars, e.g. a new key's name and scopes. Never a secret.")
-    actor: AuditActor | None = Field(description="The API key that did it; null for the server's operators (the command line, or requests while authentication is off).")
-    request_id: str | None = Field(description='The request it came from, as in the logs.')
+    actor: AuditActor | None = Field(default=None, description="The API key that did it; null for the server's operators (the command line, or requests while authentication is off).")
+    request_id: str | None = Field(default=None, description='The request it came from, as in the logs.')
     created_at: datetime
 
 
@@ -104,7 +116,7 @@ class CitationResponse(Model):
     number: int = Field(description='The [n] marker that cites this source in the answer.')
     file_id: str
     chunk_index: int
-    page: int | None = Field(description='Page number for PDFs, starting at 1; null otherwise.')
+    page: int | None = Field(default=None, description='Page number for PDFs, starting at 1; null otherwise.')
     section: str | None = Field(default=None, description='The headings above the passage in Markdown, HTML and Word files, e.g. "Setup > Install"; null otherwise.')
     score: float = Field(description='Cosine similarity to the question: 1 is the best match.')
     text: str
@@ -116,7 +128,7 @@ class ConversationCreateRequest(Model):
 
 class ConversationDetailResponse(Model):
     id: str
-    title: str | None = Field(description='Null until the first question.')
+    title: str | None = Field(default=None, description='Null until the first question.')
     created_at: datetime
     updated_at: datetime = Field(description='When the last question was answered.')
     widget_id: str | None = Field(default=None, description='The chat widget a visitor started it in; null otherwise.')
@@ -132,7 +144,7 @@ class ConversationListResponse(Model):
 
 class ConversationResponse(Model):
     id: str
-    title: str | None = Field(description='Null until the first question.')
+    title: str | None = Field(default=None, description='Null until the first question.')
     created_at: datetime
     updated_at: datetime = Field(description='When the last question was answered.')
     widget_id: str | None = Field(default=None, description='The chat widget a visitor started it in; null otherwise.')
@@ -150,11 +162,11 @@ class DeliveryResponse(Model):
     event: str
     status: Literal['pending', 'delivered', 'failed'] | str
     attempts: int
-    response_status: int | None = Field(description="The receiver's HTTP status, last attempt.")
-    error: str | None = Field(description='Why the last attempt failed, e.g. `HTTP 500` or `timed out`.')
+    response_status: int | None = Field(default=None, description="The receiver's HTTP status, last attempt.")
+    error: str | None = Field(default=None, description='Why the last attempt failed, e.g. `HTTP 500` or `timed out`.')
     created_at: datetime
-    next_attempt_at: datetime | None
-    delivered_at: datetime | None
+    next_attempt_at: datetime | None = Field(default=None)
+    delivered_at: datetime | None = Field(default=None)
     payload: dict[str, Any] = Field(description='The body sent, without its `id`.')
 
 
@@ -178,7 +190,7 @@ class FeedbackRequest(Model):
 
 class FeedbackResponse(Model):
     rating: Literal['up', 'down'] | str
-    comment: str | None
+    comment: str | None = Field(default=None)
     created_at: datetime
 
 
@@ -246,17 +258,17 @@ class JobResponse(Model):
     id: str
     file_id: str
     status: Literal['queued', 'running', 'succeeded', 'failed'] | str = Field(description='queued, then running, then succeeded or failed. A failure that may pass (the embedding provider failing) queues the job again, until `max_attempts`.')
-    stage: Literal['processing', 'indexing'] | str | None = Field(description='The step a running job is at; the last one it reached otherwise.')
+    stage: Literal['processing', 'indexing'] | str | None = Field(default=None, description='The step a running job is at; the last one it reached otherwise.')
     progress: float = Field(description='Share of the chunks indexed, from 0 to 1.')
-    chunks_count: int | None = Field(description='Chunks made, once the job succeeded.')
+    chunks_count: int | None = Field(default=None, description='Chunks made, once the job succeeded.')
     attempts: int
     max_attempts: int
     chunk_size: int
     overlap_size: int
-    error: str | None = Field(description='The signal of the last failure, e.g. `embedding_failed`; null after success. A queued job with an error waits to try again.')
+    error: str | None = Field(default=None, description='The signal of the last failure, e.g. `embedding_failed`; null after success. A queued job with an error waits to try again.')
     created_at: datetime
-    started_at: datetime | None
-    finished_at: datetime | None
+    started_at: datetime | None = Field(default=None)
+    finished_at: datetime | None = Field(default=None)
 
 
 class KeyPointResponse(Model):
@@ -267,24 +279,24 @@ class KeyPointResponse(Model):
 class MeResponse(Model):
     tenant: str
     scopes: list[str]
-    key_id: str | None = Field(description='Null when authentication is off.')
+    key_id: str | None = Field(default=None, description='Null when authentication is off.')
     auth_enabled: bool
 
 
 class MessageResponse(Model):
     id: int
     role: Literal['user', 'assistant'] | str
-    content: str | None = Field(description='Null for an answer when the documents did not answer.')
+    content: str | None = Field(default=None, description='Null for an answer when the documents did not answer.')
     citations: list[CitationResponse] = Field(description='The sources an answer cited.')
-    prompt_version: str | None
-    search_question: str | None = Field(description='The standalone question an answer was searched with, when rewritten.')
+    prompt_version: str | None = Field(default=None)
+    search_question: str | None = Field(default=None, description='The standalone question an answer was searched with, when rewritten.')
     created_at: datetime
     feedback: FeedbackResponse | None = Field(default=None, description="An answer's rating, if any.")
 
 
 class Meter(Model):
     used: int
-    limit: int | None = Field(description='Null when unlimited.')
+    limit: int | None = Field(default=None, description='Null when unlimited.')
 
 
 class ProcessRequest(Model):
@@ -340,7 +352,7 @@ class RatedAnswerResponse(Model):
     conversation_id: str
     message_id: int
     question: str = Field(description='The question the answer answered.')
-    answer: str | None = Field(description='Null when the documents did not answer.')
+    answer: str | None = Field(default=None, description='Null when the documents did not answer.')
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
@@ -412,9 +424,9 @@ class SourceResponse(Model):
     sync_interval_hours: int
     pages_count: int = Field(description='Pages stored by the last syncs.')
     syncing: bool = Field(description='Whether a worker is syncing it now.')
-    last_synced_at: datetime | None
-    next_sync_at: datetime | None = Field(description='When it is next due; null when it is synced only when asked.')
-    last_error: str | None = Field(description='Why the last sync could not crawl the site; the pages it had are kept meanwhile.')
+    last_synced_at: datetime | None = Field(default=None)
+    next_sync_at: datetime | None = Field(default=None, description='When it is next due; null when it is synced only when asked.')
+    last_error: str | None = Field(default=None, description='Why the last sync could not crawl the site; the pages it had are kept meanwhile.')
     tags: list[str] = Field(description='Given to the pages it stores.')
     created_at: datetime
 
@@ -440,8 +452,8 @@ class StudyResponse(Model):
 class StudySourceResponse(Model):
     number: int = Field(description='What items cite in their `sources`.')
     chunk_index: int
-    page: int | None = Field(description='Page number for PDFs, starting at 1; null otherwise.')
-    section: str | None = Field(description='The headings above the passage, when known.')
+    page: int | None = Field(default=None, description='Page number for PDFs, starting at 1; null otherwise.')
+    section: str | None = Field(default=None, description='The headings above the passage, when known.')
     text: str
 
 
@@ -457,7 +469,7 @@ class TagResponse(Model):
 class TenantUsageResponse(Model):
     tenant: str
     period_start: datetime = Field(description='Start of the calendar month (UTC) counted.')
-    requests_per_minute: int | None = Field(description='The rate limit; null when unlimited.')
+    requests_per_minute: int | None = Field(default=None, description='The rate limit; null when unlimited.')
     answers: Meter = Field(description='Answers this month, and the monthly quota.')
     storage_bytes: Meter = Field(description='Bytes of files stored now, and the limit.')
     input_tokens: int = Field(description="Prompt tokens of this month's answers.")
@@ -471,9 +483,9 @@ class UploadResponse(Model):
 
 
 class UsageResponse(Model):
-    input_tokens: int | None = Field(description='Prompt tokens; 0 when the model was not called, null when the provider did not report them.')
-    output_tokens: int | None = Field(description='Tokens the model wrote, as for input_tokens.')
-    cost_usd: float | None = Field(description="US dollars; null when the usage or the model's prices (LLM_*_PRICE_PER_MILLION) are unknown.")
+    input_tokens: int | None = Field(default=None, description='Prompt tokens; 0 when the model was not called, null when the provider did not report them.')
+    output_tokens: int | None = Field(default=None, description='Tokens the model wrote, as for input_tokens.')
+    cost_usd: float | None = Field(default=None, description="US dollars; null when the usage or the model's prices (LLM_*_PRICE_PER_MILLION) are unknown.")
 
 
 class ValidationError(Model):
@@ -488,7 +500,7 @@ class WebhookCreatedResponse(Model):
     id: str
     url: str
     events: list[str]
-    description: str | None
+    description: str | None = Field(default=None)
     created_at: datetime
     secret: str = Field(description='Signs every delivery; shown only now, so keep it.')
 
@@ -510,7 +522,7 @@ class WebhookResponse(Model):
     id: str
     url: str
     events: list[str]
-    description: str | None
+    description: str | None = Field(default=None)
     created_at: datetime
 
 
@@ -530,8 +542,9 @@ class WidgetConfigResponse(Model):
 
     id: str
     name: str
-    welcome: str | None
+    welcome: str | None = Field(default=None)
     accent: str
+    logo_url: str | None = Field(default=None, description='The image in its header, if any.')
 
 
 class WidgetListResponse(Model):
@@ -544,16 +557,18 @@ class WidgetRequest(Model):
     accent: str | None = Field(default=None, description="The widget's colour, as #rrggbb; #2563eb when omitted.")
     allowed_origins: list[str] = Field(description='The websites that may embed the widget, as origins such as `https://example.com` (scheme, host and any port; no path), or `*` for any website.')
     tags: list[str] | None = Field(default=None, description='Answer only from files with any of these tags; [] for all files.')
+    logo_url: str | None = Field(default=None, description="An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.")
 
 
 class WidgetResponse(Model):
     id: str = Field(description='Public: it goes in the script tag.')
     project: str
     name: str
-    welcome: str | None
+    welcome: str | None = Field(default=None)
     accent: str
     allowed_origins: list[str]
     tags: list[str] = Field(description='Its answers come only from files with any of these; [] for all files.')
+    logo_url: str | None = Field(default=None, description="The image in the widget's header, if any.")
     created_at: datetime
 
 
@@ -565,7 +580,8 @@ class WidgetUpdateRequest(Model):
     accent: str | None = Field(default=None, description="The widget's colour, as #rrggbb; #2563eb when omitted.")
     allowed_origins: list[str] | None = Field(default=None)
     tags: list[str] | None = Field(default=None, description='Answer only from files with any of these tags; [] or null for all files.')
+    logo_url: str | None = Field(default=None, description="An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.")
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
+for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
     _model.model_rebuild()

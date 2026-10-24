@@ -18,7 +18,7 @@
 - **Ask** questions and get answers with citations to the file, page or section, and chunk, streamed as they are written if you like, or an explicit "no answer" when the documents don't say.
 - **Follow up** in conversations: a follow-up question is rewritten into a standalone one before searching, and the questions and answers are kept, with thumbs up or down on each answer.
 - **Track** the tokens and cost of every answer, per answer and per project.
-- **Embed a chat widget** in any website with one `<script>` tag: streamed answers with clickable citations, in the site's colour, allowed only on the websites you list, without API keys in the page.
+- **Embed a chat widget** in any website with one `<script>` tag: streamed answers with clickable citations, in the site's colour and with its logo, allowed only on the websites you list, without API keys in the page. Give each project's assistant a name and instructions on tone and style; it still answers only from the documents.
 - **Build on it** with the [TypeScript and Python SDKs](sdk/README.md), generated from the OpenAPI schema: every endpoint typed, streamed answers, uploads and jobs.
 - **Connect agents** through a built-in MCP server (`/api/v1/mcp`) with `list_projects`, `search_knowledge` and `ask` tools, or the same tools as function-calling schemas.
 - **Sync websites** into a project: their pages are crawled (within the site, obeying robots.txt), indexed and kept up to date on a schedule, with new, changed and removed pages handled.
