@@ -7,6 +7,8 @@ export interface WidgetConfig {
   name: string;
   welcome: string | null;
   accent: string;
+  /** An https URL of the image in the header, if any. */
+  logo_url?: string | null;
 }
 
 export interface WidgetCitation {

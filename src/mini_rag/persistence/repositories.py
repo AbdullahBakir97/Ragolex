@@ -118,7 +118,8 @@ def _affected(result: Result[Any]) -> int:
 
 def _project(row: ProjectRow) -> Project:
     return Project(id=row.id, name=row.name, created_at=row.created_at,
-                   tenant_id=row.tenant_id, storage_name=row.storage_name)
+                   tenant_id=row.tenant_id, storage_name=row.storage_name,
+                   assistant_name=row.assistant_name, instructions=row.instructions)
 
 
 def _file(row: FileRow) -> FileRecord:
@@ -193,6 +194,16 @@ class SqlProjectRepository:
         result = await self.session.execute(
             delete(ProjectRow).where(ProjectRow.name == name, *self._mine()))
         return _affected(result) > 0
+
+    async def set_assistant(self, project_id: int, *, assistant_name: str | None,
+                            instructions: str | None) -> Project:
+        row = await self.session.scalar(
+            update(ProjectRow).where(ProjectRow.id == project_id, *self._mine())
+            .values(assistant_name=assistant_name, instructions=instructions)
+            .returning(ProjectRow))
+        if row is None:
+            raise LookupError(f"No project {project_id}")
+        return _project(row)
 
 
 def _tenant(row: TenantRow) -> Tenant:
@@ -1013,7 +1024,8 @@ def _widget(row: WidgetRow, project: ProjectRow, tenant_name: str) -> Widget:
     return Widget(id=row.id, tenant_id=project.tenant_id, project_id=project.id,
                   project_name=project.name, name=row.name, welcome=row.welcome,
                   accent=row.accent, allowed_origins=tuple(row.allowed_origins),
-                  created_at=row.created_at, tenant_name=tenant_name, tags=tuple(row.tags))
+                  created_at=row.created_at, tenant_name=tenant_name, tags=tuple(row.tags),
+                  logo_url=row.logo_url)
 
 
 class SqlWidgetRepository:
@@ -1028,11 +1040,12 @@ class SqlWidgetRepository:
 
     async def create(self, *, widget_id: str, project_id: int, name: str, welcome: str | None,
                      accent: str, allowed_origins: Sequence[str],
-                     tags: Sequence[str] = ()) -> Widget:
+                     tags: Sequence[str] = (), logo_url: str | None = None) -> Widget:
         await self.session.execute(
             insert(WidgetRow).values(id=widget_id, project_id=project_id, name=name,
                                      welcome=welcome, accent=accent,
-                                     allowed_origins=list(allowed_origins), tags=list(tags)))
+                                     allowed_origins=list(allowed_origins), tags=list(tags),
+                                     logo_url=logo_url))
         return _widget(*(await self.session.execute(
             self._select().where(WidgetRow.id == widget_id))).one())
 

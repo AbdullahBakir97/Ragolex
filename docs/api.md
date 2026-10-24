@@ -2,6 +2,8 @@
 
 All endpoints are under `/api/v1` (only `/` sits outside it, redirecting to `/docs`). The interactive reference, generated from the code, is at `/docs` on a running server (and the schema at `/openapi.json`, also kept in [`sdk/openapi.json`](../sdk/openapi.json)). Each operation's `operationId` is the name of its route function, such as `upload_data` or `search_project`.
 
+**Versions:** within `/api/v1` the API only grows: nothing a client relies on is removed or changed, and anything retired is announced at least six months ahead. See [API versioning](versioning.md) for the promise and what clients must do.
+
 **SDKs:** a [TypeScript](../sdk/typescript/README.md) and a [Python](../sdk/python/README.md) client are generated from the schema: every endpoint, typed, with uploads, streamed answers and background jobs as methods. See [sdk/](../sdk/README.md).
 
 Every error response has the form `{"signal": "<name>"}` with a matching HTTP status; validation errors (`422`) list the fields that failed. An unexpected failure is `500` `{"signal": "internal_error", "request_id": "…"}`.
@@ -64,6 +66,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | `api_key.created`, `api_key.revoked` | The key's id | Name, prefix and scopes, never the key |
 | `webhook.created`, `webhook.deleted` | The webhook's id | Project, URL and events, never the secret |
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
+| `project.assistant_updated` | The project's name | The assistant's name and instructions |
 | `file.deleted`, `project.deleted` | The file's id, or the project's name | The project |
 | `tenant.exported` | The tenant's name | How many projects, files, conversations, keys and audit events the archive holds |
 
@@ -172,6 +175,8 @@ A `limit` of `null` is unlimited.
 | `GET` | `/api/v1/projects` | List projects in name order (paged) |
 | `GET` | `/api/v1/projects/{project_id}` | Project details with file, chunk and index counts |
 | `GET` | `/api/v1/projects/{project_id}/usage` | Token usage and cost of the project's answers |
+| `GET` | `/api/v1/projects/{project_id}/assistant` | The project's assistant: its name and instructions |
+| `PATCH` | `/api/v1/projects/{project_id}/assistant` | Change the assistant's name and instructions (`admin`) |
 | `GET` | `/api/v1/projects/{project_id}/files` | List a project's files (paged; `?tag=` filters) |
 | `PUT` | `/api/v1/projects/{project_id}/files/{file_id}/tags` | Replace a file's tags (`write`) |
 | `GET` | `/api/v1/projects/{project_id}/tags` | The project's tags, with how many files have each |
@@ -516,10 +521,11 @@ The page can also call `window.MiniRagWidget.open()` and `.close()`. The widget 
 | `accent` | The widget's colour as `#rrggbb` (default `#2563eb`); text on it is black or white, whichever reads better |
 | `allowed_origins` | The websites that may use the widget, as origins: scheme, host and any port, like `https://example.com` (1–20; `*` for any website). Anything else, such as a URL with a path, is refused with `422` `{"signal": "widget_origin_invalid"}` |
 | `tags` | Optional [tags](#tags-and-collections): visitors get answers only from the files with at least one of them (default `[]`, every file) |
+| `logo_url` | Optional: an `https` URL of a square image shown in the widget's header (up to 2000 characters); anything else is refused with `422` |
 
 `PATCH` changes only the settings it sends; pages that embed the widget pick the changes up when they are next loaded.
 
-**What visitors can do.** The widget's id is public: it is in the page. With it, and no API key, a visitor can only see the widget's name, welcome and colour (`GET /api/v1/widgets/{widget_id}`), ask its one project (`POST .../ask`), and rate the answers in their own conversations. Answers stream as Server-Sent Events like [`/ask/{project_id}/stream`](#streaming-the-answer), but the final `answer` event holds only what a visitor needs: the answer, its citations with the document's name, page, section and passage, the `conversation_id` to send with the next question, and the `message_id` to rate it. No file ids, scores, prompt versions or costs. A visitor can continue only conversations started in the same widget (`404` `{"signal": "conversation_not_found"}` otherwise). Widget requests count against the tenant's rate limit and answer quota, and their conversations appear with the project's others, marked with the widget's `widget_id`; removing the widget keeps them.
+**What visitors can do.** The widget's id is public: it is in the page. With it, and no API key, a visitor can only see the widget's name, welcome, colour and logo (`GET /api/v1/widgets/{widget_id}`), ask its one project (`POST .../ask`), and rate the answers in their own conversations. Answers stream as Server-Sent Events like [`/ask/{project_id}/stream`](#streaming-the-answer), but the final `answer` event holds only what a visitor needs: the answer, its citations with the document's name, page, section and passage, the `conversation_id` to send with the next question, and the `message_id` to rate it. No file ids, scores, prompt versions or costs. A visitor can continue only conversations started in the same widget (`404` `{"signal": "conversation_not_found"}` otherwise). Widget requests count against the tenant's rate limit and answer quota, and their conversations appear with the project's others, marked with the widget's `widget_id`; removing the widget keeps them.
 
 **Which websites.** Browsers send an `Origin` header with every request a page makes to another site, and a page on a website the widget does not allow is refused with `403` `{"signal": "origin_not_allowed"}`; the widget then stays hidden and says why in the browser console. The widget's routes answer any website's CORS requests (without cookies), so that refusal is readable. Pages on the API's own host, such as the web app's widget preview, may use every widget. The check keeps other websites from embedding your widget; it is not a password, since a client outside a browser can send any `Origin`, which is why a widget can do no more than its visitors could anyway.
 
@@ -572,6 +578,24 @@ curl -X POST http://localhost:8000/api/v1/search/demo1 \
 | `max_per_file` | 1–50 | At most this many results per file, so one long document does not fill all of them |
 
 An invalid combination returns `422`.
+
+## The project's assistant
+
+Each project's answers come from its assistant, which can have a name and its owner's instructions on tone, style and what to say. They apply to every answer from the project: through the API, in the web app, and in its chat widgets.
+
+```bash
+curl -X PATCH http://localhost:8000/api/v1/projects/demo1/assistant \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Ada", "instructions": "Be warm and brief. When the documents do not cover a question, suggest writing to hr@example.com."}'
+```
+
+```json
+{"name": "Ada", "instructions": "Be warm and brief. When the documents do not cover a question, suggest writing to hr@example.com."}
+```
+
+`PATCH` changes only the fields it sends, and `null` or a blank value clears one; it needs the `admin` scope, and is recorded in the [audit log](operations.md#audit-log) as `project.assistant_updated`. `name` is up to 60 characters, `instructions` up to 4000.
+
+The name and the instructions are given to the model after the [prompt's rules](architecture.md#prompts), which say that the rules come first: instructions can set the tone, the length, the format or what to mention, but not make the assistant answer beyond the documents, leave out citations, or follow text found in a document. Answers keep the prompt's `prompt_version`.
 
 ## Ask a question
 

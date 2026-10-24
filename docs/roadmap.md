@@ -50,9 +50,10 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] Usage accounting, quotas and rate limits per tenant.
 - [x] TypeScript and Python SDKs generated from the OpenAPI schema, checked in CI against the API.
 - [x] An embeddable chat widget: one `<script>` tag, streaming answers, clickable citations; a name, colour, welcome text and allowed website origins per widget.
-- [ ] **White-label:** a logo for the widget; an assistant persona and instructions per project; custom domains.
+- [x] **White-label:** a logo for the widget; an assistant name and instructions per project; serving it all from your own domain (see [Operations](operations.md#your-own-domain)).
+- [ ] Several brands on one deployment: a custom domain per tenant, mapped to its projects and widgets.
 - [x] **Collections and tags:** tag files (at upload, by hand, or per website source), list them by tag, and limit search, answers, chat widgets and the MCP tools to some tags.
-- [ ] A versioning policy for `/api/v1`.
+- [x] A [versioning policy](versioning.md) for `/api/v1`: the API only grows within it, CI fails on breaking changes, and deprecated endpoints announce their sunset in headers, at least six months ahead.
 
 ### Phase 4: Ingestion and automation
 
