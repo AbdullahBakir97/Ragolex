@@ -66,6 +66,7 @@ header {
   display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px 16px;
   background: var(--accent); color: var(--on-accent);
 }
+header .logo { width: 28px; height: 28px; flex: none; border-radius: 6px; object-fit: cover; background: rgba(255, 255, 255, 0.85); }
 header h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon-button {
   width: 32px; height: 32px; border: none; border-radius: 8px; background: transparent;
