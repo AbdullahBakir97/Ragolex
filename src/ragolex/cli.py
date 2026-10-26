@@ -15,6 +15,7 @@ from ragolex.connectors.factory import create_crawler
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.errors import AppError
 from ragolex.core.logging_config import configure_logging
+from ragolex.core.tracing import setup_tracing
 from ragolex.domain.models import DEFAULT_TENANT, SCOPES
 from ragolex.embeddings.factory import create_embedder
 from ragolex.evaluation.dataset import Dataset, DatasetError, load_dataset
@@ -34,6 +35,7 @@ from ragolex.persistence.database import (
     match_embedding_dimensions,
     resize_embeddings,
     stored_embedding_dimensions,
+    trace_engine,
 )
 from ragolex.persistence.repositories import (
     SqlTenantRepository,
@@ -479,6 +481,9 @@ async def _work(workers: int) -> int:
     settings = get_settings()
     configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
     engine = create_engine(settings.DATABASE_URL)
+    if settings.TRACING_ENABLED:
+        setup_tracing("ragolex-worker", settings.APP_VERSION)
+        trace_engine(engine)
     embedder = create_embedder(settings)
     sender = create_webhook_sender(settings)
     unit_of_work = unit_of_work_factory(create_session_factory(engine))

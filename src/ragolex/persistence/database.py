@@ -1,4 +1,8 @@
+from typing import Any
+
 import anyio
+from opentelemetry import metrics, trace
+from opentelemetry.context import Context
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -14,6 +18,36 @@ def create_engine(url: str) -> AsyncEngine:
     # pool_pre_ping replaces connections the database has closed (e.g. after
     # a restart) instead of failing the next request.
     return create_async_engine(url, pool_pre_ping=True)
+
+
+class _InTraceTracer(trace.Tracer):
+    """Starts spans only inside a trace.
+
+    A query outside any request or job, such as a worker polling for work,
+    would otherwise be a trace of its own, every second.
+    """
+
+    def __init__(self, tracer: trace.Tracer):
+        self._tracer = tracer
+
+    def start_span(self, name: str, context: Context | None = None,
+                   *args: Any, **kwargs: Any) -> trace.Span:
+        if not trace.get_current_span(context).get_span_context().is_valid:
+            return trace.INVALID_SPAN
+        return self._tracer.start_span(name, context, *args, **kwargs)
+
+    def start_as_current_span(self, name: str, context: Context | None = None,
+                              *args: Any, **kwargs: Any) -> Any:
+        return self._tracer.start_as_current_span(name, context, *args, **kwargs)
+
+
+def trace_engine(engine: AsyncEngine) -> None:
+    """Put each query of the engine in a span of the current trace (needs the tracing extra)."""
+    from opentelemetry.instrumentation.sqlalchemy.engine import EngineTracer
+
+    usage = metrics.get_meter(__name__).create_up_down_counter(
+        "db.client.connections.usage", unit="connections")
+    EngineTracer(_InTraceTracer(trace.get_tracer(__name__)), engine.sync_engine, usage)
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

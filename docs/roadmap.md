@@ -100,7 +100,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] Automated deployments to staging and production, with automatic rollback ([Deployment](deployment.md)).
 - [x] Structured logs (text or JSON) with a request id on every line and response, and the tenant.
 - [x] Prometheus metrics: traffic by route, answers, tokens and cost, uploads, jobs and webhook deliveries ([Operations](operations.md#metrics)).
-- [ ] Tracing.
+- [x] OpenTelemetry tracing of requests, database queries, searches, answers and jobs ([Operations](operations.md#tracing)).
 - [ ] Cost dashboards and budget alerts; backups with tested restores.
 - [x] Type checking (`mypy`) and a coverage threshold (95% of lines and branches) in CI.
 
