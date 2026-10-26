@@ -5,13 +5,13 @@ import time
 
 import pytest
 
-from mini_rag.core.config import get_settings
-from mini_rag.core.errors import EmbeddingFailed
-from mini_rag.loaders.registry import default_loader_registry
-from mini_rag.persistence.database import create_engine, create_session_factory
-from mini_rag.persistence.repositories import unit_of_work_factory
-from mini_rag.services.job_runner import JobRunner
-from mini_rag.storage.file_storage import FileStorage
+from ragolex.core.config import get_settings
+from ragolex.core.errors import EmbeddingFailed
+from ragolex.loaders.registry import default_loader_registry
+from ragolex.persistence.database import create_engine, create_session_factory
+from ragolex.persistence.repositories import unit_of_work_factory
+from ragolex.services.job_runner import JobRunner
+from ragolex.storage.file_storage import FileStorage
 
 from .fakes import FakeEmbedder
 
@@ -310,7 +310,7 @@ def test_deleting_a_file_deletes_its_jobs(client):
 def test_the_app_runs_jobs_with_its_own_workers(db, monkeypatch):
     from fastapi.testclient import TestClient
 
-    from mini_rag import main
+    from ragolex import main
 
     monkeypatch.setenv("JOB_WORKERS", "2")
     monkeypatch.setattr(main, "create_embedder", lambda settings: FakeEmbedder())
@@ -325,7 +325,7 @@ def test_the_app_runs_jobs_with_its_own_workers(db, monkeypatch):
 
 
 def test_the_worker_command_runs_the_configured_number_of_workers(db, monkeypatch, capsys):
-    from mini_rag import cli
+    from ragolex import cli
 
     runs = []
 

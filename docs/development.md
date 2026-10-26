@@ -19,7 +19,7 @@ pytest --cov
 
 `mypy` checks the types of everything in `src/`, the bodies of untyped functions included; the repositories are typed as their interfaces, so a SQL repository that drifts from its interface fails here as well as in `tests/test_repository_contracts.py`. `pytest --cov` measures line and branch coverage and fails below 95% (`fail_under` in `pyproject.toml`); without `--cov`, tests run without measuring.
 
-Tests use temporary directories, their own settings and the `mini_rag_test` database, which they create on the same server when it is missing (set `TEST_DATABASE_URL` to use another one), so they need no `.env` file and never write to `assets/` or the development database. Embeddings and answers come from deterministic fakes, so the tests need no API key or network.
+Tests use temporary directories, their own settings and the `ragolex_test` database, which they create on the same server when it is missing (set `TEST_DATABASE_URL` to use another one), so they need no `.env` file and never write to `assets/` or the development database. Embeddings and answers come from deterministic fakes, so the tests need no API key or network.
 
 ## Web app
 
@@ -42,10 +42,10 @@ The `Dockerfile` builds the API image in two stages: the first installs the pack
 
 `frontend/Dockerfile` builds the web app the same way: Node builds the static files, and an unprivileged nginx image serves them and forwards `/api`, `/docs` and `/openapi.json` to the `app` service. It is the `web` service in `compose.yaml`, on port 3000.
 
-The API runs background jobs and sends webhooks itself (`JOB_WORKERS`). To run them apart, for example on a machine of their own, set `JOB_WORKERS=0` for the API and start `mini-rag worker` (as many as you like) with the same database and files:
+The API runs background jobs and sends webhooks itself (`JOB_WORKERS`). To run them apart, for example on a machine of their own, set `JOB_WORKERS=0` for the API and start `ragolex worker` (as many as you like) with the same database and files:
 
 ```bash
-docker compose run --rm app mini-rag worker --workers 4
+docker compose run --rm app ragolex worker --workers 4
 ```
 
 ```bash
@@ -59,7 +59,7 @@ CI builds the images and starts the stack on every push, checks `/api/v1/health`
 
 ## Database migrations
 
-The schema is managed with Alembic; the app never creates tables itself. Migrations live in `src/mini_rag/persistence/migrations/`, and Alembic's settings are in `pyproject.toml`, so run these commands from the repository root:
+The schema is managed with Alembic; the app never creates tables itself. Migrations live in `src/ragolex/persistence/migrations/`, and Alembic's settings are in `pyproject.toml`, so run these commands from the repository root:
 
 ```bash
 alembic upgrade head                                  # apply all migrations
@@ -69,7 +69,7 @@ alembic revision --autogenerate -m "describe change"  # after changing persisten
 
 Review every generated migration before committing it. `tests/test_migrations.py` fails if the models and the migrations ever disagree.
 
-The database needs the pgvector extension, version 0.8 or newer; the `pgvector/pgvector:pg16` image in `compose.yaml` has it, and migration `0002` enables it. The migrations create vectors of 1536 numbers; a database switches to another length for another embedding model with `mini-rag resize-embeddings` (see [Changing the embedding model](configuration.md#changing-the-embedding-model)). Autogenerate compares against the migrations' 1536, so generate new migrations on a database that has not been resized.
+The database needs the pgvector extension, version 0.8 or newer; the `pgvector/pgvector:pg16` image in `compose.yaml` has it, and migration `0002` enables it. The migrations create vectors of 1536 numbers; a database switches to another length for another embedding model with `ragolex resize-embeddings` (see [Changing the embedding model](configuration.md#changing-the-embedding-model)). Autogenerate compares against the migrations' 1536, so generate new migrations on a database that has not been resized.
 
 **Upgrading a local database from before vector search:** `compose.yaml` used `postgres:16-alpine` before and now uses the Debian-based `pgvector/pgvector:pg16`. Text sorting rules differ between the two, so don't reuse the old data volume; recreate it, migrate, and upload your files again:
 
@@ -86,5 +86,5 @@ alembic upgrade head
 - The API only grows within `/api/v1` ([API versioning](versioning.md)): CI compares `sdk/openapi.json` with the base branch's and fails on a breaking change. Run the same check locally with `python tools/api_compat.py <(git show origin/start-001:sdk/openapi.json) sdk/openapi.json`.
 - The SDKs are generated from `sdk/openapi.json`: after changing the API, regenerate the schema and both SDKs (see [sdk/README.md](../sdk/README.md#after-changing-the-api)). CI fails when the schema or the generated code is out of date, and type-checks and tests both SDKs (the Python one on 3.10 and 3.13).
 - CI also checks the dependencies for known vulnerabilities (`pip-audit` on the Python dependencies, `npm audit` on the web app's, development tools included) and the whole git history for committed secrets (`gitleaks`). A vulnerable dependency fails the build until it is upgraded; Dependabot proposes the upgrades.
-- CI also measures retrieval with `mini-rag eval` and a real embedding model, and fails when it gets worse than the baseline. A change that improves it updates the baseline in the same pull request; see [Evaluation](evaluation.md#baselines-and-ci).
+- CI also measures retrieval with `ragolex eval` and a real embedding model, and fails when it gets worse than the baseline. A change that improves it updates the baseline in the same pull request; see [Evaluation](evaluation.md#baselines-and-ci).
 - See [CONTRIBUTING.md](../.github/CONTRIBUTING.md) for the architecture rules and style.

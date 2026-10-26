@@ -1,14 +1,14 @@
 import pytest
 
-from mini_rag.domain.models import Chunk, ScoredChunk
-from mini_rag.evaluation.dataset import Case, Dataset, ExpectedSource
-from mini_rag.evaluation.metrics import (
+from ragolex.domain.models import Chunk, ScoredChunk
+from ragolex.evaluation.dataset import Case, Dataset, ExpectedSource
+from ragolex.evaluation.metrics import (
     judge,
     metrics_by_tag,
     retrieval_metrics,
     suggest_min_score,
 )
-from mini_rag.evaluation.report import (
+from ragolex.evaluation.report import (
     BaselineMismatch,
     baseline_from,
     build_report,

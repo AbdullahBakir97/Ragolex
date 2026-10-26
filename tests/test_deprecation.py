@@ -6,7 +6,7 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-from mini_rag.api.deprecation import deprecated
+from ragolex.api.deprecation import deprecated
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def app():
 def test_a_deprecated_route_still_answers_and_says_until_when(app):
     from prometheus_client import REGISTRY
 
-    before = REGISTRY.get_sample_value("mini_rag_deprecated_requests_total",
+    before = REGISTRY.get_sample_value("ragolex_deprecated_requests_total",
                                        {"method": "GET", "route": "/old/{item}"}) or 0
     response = TestClient(app).get("/old/a")
 
@@ -38,7 +38,7 @@ def test_a_deprecated_route_still_answers_and_says_until_when(app):
     assert response.headers["Deprecation"] == "@1793491200"
     assert response.headers["Sunset"] == "Sat, 01 May 2027 00:00:00 GMT"
     assert response.headers["Link"] == '</api/v1/new>; rel="successor-version"'
-    assert REGISTRY.get_sample_value("mini_rag_deprecated_requests_total",
+    assert REGISTRY.get_sample_value("ragolex_deprecated_requests_total",
                                      {"method": "GET", "route": "/old/{item}"}) == before + 1
     assert "Link" not in TestClient(app).get("/older").headers
 

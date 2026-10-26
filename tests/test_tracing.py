@@ -7,9 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from mini_rag.api.dependencies import get_embedder, get_llm
-from mini_rag.core import tracing
-from mini_rag.core.config import get_settings
+from ragolex.api.dependencies import get_embedder, get_llm
+from ragolex.core import tracing
+from ragolex.core.config import get_settings
 
 from .fakes import FakeEmbedder, FakeLLM
 from .test_ask_api import upload_process_and_index
@@ -37,7 +37,7 @@ def tracer_provider():
 def traced_client(db, monkeypatch):
     monkeypatch.setenv("TRACING_ENABLED", "true")
     get_settings.cache_clear()
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     with TestClient(create_app()) as client:
         client.app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()
@@ -124,7 +124,7 @@ def test_health_checks_are_not_traced(traced_client):
 
 
 def test_log_lines_carry_the_trace_id(traced_client, caplog):
-    with caplog.at_level(logging.INFO, logger="mini_rag.access"):
+    with caplog.at_level(logging.INFO, logger="ragolex.access"):
         traced_client.get("/api/v1/projects")
 
     [request] = [span for span in EXPORTER.get_finished_spans()
@@ -141,5 +141,5 @@ def test_tracing_says_how_to_install_it(monkeypatch):
     # As if the tracing extra were not installed.
     monkeypatch.setitem(sys.modules, "opentelemetry.sdk.trace", None)
 
-    with pytest.raises(RuntimeError, match=r"pip install 'mini-rag\[tracing\]'"):
-        tracing.setup_tracing("mini-rag", "0.1.0")
+    with pytest.raises(RuntimeError, match=r"pip install 'ragolex\[tracing\]'"):
+        tracing.setup_tracing("ragolex", "0.1.0")

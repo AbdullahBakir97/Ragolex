@@ -12,30 +12,30 @@ services:
     # PostgreSQL 16 with the pgvector extension (0.8 or newer) for vector search.
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_USER: mini_rag
-      POSTGRES_PASSWORD: mini_rag
-      POSTGRES_DB: mini_rag
+      POSTGRES_USER: ragolex
+      POSTGRES_PASSWORD: ragolex
+      POSTGRES_DB: ragolex
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mini_rag -d mini_rag"]
+      test: ["CMD-SHELL", "pg_isready -U ragolex -d ragolex"]
       interval: 5s
       timeout: 3s
       retries: 10
 
   app:
     build: .
-    image: mini-rag
+    image: ragolex
     env_file: .env
     environment:
       # Inside the stack the database is reached by its service name.
-      DATABASE_URL: postgresql+asyncpg://mini_rag:mini_rag@db:5432/mini_rag
+      DATABASE_URL: postgresql+asyncpg://ragolex:ragolex@db:5432/ragolex
       FILES_DIR: /app/assets/files
     # Bring the schema up to date, then serve. Migrations are safe to run on
     # every start: Alembic applies only the missing ones.
-    command: ["sh", "-c", "alembic upgrade head && exec uvicorn mini_rag.main:app --host 0.0.0.0 --port 8000 --no-access-log"]
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn ragolex.main:app --host 0.0.0.0 --port 8000 --no-access-log"]
     # host.docker.internal is this computer, e.g. for Ollama on it; Docker
     # Desktop knows the name, Docker Engine on Linux needs this line.
     extra_hosts:
@@ -71,7 +71,7 @@ services:
   web:
     # The web interface; it forwards /api to the app service.
     build: ./frontend
-    image: mini-rag-web
+    image: ragolex-web
     ports:
       - "${WEB_PORT:-3000}:8080"
     depends_on:
