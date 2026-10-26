@@ -4,7 +4,7 @@ import io
 import json
 import zipfile
 
-from mini_rag import cli
+from ragolex import cli
 
 from .test_ask_api import GUIDE, upload_process_and_index
 from .test_auth import (  # noqa: F401 - auth_on is a fixture
@@ -41,7 +41,7 @@ def test_the_export_holds_everything_the_tenant_put_in(client, embedder, llm):
     names = set(zip_file.namelist())
     manifest = read_json(zip_file, "manifest.json")
 
-    assert manifest["format"] == "mini-rag-export" and manifest["tenant"] == "default"
+    assert manifest["format"] == "ragolex-export" and manifest["tenant"] == "default"
     assert manifest["counts"] == {"api_keys": 0, "audit_events": 3, "projects": 1, "files": 1,
                                   "conversations": 1}
     assert {"tenant.json", "api_keys.json", "audit.jsonl", "projects/demo/project.json",

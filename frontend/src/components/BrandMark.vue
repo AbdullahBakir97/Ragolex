@@ -12,7 +12,7 @@
       />
       <circle cx="10" cy="21" r="2" fill="var(--on-accent)" opacity="0.65" />
     </svg>
-    <span class="name">Mini RAG</span>
+    <span class="name">Ragolex</span>
   </span>
 </template>
 

@@ -1,15 +1,15 @@
-# @mini-rag/client
+# @ragolex/client
 
-A TypeScript client for the [Mini RAG](../../README.md) API: every endpoint, typed from the API's OpenAPI schema, plus methods for uploads, streamed answers and background jobs. It runs in Node 20+ and in browsers, and its one dependency is `openapi-fetch`.
+A TypeScript client for the [Ragolex](../../README.md) API: every endpoint, typed from the API's OpenAPI schema, plus methods for uploads, streamed answers and background jobs. It runs in Node 20+ and in browsers, and its one dependency is `openapi-fetch`.
 
 ```bash
-npm install @mini-rag/client     # or, from this repository: npm install ./sdk/typescript
+npm install @ragolex/client     # or, from this repository: npm install ./sdk/typescript
 ```
 
 ```ts
-import { MiniRag, MiniRagError } from "@mini-rag/client";
+import { Ragolex, RagolexError } from "@ragolex/client";
 
-const rag = new MiniRag({ baseUrl: "https://rag.example.com", apiKey: process.env.MINI_RAG_API_KEY });
+const rag = new Ragolex({ baseUrl: "https://rag.example.com", apiKey: process.env.RAGOLEX_API_KEY });
 
 // Upload a file and wait until it is split and indexed.
 await rag.addDocument("handbook", new File([text], "leave-policy.md"), { tags: ["hr"] });
@@ -45,13 +45,13 @@ Every request and response type is exported too: `Schemas["JobResponse"]`, or th
 
 ## Errors
 
-An error response throws a `MiniRagError`, with the API's `signal`, the HTTP `status`, the response `body` and, for rate limits, `retryAfter` in seconds. A server that cannot be reached is `status` 0 and `signal` `network_error`.
+An error response throws a `RagolexError`, with the API's `signal`, the HTTP `status`, the response `body` and, for rate limits, `retryAfter` in seconds. A server that cannot be reached is `status` 0 and `signal` `network_error`.
 
 ```ts
 try {
   await rag.ask("handbook", question);
 } catch (error) {
-  if (error instanceof MiniRagError && error.signal === "rate_limited") await wait(error.retryAfter);
+  if (error instanceof RagolexError && error.signal === "rate_limited") await wait(error.retryAfter);
   else throw error;
 }
 ```

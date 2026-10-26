@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from mini_rag.core.config import get_settings
+from ragolex.core.config import get_settings
 
 
 def test_healthy_when_database_answers(client):
@@ -11,9 +11,9 @@ def test_healthy_when_database_answers(client):
 
 
 def test_unavailable_when_database_is_down(monkeypatch, caplog):
-    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://mini_rag:mini_rag@localhost:5999/none")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ragolex:ragolex@localhost:5999/none")
     get_settings.cache_clear()
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     with TestClient(create_app()) as client:
         response = client.get("/api/v1/health")
@@ -32,7 +32,7 @@ def test_health_is_documented(client):
 def test_a_hanging_database_times_out():
     import anyio
 
-    from mini_rag.persistence.database import is_database_available
+    from ragolex.persistence.database import is_database_available
 
     class HangingEngine:
         def connect(self):

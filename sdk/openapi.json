@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "mini-RAG",
+    "title": "Ragolex",
     "version": "0.1.0"
   },
   "paths": {
@@ -2247,7 +2247,7 @@
           "webhooks"
         ],
         "summary": "Send a project's events to a URL",
-        "description": "Each event is POSTed as JSON, signed with the returned `secret` (see X-Mini-RAG-Signature), and retried for about 20 hours until the URL answers 2xx. The project is created if it has no files yet.",
+        "description": "Each event is POSTed as JSON, signed with the returned `secret` (see X-Ragolex-Signature), and retried for about 20 hours until the URL answers 2xx. The project is created if it has no files yet.",
         "operationId": "create_webhook",
         "security": [
           {
@@ -4710,7 +4710,7 @@
           "conversations"
         ],
         "summary": "Rate an answer thumbs up or down",
-        "description": "Replaces any rating the answer had. Rated answers can be reviewed with GET /api/v1/projects/{project_id}/feedback and exported as evaluation cases with `mini-rag feedback-export`.",
+        "description": "Replaces any rating the answer had. Rated answers can be reviewed with GET /api/v1/projects/{project_id}/feedback and exported as evaluation cases with `ragolex feedback-export`.",
         "operationId": "rate_answer",
         "security": [
           {
@@ -5894,7 +5894,7 @@
           "id": {
             "type": "string",
             "title": "Id",
-            "description": "Also sent as X-Mini-RAG-Delivery; the same on every attempt."
+            "description": "Also sent as X-Ragolex-Delivery; the same on every attempt."
           },
           "event": {
             "type": "string",
@@ -7697,7 +7697,7 @@
             "title": "Url",
             "description": "Where to POST events: an http or https URL.",
             "examples": [
-              "https://example.com/hooks/mini-rag"
+              "https://example.com/hooks/ragolex"
             ]
           },
           "events": {

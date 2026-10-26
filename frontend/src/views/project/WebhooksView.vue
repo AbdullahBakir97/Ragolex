@@ -166,7 +166,7 @@ onMounted(load);
       <div class="fields">
         <label class="field grow">
           <span>URL</span>
-          <input v-model="url" class="input" type="url" required maxlength="2000" placeholder="https://example.com/hooks/mini-rag" />
+          <input v-model="url" class="input" type="url" required maxlength="2000" placeholder="https://example.com/hooks/ragolex" />
         </label>
         <label class="field">
           <span>Description <span class="subtle">(optional)</span></span>
@@ -298,9 +298,9 @@ onMounted(load);
     <details class="verify card">
       <summary>Checking a delivery's signature</summary>
       <p class="small muted">
-        Each delivery has <code>X-Mini-RAG-Signature: t=&lt;unix time&gt;,v1=&lt;hex&gt;</code>, an HMAC-SHA256 of
+        Each delivery has <code>X-Ragolex-Signature: t=&lt;unix time&gt;,v1=&lt;hex&gt;</code>, an HMAC-SHA256 of
         <code>&lt;t&gt;.&lt;raw body&gt;</code> with the webhook's secret. Compute it from the raw body, compare in constant
-        time, and reject old timestamps. <code>X-Mini-RAG-Delivery</code> stays the same on retries, to skip a delivery
+        time, and reject old timestamps. <code>X-Ragolex-Delivery</code> stays the same on retries, to skip a delivery
         already handled.
       </p>
       <pre class="code"><code>import hmac, hashlib, time
