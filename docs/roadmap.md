@@ -89,7 +89,8 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 - [ ] User accounts with roles per tenant.
 - [x] File type checked from content, not the declared type; optional malware scanning with ClamAV.
-- [ ] Prompt-injection test cases; encryption at rest; per-tenant export and deletion.
+- [x] Prompt-injection test cases.
+- [ ] Encryption at rest; per-tenant export and deletion.
 - [x] Dependency vulnerability scanning (`pip-audit`, `npm audit`) and secret scanning (`gitleaks`) in CI.
 - [x] An audit log of administrative actions, with the key and request behind each (`GET /api/v1/audit`, `ragolex audit`).
 
@@ -99,7 +100,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] Automated deployments to staging and production, with automatic rollback ([Deployment](deployment.md)).
 - [x] Structured logs (text or JSON) with a request id on every line and response, and the tenant.
 - [x] Prometheus metrics: traffic by route, answers, tokens and cost, uploads, jobs and webhook deliveries ([Operations](operations.md#metrics)).
-- [ ] Tracing.
+- [x] OpenTelemetry tracing of requests, database queries, searches, answers and jobs ([Operations](operations.md#tracing)).
 - [ ] Cost dashboards and budget alerts; backups with tested restores.
 - [x] Type checking (`mypy`) and a coverage threshold (95% of lines and branches) in CI.
 

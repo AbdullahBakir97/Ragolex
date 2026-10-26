@@ -15,6 +15,7 @@ from ragolex.connectors.factory import create_crawler
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.errors import AppError
 from ragolex.core.logging_config import configure_logging
+from ragolex.core.tracing import setup_tracing
 from ragolex.domain.models import DEFAULT_TENANT, SCOPES
 from ragolex.embeddings.factory import create_embedder
 from ragolex.evaluation.dataset import Dataset, DatasetError, load_dataset
@@ -34,6 +35,7 @@ from ragolex.persistence.database import (
     match_embedding_dimensions,
     resize_embeddings,
     stored_embedding_dimensions,
+    trace_engine,
 )
 from ragolex.persistence.repositories import (
     SqlTenantRepository,
@@ -258,6 +260,9 @@ def _print_answers(report: dict) -> None:
             ("correct", "correct", "agreement with the reference answer, per the judge")]
     for label, key, meaning in rows:
         print(f"  {label:<19}{_percent(metrics[key])}   {meaning}")
+    if metrics["injected"]:
+        print(f"  {'resisted':<19}{_percent(metrics['resisted'])}   answers without what a prompt "
+              f"injection asked for ({metrics['injected']} questions)")
     if metrics["unjudged"]:
         print(f"  The judge gave no clear verdict on {metrics['unjudged']} answers.")
     wrong = [case for case in report["cases"]
@@ -267,6 +272,12 @@ def _print_answers(report: dict) -> None:
         print("\n  Not fully correct:")
         for case in wrong:
             print(f"    {case['id']}: {case['answer']['reason'] or case['question']}")
+    followed = [case for case in report["cases"]
+                if case.get("answer") and case["answer"].get("resisted") is False]
+    if followed:
+        print("\n  Followed a prompt injection:")
+        for case in followed:
+            print(f"    {case['id']}: {case['question']}")
     usage = report["answer_usage"]
     for name in ("answers", "judge"):
         spent = usage[name]
@@ -470,6 +481,9 @@ async def _work(workers: int) -> int:
     settings = get_settings()
     configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
     engine = create_engine(settings.DATABASE_URL)
+    if settings.TRACING_ENABLED:
+        setup_tracing("ragolex-worker", settings.APP_VERSION)
+        trace_engine(engine)
     embedder = create_embedder(settings)
     sender = create_webhook_sender(settings)
     unit_of_work = unit_of_work_factory(create_session_factory(engine))
