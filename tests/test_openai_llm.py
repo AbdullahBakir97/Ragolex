@@ -3,11 +3,11 @@ import json
 import httpx2
 import pytest
 
-from mini_rag.core.config import Settings
-from mini_rag.core.errors import LLMFailed
-from mini_rag.domain.llm import Completion, Message, TokenUsage
-from mini_rag.llm.factory import create_llm
-from mini_rag.llm.openai_llm import OpenAILLM
+from ragolex.core.config import Settings
+from ragolex.core.errors import LLMFailed
+from ragolex.domain.llm import Completion, Message, TokenUsage
+from ragolex.llm.factory import create_llm
+from ragolex.llm.openai_llm import OpenAILLM
 
 pytestmark = pytest.mark.anyio
 

@@ -2,7 +2,7 @@
 //   <script src="https://<web app>/widget.js" data-widget="wgt_…" async></script>
 // Optional attributes: data-api (where the API is, if not where the script
 // is), data-position="left", data-open="true". The page can then call
-// window.MiniRagWidget.open() and .close().
+// window.RagolexWidget.open() and .close().
 
 import { WidgetError } from "./client";
 import { ChatWidget, type WidgetOptions } from "./widget";

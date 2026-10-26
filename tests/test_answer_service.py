@@ -1,16 +1,16 @@
 import pytest
 
-from mini_rag.core.errors import EmbeddingFailed, LLMFailed, ProjectNotFound
-from mini_rag.domain.llm import TokenPrices, TokenUsage
-from mini_rag.domain.models import AnswerRecord, Chunk
-from mini_rag.services.answer_service import (
+from ragolex.core.errors import EmbeddingFailed, LLMFailed, ProjectNotFound
+from ragolex.domain.llm import TokenPrices, TokenUsage
+from ragolex.domain.models import AnswerRecord, Chunk
+from ragolex.services.answer_service import (
     NOT_CALLED,
     Answer,
     AnswerDelta,
     AnswerService,
 )
-from mini_rag.services.indexing_service import IndexingService
-from mini_rag.services.search_service import SearchService
+from ragolex.services.indexing_service import IndexingService
+from ragolex.services.search_service import SearchService
 
 from .fakes import FAKE_USAGE, FakeEmbedder, FakeLLM, FakeUnitOfWork
 
