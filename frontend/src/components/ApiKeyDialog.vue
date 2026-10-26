@@ -55,7 +55,7 @@ async function signIn() {
       <h2 id="api-key-title">Sign in with an API key</h2>
       <p class="muted">
         This server needs an API key. Ask its administrator for one, or create one on the server with
-        <code>mini-rag keys create</code>. It is kept in this browser only.
+        <code>ragolex keys create</code>. It is kept in this browser only.
       </p>
       <label class="field">
         <span>API key</span>

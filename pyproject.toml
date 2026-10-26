@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mini-rag"
+name = "ragolex"
 version = "0.1.0"
 description = "A retrieval-augmented generation (RAG) service built with FastAPI, PostgreSQL and pgvector."
 readme = "README.md"
@@ -48,22 +48,22 @@ dev = [
 ]
 
 [project.scripts]
-mini-rag = "mini_rag.cli:main"
+ragolex = "ragolex.cli:main"
 
 [project.urls]
-Repository = "https://github.com/AbdullahBakir97/Mini-RAG"
-Documentation = "https://github.com/AbdullahBakir97/Mini-RAG/tree/start-001/docs"
+Repository = "https://github.com/AbdullahBakir97/Ragolex"
+Documentation = "https://github.com/AbdullahBakir97/Ragolex/tree/start-001/docs"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"mini_rag.persistence" = ["migrations/script.py.mako"]
+"ragolex.persistence" = ["migrations/script.py.mako"]
 
 # Database migrations. Run from the repository root: alembic upgrade head
 # The database URL comes from DATABASE_URL (see .env.example).
 [tool.alembic]
-script_location = "mini_rag.persistence:migrations"
+script_location = "ragolex.persistence:migrations"
 file_template = "%%(rev)s_%%(slug)s"
 
 [tool.pytest.ini_options]
@@ -91,7 +91,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 
 [tool.coverage.run]
-source = ["mini_rag"]
+source = ["ragolex"]
 branch = true
 # SQLAlchemy's async engine switches greenlets: without this, lines after an await go unseen.
 concurrency = ["thread", "greenlet"]

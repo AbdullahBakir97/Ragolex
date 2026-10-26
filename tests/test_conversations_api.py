@@ -1,6 +1,6 @@
 import uuid
 
-from mini_rag.api.dependencies import get_llm
+from ragolex.api.dependencies import get_llm
 
 from .fakes import FakeLLM
 from .test_ask_api import ask, stream_events, upload_process_and_index
