@@ -81,25 +81,26 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 ### Phase 7: Study mode
 
-- [ ] Summaries, flashcards and quizzes generated from documents, each answer linked to its source page.
-- [ ] Spaced-repetition review and export to Anki.
+- [x] Summaries, flashcards and quizzes generated from documents, each item linked to its source page ([API › Study](api.md#study)).
+- [x] Spaced-repetition review and export to Anki ([API › Decks](api.md#decks-and-spaced-repetition)).
 - [ ] Code-aware chunking for source repositories.
 
 ### Phase 8: Security and privacy
 
 - [ ] User accounts with roles per tenant.
 - [x] File type checked from content, not the declared type; optional malware scanning with ClamAV.
-- [ ] Prompt-injection test cases; encryption at rest; per-tenant export and deletion.
+- [x] Prompt-injection test cases.
+- [ ] Encryption at rest; per-tenant export and deletion.
 - [x] Dependency vulnerability scanning (`pip-audit`, `npm audit`) and secret scanning (`gitleaks`) in CI.
 - [x] An audit log of administrative actions, with the key and request behind each (`GET /api/v1/audit`, `ragolex audit`).
 
 ### Phase 9: Production
 
 - [x] A multi-stage, non-root Docker image and a full `compose.yaml` stack.
-- [ ] Automated deployments to staging and production.
+- [x] Automated deployments to staging and production, with automatic rollback ([Deployment](deployment.md)).
 - [x] Structured logs (text or JSON) with a request id on every line and response, and the tenant.
 - [x] Prometheus metrics: traffic by route, answers, tokens and cost, uploads, jobs and webhook deliveries ([Operations](operations.md#metrics)).
-- [ ] Tracing.
+- [x] OpenTelemetry tracing of requests, database queries, searches, answers and jobs ([Operations](operations.md#tracing)).
 - [ ] Cost dashboards and budget alerts; backups with tested restores.
 - [x] Type checking (`mypy`) and a coverage threshold (95% of lines and branches) in CI.
 
@@ -109,6 +110,6 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] A chat interface with citations, conversation history and feedback.
 - [x] Document management with upload, job status and website sources.
 - [ ] An admin dashboard for keys, usage, cost and evaluation scores.
-- [ ] Accessible, responsive, tested end to end with Playwright.
+- [x] Accessible, responsive, tested end to end with Playwright.
 
 Ideas and feedback are welcome in [issues](https://github.com/AbdullahBakir97/Ragolex/issues).
