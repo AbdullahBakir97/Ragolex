@@ -1075,6 +1075,18 @@ export interface components {
             conversation_id?: string | null;
             /** @description Answer only from the chunks these filters leave. */
             filters?: components["schemas"]["SearchFiltersRequest"] | null;
+            /**
+             * Research
+             * @description Research mode, for questions with several parts: the model plans the searches, and reviews what they found, searching again for what is still missing. Slower, and each step is a model call that counts in `usage`.
+             * @default false
+             */
+            research?: boolean;
+            /**
+             * Max Steps
+             * @description In research mode, the most planning and review steps; the server's RESEARCH_MAX_STEPS caps it.
+             * @default 3
+             */
+            max_steps?: number;
         };
         /** AskResponse */
         AskResponse: {
@@ -1115,6 +1127,11 @@ export interface components {
              * @description In a conversation: the answer's message, to rate it with PUT .../messages/{message_id}/feedback.
              */
             message_id?: number | null;
+            /**
+             * Research
+             * @description In research mode: the searches made, in order; null otherwise.
+             */
+            research?: components["schemas"]["SearchStepResponse"][] | null;
         };
         /** AssistantResponse */
         AssistantResponse: {
@@ -2144,6 +2161,19 @@ export interface components {
             metadata: {
                 [key: string]: unknown;
             };
+        };
+        /** SearchStepResponse */
+        SearchStepResponse: {
+            /**
+             * Query
+             * @description What was searched for.
+             */
+            query: string;
+            /**
+             * Results
+             * @description How many chunks the search found.
+             */
+            results: number;
         };
         /** SourceListResponse */
         SourceListResponse: {

@@ -47,6 +47,8 @@ class AskRequest(Model):
     min_score: float | None = Field(default=None, description="Leave out chunks scoring below this; omit for the server's ANSWER_MIN_SCORE.")
     conversation_id: str | None = Field(default=None, description='Answer as a follow-up in this conversation, and add the question and the answer to it. Omit for a question on its own.')
     filters: SearchFiltersRequest | None = Field(default=None, description='Answer only from the chunks these filters leave.')
+    research: bool = Field(default=False, description='Research mode, for questions with several parts: the model plans the searches, and reviews what they found, searching again for what is still missing. Slower, and each step is a model call that counts in `usage`.')
+    max_steps: int = Field(default=3, description="In research mode, the most planning and review steps; the server's RESEARCH_MAX_STEPS caps it.")
 
 
 class AskResponse(Model):
@@ -58,6 +60,7 @@ class AskResponse(Model):
     conversation_id: str | None = Field(default=None, description='The conversation the question was asked in, if any.')
     search_question: str | None = Field(default=None, description='In a conversation: the standalone question the sources were searched with, when the follow-up had to be rewritten.')
     message_id: int | None = Field(default=None, description="In a conversation: the answer's message, to rate it with PUT .../messages/{message_id}/feedback.")
+    research: list[SearchStepResponse] | None = Field(default=None, description='In research mode: the searches made, in order; null otherwise.')
 
 
 class AssistantResponse(Model):
@@ -470,6 +473,11 @@ class SearchResult(Model):
     metadata: dict[str, Any]
 
 
+class SearchStepResponse(Model):
+    query: str = Field(description='What was searched for.')
+    results: int = Field(description='How many chunks the search found.')
+
+
 class SourceListResponse(Model):
     items: list[SourceResponse]
 
@@ -662,5 +670,5 @@ class WidgetUpdateRequest(Model):
     logo_url: str | None = Field(default=None, description="An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.")
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
+for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
     _model.model_rebuild()

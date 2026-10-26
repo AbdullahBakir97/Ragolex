@@ -196,6 +196,15 @@ export interface Answer {
   search_question: string | null;
   /** In a conversation: the answer's message, which feedback refers to. */
   message_id: number | null;
+  /** In research mode: the searches made, in order. */
+  research?: SearchStep[] | null;
+}
+
+/** One search of research mode. */
+export interface SearchStep {
+  query: string;
+  /** How many chunks it found. */
+  results: number;
 }
 
 export type Rating = "up" | "down";
@@ -222,6 +231,8 @@ export interface FeedbackList extends Page<RatedAnswer> {
 
 export interface AskOptions extends SearchOptions {
   conversation_id?: string | null;
+  /** Let the model plan the searches and search again for what is missing. */
+  research?: boolean;
 }
 
 export interface Conversation {

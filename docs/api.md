@@ -453,7 +453,7 @@ Webhooks reach only public addresses: an address on this server's network (`loca
 | `search_knowledge` | `read` | The best matching passages, each with file, page or section, and score |
 | `ask` | `ask` | An answer from the documents with `[n]` citations and its sources; counts against the answer quota |
 
-`search_knowledge` and `ask` take an optional `tags` list, to use only the files with at least one of those [tags](#tags-and-collections).
+`search_knowledge` and `ask` take an optional `tags` list, to use only the files with at least one of those [tags](#tags-and-collections). `ask` also takes `research: true` for [research mode](#research-mode), for questions with several parts.
 
 `tools/list` shows only the tools the key may use. A tool that fails (an unknown project, no embedding model, the quota reached) answers with `isError: true` and the signal, so the agent can change course; bad arguments are a JSON-RPC error (`-32602`). Requests count against the tenant's rate limit like any other. Requests from a web page on another site (an `Origin` header for another host) are refused.
 
@@ -625,6 +625,8 @@ That happens when no indexed chunk scores at least `min_score` (the model is the
 | `min_score` | `ANSWER_MIN_SCORE` (`0.3`) | -1 to 1; chunks scoring below it are not used |
 | `filters` | none | Answer only from the chunks these [filters](#filters) keep |
 | `conversation_id` | none | A conversation of this project (see [Conversations](#conversations)); omit to ask on its own |
+| `research` | `false` | [Research mode](#research-mode): the model plans the searches, for questions with several parts |
+| `max_steps` | `3` | 1–5; in research mode, the most planning and review steps, capped by `RESEARCH_MAX_STEPS` |
 
 | Case | Status | Response |
 |---|---|---|
@@ -664,6 +666,37 @@ data: {"signal": "answer_success", "answer": "Each chunk begins with up to overl
 | `error` | `{"signal": "llm_failed"}` | The language model failed partway; the stream ends |
 
 A `no_answer` reply sends no `delta` events, only the final `answer` event: text that might still be the model's no-answer reply is held back until it is clearly an answer. Errors found before streaming starts, such as an unknown project or a missing model configuration, are ordinary JSON responses with the status codes in the table above.
+
+### Research mode
+
+One search finds the chunks closest to the whole question, which can miss a part of a question that asks several things ("How long is the refund window, and who pays for return shipping?"). With `"research": true`, the model plans the searches instead:
+
+1. It splits the question into up to four searches, one for each thing it needs to find.
+2. It reads the start of what they found and searches again for any part still missing, or stops when everything is covered.
+3. Step 2 repeats until nothing is missing or `max_steps` steps (counting step 1) are taken.
+
+The answer then uses the best chunk of each search in turn, up to `top_k`, so every part of the question gets its sources. A query is never searched twice, and a plan the model gets wrong falls back to searching the question itself. Filters, `min_score` and conversations work as usual; in a conversation, the rewritten follow-up is what gets planned.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/ask/demo1 \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How long is the refund window, and who pays for return shipping?", "research": true}'
+```
+
+The answer has the usual fields, plus `research`: the searches made, in order, with how many chunks each found (it is `null` without research mode).
+
+```json
+{
+  "signal": "answer_success",
+  "answer": "Refunds are accepted for 30 days after delivery [1]. Return shipping is free for damaged items [2].",
+  "research": [
+    {"query": "refund window", "results": 3},
+    {"query": "who pays return shipping", "results": 2}
+  ]
+}
+```
+
+Research mode is slower and costs more: each step is one more model call, and each search one more embedding call. The steps' tokens are included in `usage`, and the whole answer counts once against the [answer quota](#rate-limits-and-quotas). The stream endpoint takes `research` too: the searches happen before the first `delta`, and the trail is in the final `answer` event. Agents get it through the MCP `ask` tool's `research` argument.
 
 ### Token usage and cost
 

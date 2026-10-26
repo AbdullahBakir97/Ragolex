@@ -582,12 +582,14 @@ class Operations:
         min_score: float | None | Unset = UNSET,
         conversation_id: str | None | Unset = UNSET,
         filters: SearchFiltersRequest | dict[str, Any] | None | Unset = UNSET,
+        research: bool | Unset = UNSET,
+        max_steps: int | Unset = UNSET,
     ) -> AskResponse:
         """Answer a question from the project's documents
 
         Finds the indexed chunks that best match the question and has a language model answer from them, citing each source as [n]. Signal `no_answer`, with `answer` null, means the documents do not answer the question. With `conversation_id`, the question is a follow-up: it is first rewritten into a standalone question from the conversation so far, and the question and the answer are added to the conversation.
         """
-        return self._request('POST', f'/api/v1/ask/{_path(project_id)}', query={}, json=_body(AskRequest, {'question': question, 'top_k': top_k, 'min_score': min_score, 'conversation_id': conversation_id, 'filters': filters}, optional=False), response=AskResponse.model_validate)
+        return self._request('POST', f'/api/v1/ask/{_path(project_id)}', query={}, json=_body(AskRequest, {'question': question, 'top_k': top_k, 'min_score': min_score, 'conversation_id': conversation_id, 'filters': filters, 'research': research, 'max_steps': max_steps}, optional=False), response=AskResponse.model_validate)
 
     def create_conversation(
         self,
@@ -1292,12 +1294,14 @@ class AsyncOperations:
         min_score: float | None | Unset = UNSET,
         conversation_id: str | None | Unset = UNSET,
         filters: SearchFiltersRequest | dict[str, Any] | None | Unset = UNSET,
+        research: bool | Unset = UNSET,
+        max_steps: int | Unset = UNSET,
     ) -> AskResponse:
         """Answer a question from the project's documents
 
         Finds the indexed chunks that best match the question and has a language model answer from them, citing each source as [n]. Signal `no_answer`, with `answer` null, means the documents do not answer the question. With `conversation_id`, the question is a follow-up: it is first rewritten into a standalone question from the conversation so far, and the question and the answer are added to the conversation.
         """
-        return await self._request('POST', f'/api/v1/ask/{_path(project_id)}', query={}, json=_body(AskRequest, {'question': question, 'top_k': top_k, 'min_score': min_score, 'conversation_id': conversation_id, 'filters': filters}, optional=False), response=AskResponse.model_validate)
+        return await self._request('POST', f'/api/v1/ask/{_path(project_id)}', query={}, json=_body(AskRequest, {'question': question, 'top_k': top_k, 'min_score': min_score, 'conversation_id': conversation_id, 'filters': filters, 'research': research, 'max_steps': max_steps}, optional=False), response=AskResponse.model_validate)
 
     async def create_conversation(
         self,

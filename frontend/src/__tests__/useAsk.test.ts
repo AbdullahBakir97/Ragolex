@@ -212,3 +212,23 @@ describe("asking from some documents", () => {
   });
 });
 
+
+describe("research mode", () => {
+  it("is asked for only when it is on", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ id: "c-1", title: null }, { status: 201 }))
+      .mockResolvedValueOnce(Response.json(answer("Yes [1].")))
+      .mockResolvedValueOnce(Response.json(answer("No [1].")));
+    vi.stubGlobal("fetch", fetch);
+    const settings = ref<AskSettings>({ top_k: 5, min_score: null, stream: false, research: true });
+    const { ask } = useAsk(ref("demo"), ref<string | null>(null), settings);
+
+    await ask("Do cats purr and dogs bark?");
+    settings.value.research = false;
+    await ask("And birds?");
+
+    expect(JSON.parse(fetch.mock.calls[1]![1].body).research).toBe(true);
+    expect(JSON.parse(fetch.mock.calls[2]![1].body)).not.toHaveProperty("research");
+  });
+});
