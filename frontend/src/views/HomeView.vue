@@ -25,7 +25,7 @@ watch(projects, async (list) => {
 onMounted(refresh);
 
 const steps = [
-  { icon: Upload, title: "Upload", text: "Add PDF, Word, Markdown, HTML or text files to a project." },
+  { icon: Upload, title: "Upload", text: "Add PDF, Word, Markdown, HTML, text or source code files to a project." },
   { icon: Sparkles, title: "Index", text: "They are split into chunks and embedded for search by meaning." },
   { icon: MessageSquareText, title: "Ask", text: "Get answers that cite the passages they come from." },
 ];

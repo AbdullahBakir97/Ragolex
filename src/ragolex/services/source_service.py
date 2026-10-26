@@ -8,7 +8,7 @@ from ragolex.core.errors import (
     SourceUrlNotAllowed,
 )
 from ragolex.core.network import is_local_host
-from ragolex.domain.models import Project, Source, SourcePage
+from ragolex.domain.models import Project, Source, SourceKind, SourcePage
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.services.audit import record
 from ragolex.services.deletion_service import DeletionService
@@ -25,8 +25,9 @@ class SourceService:
         self.allow_private_urls = allow_private_urls
 
     async def create(self, project_name: str, url: str, max_pages: int,
-                     sync_interval_hours: int, tags: Sequence[str] = ()) -> Source:
-        """Add a website, synced at once; the project is created if it has no files yet.
+                     sync_interval_hours: int, tags: Sequence[str] = (),
+                     kind: SourceKind = "website") -> Source:
+        """Add a source, synced at once; the project is created if it has no files yet.
 
         Its pages get ``tags``.
         """
@@ -34,12 +35,12 @@ class SourceService:
         if not self.allow_private_urls and is_local_host(host):
             raise SourceUrlNotAllowed()
         project = await self.uow.projects.get_or_create(project_name)
-        source = await self.uow.sources.create(project_id=project.id, kind="website", url=url,
+        source = await self.uow.sources.create(project_id=project.id, kind=kind, url=url,
                                                max_pages=max_pages,
                                                sync_interval_hours=sync_interval_hours,
                                                tags=clean_tags(tags))
         await record(self.uow, project.tenant_id, "source.created", source.id,
-                     project=project.name, url=url, max_pages=max_pages,
+                     project=project.name, kind=kind, url=url, max_pages=max_pages,
                      sync_interval_hours=sync_interval_hours, tags=list(source.tags))
         await self.uow.commit()
         return source

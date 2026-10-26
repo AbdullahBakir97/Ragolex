@@ -80,6 +80,9 @@ export interface ProcessOptions {
   overlap_size: number;
 }
 
+/** How files are split unless chosen otherwise: the API's defaults (see sdk/openapi.json). */
+export const DEFAULT_PROCESS_OPTIONS: ProcessOptions = { chunk_size: 1000, overlap_size: 200 };
+
 export interface ProcessResult {
   signal: string;
   file_id: string;
@@ -100,6 +103,26 @@ export interface TenantUsage {
   input_tokens: number;
   output_tokens: number;
   cost_usd: number;
+  /** The monthly budget in US dollars; null when there is none. */
+  budget_usd: number | null;
+}
+
+/** Answers, tokens and known cost of a day, a project or a model. */
+export interface UsageTotal {
+  answers: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
+export interface UsageHistory {
+  start: string;
+  /** Every day (UTC), oldest first. */
+  days: (UsageTotal & { day: string })[];
+  /** Costliest first. */
+  projects: (UsageTotal & { project: string })[];
+  /** `model` is null for questions that matched no source. */
+  models: (UsageTotal & { model: string | null })[];
 }
 
 export interface Me {
@@ -196,6 +219,15 @@ export interface Answer {
   search_question: string | null;
   /** In a conversation: the answer's message, which feedback refers to. */
   message_id: number | null;
+  /** In research mode: the searches made, in order. */
+  research?: SearchStep[] | null;
+}
+
+/** One search of research mode. */
+export interface SearchStep {
+  query: string;
+  /** How many chunks it found. */
+  results: number;
 }
 
 export type Rating = "up" | "down";
@@ -222,6 +254,8 @@ export interface FeedbackList extends Page<RatedAnswer> {
 
 export interface AskOptions extends SearchOptions {
   conversation_id?: string | null;
+  /** Let the model plan the searches and search again for what is missing. */
+  research?: boolean;
 }
 
 export interface Conversation {
@@ -250,7 +284,14 @@ export interface ConversationDetail extends Conversation {
   messages: ConversationMessage[];
 }
 
-export const WEBHOOK_EVENTS = ["file.uploaded", "file.deleted", "job.succeeded", "job.failed", "source.synced"] as const;
+export const WEBHOOK_EVENTS = [
+  "file.uploaded",
+  "file.deleted",
+  "job.succeeded",
+  "job.failed",
+  "source.synced",
+  "budget.alert",
+] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
 export interface Webhook {
@@ -312,9 +353,12 @@ export interface Assistant {
   instructions: string | null;
 }
 
+/** website: a site's pages; feed: an RSS or Atom feed's entries; github: a repository's documents. */
+export type SourceKind = "website" | "feed" | "github";
+
 export interface WebsiteSource {
   id: string;
-  kind: "website";
+  kind: SourceKind;
   url: string;
   max_pages: number;
   /** 0: synced only when asked. */
@@ -378,4 +422,89 @@ export interface EvaluationRun {
   answer_metrics: Record<string, number | null> | null;
   version: string;
   created_at: string;
+}
+export type StudyKind = "summary" | "flashcards" | "quiz";
+
+/** Items cite their passages by number, in `sources`. */
+export interface KeyPoint {
+  text: string;
+  sources: number[];
+}
+
+export interface Flashcard {
+  front: string;
+  back: string;
+  sources: number[];
+}
+
+export interface QuizQuestion {
+  question: string;
+  choices: string[];
+  /** The position of the right choice, from 0. */
+  answer: number;
+  explanation: string;
+  sources: number[];
+}
+
+export interface StudySource {
+  number: number;
+  chunk_index: number;
+  page: number | null;
+  section: string | null;
+  text: string;
+}
+
+interface StudyBase {
+  file_id: string;
+  original_name: string;
+  sources: StudySource[];
+  prompt_version: string;
+  usage: Usage;
+  /** Chunks given to the model, of `chunks`: fewer for a long document. */
+  passages: number;
+  chunks: number;
+}
+
+export type StudyMaterial =
+  | (StudyBase & { kind: "summary"; items: KeyPoint[] })
+  | (StudyBase & { kind: "flashcards"; items: Flashcard[] })
+  | (StudyBase & { kind: "quiz"; items: QuizQuestion[] });
+
+export type ReviewGrade = "again" | "hard" | "good" | "easy";
+
+export interface Deck {
+  id: string;
+  name: string;
+  cards: number;
+  /** Cards due for review now. */
+  due: number;
+  created_at: string;
+}
+
+export interface Card {
+  id: string;
+  front: string;
+  back: string;
+  source: { file_id: string | null; chunk_index: number | null; page: number | null; section: string | null };
+  due_at: string;
+  interval_days: number;
+  ease: number;
+  repetitions: number;
+  lapses: number;
+  last_reviewed_at: string | null;
+  created_at: string;
+}
+
+/** A card due for review, with the days until it is due again for each grade. */
+export interface ReviewCard extends Card {
+  intervals: Record<ReviewGrade, number>;
+}
+
+export interface NewCard {
+  front: string;
+  back: string;
+  file_id?: string | null;
+  chunk_index?: number | null;
+  page?: number | null;
+  section?: string | null;
 }

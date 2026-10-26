@@ -2,7 +2,7 @@
 
     from ragolex_client import Ragolex
 
-    with Ragolex("https://rag.example.com", api_key="mrag_…") as rag:
+    with Ragolex("https://rag.example.com", api_key="ragolex_…") as rag:
         rag.add_document("handbook", "leave-policy.pdf", tags=["hr"])
         answer = rag.ask_project("handbook", question="How many days of leave?")
 """

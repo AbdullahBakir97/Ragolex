@@ -47,6 +47,8 @@ class AskRequest(Model):
     min_score: float | None = Field(default=None, description="Leave out chunks scoring below this; omit for the server's ANSWER_MIN_SCORE.")
     conversation_id: str | None = Field(default=None, description='Answer as a follow-up in this conversation, and add the question and the answer to it. Omit for a question on its own.')
     filters: SearchFiltersRequest | None = Field(default=None, description='Answer only from the chunks these filters leave.')
+    research: bool = Field(default=False, description='Research mode, for questions with several parts: the model plans the searches, and reviews what they found, searching again for what is still missing. Slower, and each step is a model call that counts in `usage`.')
+    max_steps: int = Field(default=3, description="In research mode, the most planning and review steps; the server's RESEARCH_MAX_STEPS caps it.")
 
 
 class AskResponse(Model):
@@ -58,6 +60,7 @@ class AskResponse(Model):
     conversation_id: str | None = Field(default=None, description='The conversation the question was asked in, if any.')
     search_question: str | None = Field(default=None, description='In a conversation: the standalone question the sources were searched with, when the follow-up had to be rewritten.')
     message_id: int | None = Field(default=None, description="In a conversation: the answer's message, to rate it with PUT .../messages/{message_id}/feedback.")
+    research: list[SearchStepResponse] | None = Field(default=None, description='In research mode: the searches made, in order; null otherwise.')
 
 
 class AssistantResponse(Model):
@@ -99,6 +102,47 @@ class BodyUploadData(Model):
     tags: str | None = Field(default=None, description='Comma-separated. Tags: letters, digits and hyphens, up to 32 characters each; they are lowercased, with spaces and underscores turned into hyphens.')
 
 
+class CardListResponse(Model):
+    total: int
+    offset: int
+    limit: int
+    items: list[CardResponse]
+
+
+class CardRequest(Model):
+    front: str = Field(description='The question or term.')
+    back: str = Field(description='Its answer.')
+    file_id: str | None = Field(default=None, description='The document it comes from.')
+    chunk_index: int | None = Field(default=None, description='The passage it comes from.')
+    page: int | None = Field(default=None)
+    section: str | None = Field(default=None)
+
+
+class CardResponse(Model):
+    id: str
+    front: str
+    back: str
+    source: CardSourceResponse = Field(description='Where it comes from; all null when unknown.')
+    due_at: datetime = Field(description='When it is next due for review.')
+    interval_days: float = Field(description='Days from the last review to `due_at`; 0 for a card never reviewed.')
+    ease: float = Field(description='How much the interval grows after a good review.')
+    repetitions: int = Field(description='Reviews in a row it was remembered.')
+    lapses: int = Field(description='Times it was forgotten after being learnt.')
+    last_reviewed_at: datetime | None = Field(default=None)
+    created_at: datetime
+
+
+class CardSourceResponse(Model):
+    file_id: str | None = Field(default=None)
+    chunk_index: int | None = Field(default=None)
+    page: int | None = Field(default=None)
+    section: str | None = Field(default=None)
+
+
+class CardsRequest(Model):
+    cards: list[CardRequest]
+
+
 class ChunkListResponse(Model):
     total: int
     offset: int
@@ -117,7 +161,7 @@ class CitationResponse(Model):
     file_id: str
     chunk_index: int
     page: int | None = Field(default=None, description='Page number for PDFs, starting at 1; null otherwise.')
-    section: str | None = Field(default=None, description='The headings above the passage in Markdown, HTML and Word files, e.g. "Setup > Install"; null otherwise.')
+    section: str | None = Field(default=None, description='The headings above the passage in Markdown, HTML and Word files, e.g. "Setup > Install"; the function or class in source code, e.g. "Parser.parse"; null otherwise.')
     score: float = Field(description='Cosine similarity to the question: 1 is the best match.')
     text: str
 
@@ -148,6 +192,27 @@ class ConversationResponse(Model):
     created_at: datetime
     updated_at: datetime = Field(description='When the last question was answered.')
     widget_id: str | None = Field(default=None, description='The chat widget a visitor started it in; null otherwise.')
+
+
+class DayUsageResponse(Model):
+    answers: int = Field(description='Questions asked, streamed or not.')
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float = Field(description='Known cost, in US dollars.')
+    day: str = Field(description='The day, in UTC.')
+
+
+class DeckRequest(Model):
+    name: str
+    cards: list[CardRequest] | None = Field(default=None, description='Flashcards to start with, e.g. from `POST /study` with `kind: flashcards`.')
+
+
+class DeckResponse(Model):
+    id: str
+    name: str
+    cards: int = Field(description='Cards in the deck.')
+    due: int = Field(description='Cards due for review now.')
+    created_at: datetime
 
 
 class DeliveryListResponse(Model):
@@ -233,6 +298,12 @@ class FileTagsRequest(Model):
     tags: list[str] = Field(description="The file's tags from now on; [] removes them all.")
 
 
+class FlashcardResponse(Model):
+    front: str
+    back: str
+    sources: list[int]
+
+
 class HTTPValidationError(Model):
     detail: list[ValidationError] | None = Field(default=None)
 
@@ -284,6 +355,11 @@ class JobResponse(Model):
     finished_at: datetime | None = Field(default=None)
 
 
+class KeyPointResponse(Model):
+    text: str
+    sources: list[int]
+
+
 class MeResponse(Model):
     tenant: str
     scopes: list[str]
@@ -305,6 +381,14 @@ class MessageResponse(Model):
 class Meter(Model):
     used: int
     limit: int | None = Field(default=None, description='Null when unlimited.')
+
+
+class ModelShareResponse(Model):
+    answers: int = Field(description='Questions asked, streamed or not.')
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float = Field(description='Known cost, in US dollars.')
+    model: str | None = Field(default=None, description='The language model; null for questions that matched no source, so no model was called.')
 
 
 class ProcessRequest(Model):
@@ -339,6 +423,14 @@ class ProjectResponse(Model):
     embedded_chunks_count: int = Field(description='Chunks that are indexed for search; equals chunks_count when the index is complete.')
 
 
+class ProjectShareResponse(Model):
+    answers: int = Field(description='Questions asked, streamed or not.')
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float = Field(description='Known cost, in US dollars.')
+    project: str
+
+
 class ProjectUsageResponse(Model):
     answers: int = Field(description='Questions asked, streamed or not.')
     answered: int = Field(description='Of those, how many got an answer rather than `no_answer`.')
@@ -346,6 +438,14 @@ class ProjectUsageResponse(Model):
     output_tokens: int = Field(description='Tokens the model wrote, likewise.')
     cost_usd: float = Field(description='US dollars of all answers with a known cost.')
     unpriced_answers: int = Field(description='Model calls whose cost is unknown and not included in cost_usd.')
+
+
+class QuizQuestionResponse(Model):
+    question: str
+    choices: list[str] = Field(description='Four choices.')
+    answer: int = Field(description='The position of the right choice, from 0.')
+    explanation: str = Field(description='Why it is right, from the document.')
+    sources: list[int]
 
 
 class RatedAnswerResponse(Model):
@@ -356,7 +456,31 @@ class RatedAnswerResponse(Model):
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
-ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+
+
+class ReviewCardResponse(Model):
+    id: str
+    front: str
+    back: str
+    source: CardSourceResponse = Field(description='Where it comes from; all null when unknown.')
+    due_at: datetime = Field(description='When it is next due for review.')
+    interval_days: float = Field(description='Days from the last review to `due_at`; 0 for a card never reviewed.')
+    ease: float = Field(description='How much the interval grows after a good review.')
+    repetitions: int = Field(description='Reviews in a row it was remembered.')
+    lapses: int = Field(description='Times it was forgotten after being learnt.')
+    last_reviewed_at: datetime | None = Field(default=None)
+    created_at: datetime
+    intervals: dict[str, float] = Field(description='Days until the card is due again for each grade, to show on the buttons.')
+
+
+class ReviewQueueResponse(Model):
+    deck: DeckResponse
+    cards: list[ReviewCardResponse] = Field(description='Cards due now, the longest due first.')
+
+
+class ReviewRequest(Model):
+    grade: Literal['again', 'hard', 'good', 'easy'] | str = Field(description='How well the card was remembered: `again` (not at all), `hard`, `good` or `easy`.')
 
 
 class SearchFiltersRequest(Model):
@@ -392,6 +516,11 @@ class SearchResult(Model):
     metadata: dict[str, Any]
 
 
+class SearchStepResponse(Model):
+    query: str = Field(description='What was searched for.')
+    results: int = Field(description='How many chunks the search found.')
+
+
 class SourceListResponse(Model):
     items: list[SourceResponse]
 
@@ -410,7 +539,8 @@ class SourcePagesResponse(Model):
 
 
 class SourceRequest(Model):
-    url: str = Field(description="Where to start: the site's pages under this URL's folder are crawled, following their links.")
+    kind: Literal['website', 'feed', 'github'] | str = Field(default='website', description="`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.")
+    url: str = Field(description="The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.")
     max_pages: int = Field(default=50, description='Most pages to keep.')
     sync_interval_hours: int = Field(default=24, description='Sync again after this many hours; 0 syncs only when asked.')
     tags: list[str] | None = Field(default=None, description='Given to the pages it stores.')
@@ -418,7 +548,7 @@ class SourceRequest(Model):
 
 class SourceResponse(Model):
     id: str
-    kind: Literal['website']
+    kind: Literal['website', 'feed', 'github'] | str
     url: str
     max_pages: int
     sync_interval_hours: int
@@ -429,6 +559,32 @@ class SourceResponse(Model):
     last_error: str | None = Field(default=None, description='Why the last sync could not crawl the site; the pages it had are kept meanwhile.')
     tags: list[str] = Field(description='Given to the pages it stores.')
     created_at: datetime
+
+
+class StudyRequest(Model):
+    file_id: str = Field(description='The document to study; it must be processed.')
+    kind: Literal['summary', 'flashcards', 'quiz'] | str = Field(description="`summary`: key points in the document's order. `flashcards`: a question or term on the front, its answer on the back. `quiz`: multiple-choice questions with four choices, the right one and why.")
+    count: int = Field(default=10, description='Most items to write.')
+
+
+class StudyResponse(Model):
+    kind: Literal['summary', 'flashcards', 'quiz'] | str
+    file_id: str
+    original_name: str
+    items: list[KeyPointResponse] | list[FlashcardResponse] | list[QuizQuestionResponse] = Field(description='Of the requested kind; each cites the passages it comes from. Empty when the model wrote nothing usable.')
+    sources: list[StudySourceResponse] = Field(description='The passages the items cite.')
+    prompt_version: str
+    usage: UsageResponse
+    passages: int = Field(description='Chunks given to the model.')
+    chunks: int = Field(description='Chunks of the document: more than `passages` when the document is longer than the model reads at once, and only chunks spread over it were used.')
+
+
+class StudySourceResponse(Model):
+    number: int = Field(description='What items cite in their `sources`.')
+    chunk_index: int
+    page: int | None = Field(default=None, description='Page number for PDFs, starting at 1; null otherwise.')
+    section: str | None = Field(default=None, description='The headings above the passage, when known.')
+    text: str
 
 
 class TagListResponse(Model):
@@ -449,11 +605,19 @@ class TenantUsageResponse(Model):
     input_tokens: int = Field(description="Prompt tokens of this month's answers.")
     output_tokens: int
     cost_usd: float = Field(description="Known cost of this month's answers, in US dollars.")
+    budget_usd: float | None = Field(default=None, description='The monthly budget, in US dollars; null when there is none. Asking is refused once `cost_usd` reaches it.')
 
 
 class UploadResponse(Model):
     signal: ResponseSignal
     file_id: str
+
+
+class UsageHistoryResponse(Model):
+    start: datetime = Field(description='Start of the first day counted (UTC).')
+    days: list[DayUsageResponse] = Field(description='Every day, oldest first; days without answers have zeros.')
+    projects: list[ProjectShareResponse] = Field(description='Projects with answers in the period, costliest first.')
+    models: list[ModelShareResponse] = Field(description='Likewise, per model.')
 
 
 class UsageResponse(Model):
@@ -488,7 +652,7 @@ class WebhookListResponse(Model):
 
 class WebhookRequest(Model):
     url: str = Field(description='Where to POST events: an http or https URL.')
-    events: list[Literal['file.uploaded', 'file.deleted', 'job.succeeded', 'job.failed', 'source.synced'] | str] = Field(description='The events to send.')
+    events: list[Literal['file.uploaded', 'file.deleted', 'job.succeeded', 'job.failed', 'source.synced', 'budget.alert'] | str] = Field(description='The events to send.')
     description: str | None = Field(default=None)
 
 
@@ -557,5 +721,5 @@ class WidgetUpdateRequest(Model):
     logo_url: str | None = Field(default=None, description="An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.")
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, MeResponse, MessageResponse, Meter, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectUsageResponse, RatedAnswerResponse, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
+for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ModelShareResponse, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
     _model.model_rebuild()

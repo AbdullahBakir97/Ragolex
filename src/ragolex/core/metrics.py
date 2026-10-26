@@ -29,6 +29,8 @@ JOBS = Counter("ragolex_jobs_total", "Background job attempts, by outcome.", ["o
 WEBHOOK_DELIVERIES = Counter(
     "ragolex_webhook_deliveries_total", "Webhook delivery attempts, by outcome.", ["outcome"])
 UPLOADS = Counter("ragolex_uploads_total", "Uploads, by outcome.", ["outcome"])
+BUDGET_ALERTS = Counter("ragolex_budget_alerts_total",
+                        "Budget alerts sent, by the percent of the budget reached.", ["threshold"])
 SOURCE_SYNCS = Counter("ragolex_source_syncs_total", "Website syncs, by outcome.", ["outcome"])
 SOURCE_PAGES = Counter("ragolex_source_pages_total",
                        "Pages website syncs added, updated and removed.", ["change"])

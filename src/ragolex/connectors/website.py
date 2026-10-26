@@ -93,6 +93,8 @@ class WebsiteCrawler:
       text and Markdown, are skipped.
     """
 
+    removes_missing = True
+
     def __init__(self, *, allow_private: bool = False, timeout_seconds: float = 15.0,
                  delay_seconds: float = 0.5, max_bytes: int = 10 * 1024 * 1024,
                  http_client: httpx2.AsyncClient | None = None):

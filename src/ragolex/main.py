@@ -1,7 +1,8 @@
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, MutableMapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -17,7 +18,9 @@ from ragolex.api.routes import (
     base,
     conversations,
     data,
+    decks,
     evaluations,
+    export,
     index,
     jobs,
     keys,
@@ -26,19 +29,22 @@ from ragolex.api.routes import (
     projects,
     search,
     sources,
+    study,
     webhooks,
     widgets,
 )
 from ragolex.api.widget_cors import WidgetCors
-from ragolex.connectors.factory import create_crawler
+from ragolex.connectors.factory import create_crawlers
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.logging_config import configure_logging
+from ragolex.core.tracing import setup_tracing
 from ragolex.embeddings.factory import create_embedder
 from ragolex.llm.factory import create_llm
 from ragolex.persistence.database import (
     create_engine,
     create_session_factory,
     match_embedding_dimensions,
+    trace_engine,
 )
 from ragolex.persistence.repositories import unit_of_work_factory
 from ragolex.rerankers.factory import create_reranker
@@ -72,6 +78,8 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         # One connection pool and one client each for embeddings, the LLM and
         # reranking per app, closed cleanly on shutdown.
         engine = create_engine(settings.DATABASE_URL)
+        if settings.TRACING_ENABLED:
+            trace_engine(engine)
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
         app.state.embedder = embedder = create_embedder(settings)
@@ -79,7 +87,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         app.state.reranker = reranker = create_reranker(settings)
         app.state.scanner = scanner = create_scanner(settings)
         sender = create_webhook_sender(settings)
-        crawler = create_crawler(settings)
+        crawlers = create_crawlers(settings)
         workers: list[asyncio.Task] = []
         try:
             await _check_embedding_dimensions(engine, settings)
@@ -93,7 +101,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
             if settings.JOB_WORKERS:
                 dispatcher = WebhookDispatcher(unit_of_work, sender)
                 workers.append(asyncio.create_task(dispatcher.run(), name="webhook-dispatcher"))
-                syncer = SourceSyncer.from_settings(settings, unit_of_work, crawler, scanner)
+                syncer = SourceSyncer.from_settings(settings, unit_of_work, crawlers, scanner)
                 workers.append(asyncio.create_task(syncer.run(), name="source-syncer"))
             yield
         finally:
@@ -102,7 +110,8 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
             # A running job goes back to the queue for the next start.
             await asyncio.gather(*workers, return_exceptions=True)
             await sender.aclose()
-            await crawler.aclose()
+            for crawler in crawlers.values():
+                await crawler.aclose()
             if embedder is not None:
                 await embedder.aclose()
             if llm is not None:
@@ -116,6 +125,11 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
     return lifespan
 
 
+def _not_traced(scope: MutableMapping[str, Any]) -> bool:
+    """Health probes and metric scrapes: frequent, and nothing to learn from their traces."""
+    return scope.get("path") in ("/api/v1/health", "/metrics")
+
+
 def _operation_id(route: APIRoute) -> str:
     """The route function's name, e.g. ``upload_data``: SDKs name their methods after it."""
     return route.name
@@ -125,8 +139,12 @@ def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
 
+    if settings.TRACING_ENABLED:
+        setup_tracing("ragolex", settings.APP_VERSION)
+    # FastAPI traces each request itself, once a tracer provider is set up.
     app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION,
-                  lifespan=_lifespan(settings), generate_unique_id_function=_operation_id)
+                  lifespan=_lifespan(settings), generate_unique_id_function=_operation_id,
+                  telemetry={"exclude": _not_traced})
 
     app.include_router(base.router)
     app.include_router(metrics.router)
@@ -141,10 +159,13 @@ def create_app() -> FastAPI:
     app.include_router(keys.router)
     app.include_router(audit.router)
     app.include_router(evaluations.router)
+    app.include_router(export.router)
     app.include_router(mcp.router)
     app.include_router(search.router)
     app.include_router(ask.router)
     app.include_router(conversations.router)
+    app.include_router(study.router)
+    app.include_router(decks.router)
     register_error_handlers(app)
     app.add_middleware(WidgetCors)
     # Outermost, so it sees every response, the widget routes' included.

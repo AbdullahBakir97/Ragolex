@@ -1,6 +1,6 @@
 # Operations
 
-Running Ragolex in production: checking it is up, reading its logs, scraping its metrics, and following what was changed.
+Running Ragolex in production: checking it is up, reading its logs, scraping its metrics, tracing its requests, and following what was changed.
 
 ## Health
 
@@ -13,7 +13,7 @@ The API writes one line per request (`ragolex.access`: method, path, status and 
 - Every line written while a request is handled carries the request's id and its tenant. The id is returned in the `X-Request-ID` header, so a client can quote it when reporting a problem; a proxy in front of the API can send its own `X-Request-ID` to follow a request across services.
 - Background jobs and webhook deliveries tag their lines `job:<id>` and `delivery:<id>`.
 - An unexpected failure is logged with its traceback, and the client gets `500` `{"signal": "internal_error", "request_id": "…"}`.
-- `LOG_FORMAT=json` writes each line as one JSON object (`time`, `level`, `logger`, `message`, `request_id`, `tenant`, and `method`, `path`, `status`, `duration_ms` on access lines), uvicorn's own lines included, for Loki, Elasticsearch, CloudWatch and the like. `LOG_LEVEL` sets the level of the app's lines; libraries log warnings and above.
+- `LOG_FORMAT=json` writes each line as one JSON object (`time`, `level`, `logger`, `message`, `request_id`, `tenant`, `trace_id` when tracing, and `method`, `path`, `status`, `duration_ms` on access lines), uvicorn's own lines included, for Loki, Elasticsearch, CloudWatch and the like. `LOG_LEVEL` sets the level of the app's lines; libraries log warnings and above.
 
 ```
 2026-10-18 11:34:13,963 INFO     ragolex.access [request_id=3f2a… tenant=acme]: GET /api/v1/projects 200 47ms
@@ -30,6 +30,7 @@ The API writes one line per request (`ragolex.access`: method, path, status and 
 | `ragolex_answers_total` | counter | `answered` | Questions answered (`true`) or that the documents did not answer (`false`) |
 | `ragolex_llm_tokens_total` | counter | `kind` | Tokens the language model read (`input`) and wrote (`output`) for answers |
 | `ragolex_llm_cost_usd_total` | counter | | What answers cost, where the model's prices are configured |
+| `ragolex_budget_alerts_total` | counter | `threshold` | Tenants' answers reaching `80` and `100` percent of their monthly budget |
 | `ragolex_uploads_total` | counter | `outcome` | Uploads `stored`, `duplicate` (content the project had) and `infected` |
 | `ragolex_jobs_total` | counter | `outcome` | Job attempts `succeeded`, `retried` and `failed` |
 | `ragolex_webhook_deliveries_total` | counter | `outcome` | Delivery attempts `delivered`, `retried` and `failed` |
@@ -53,13 +54,87 @@ scrape_configs:
 
 Worth alerting on: a rising `ragolex_jobs_in_state{status="queued"}` (workers falling behind), `ragolex_jobs_total{outcome="failed"}` and `ragolex_webhook_deliveries_total{outcome="failed"}` increasing, the share of `5xx` in `ragolex_http_requests_total`, and `ragolex_answers_total{answered="false"}` growing faster than answered ones (documents missing, or a minimum score set too high).
 
+## Tracing
+
+With `TRACING_ENABLED=true`, the API and `ragolex worker` send [OpenTelemetry](https://opentelemetry.io) traces over OTLP/HTTP to a collector: Jaeger, Grafana Tempo, Honeycomb, an OpenTelemetry Collector. The standard variables configure the export: `OTEL_EXPORTER_OTLP_ENDPOINT` (for example `http://jaeger:4318`), `OTEL_EXPORTER_OTLP_HEADERS` for a vendor's API key, `OTEL_SERVICE_NAME` (by default `ragolex` for the API and `ragolex-worker` for workers), `OTEL_TRACES_SAMPLER` to keep a share of traces. The Docker image has what tracing needs; elsewhere install it with `pip install ".[tracing]"`. Off, nothing is recorded.
+
+Each request is a trace, named after its route (`POST /api/v1/ask/{project_id}`), with FastAPI's own spans for dependencies and the endpoint, one span per database query (`db.statement`), and the steps of the pipeline:
+
+| Span | Attributes | What it covers |
+|---|---|---|
+| `search.embed_query` | `model` | Embedding the question |
+| `search.query` | `mode`, `top_k`, `results` | Finding the chunks, by vector or hybrid search |
+| `search.rerank` | `model`, `candidates` | Reranking them, when a reranker is configured |
+| `answer.condense` | `model`, `history` | Rewriting a follow-up question to stand on its own |
+| `answer.generate` | `model`, `sources`, `prompt_version`, `streamed`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | Writing the answer, until the last token of a stream |
+| `job` | `job_id`, `attempt` | A background job, in the worker's trace |
+| `job.process` | `file`, `chunk_size`, `chunks` | Reading and splitting the file |
+| `job.index` | `model`, `chunks` | Embedding and storing its chunks |
+
+Health checks and `/metrics` scrapes are not traced. While tracing, every log line carries the trace's id (`trace_id=…`, or the `trace_id` field in JSON), so a slow request's logs and its trace lead to each other.
+
+To try it, set `TRACING_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318` in `.env`, start the stack with Jaeger, `docker compose --profile tracing up --build`, ask a question, and open http://localhost:16686.
+
 ## Audit log
 
 Administrative actions (API keys, webhooks, chat widgets, projects' assistants, deleted files and projects, tenants' limits) are recorded per tenant, with the key and the request id behind each: `GET /api/v1/audit` with an `admin` key, or `ragolex audit --tenant <name>`. See [API › Audit log](api.md#audit-log).
 
+## Budgets and cost
+
+The Usage page of the web app shows what answers cost: per day over the last 7, 30 or 90 days, per project and per model, from [`GET /api/v1/usage/history`](api.md#cost-history), with the tenant's budget for the month. Costs need the model's prices, `LLM_INPUT_PRICE_PER_MILLION` and `LLM_OUTPUT_PRICE_PER_MILLION`.
+
+A monthly budget in US dollars (`BUDGET_USD_PER_MONTH` for every tenant, or `ragolex tenants limits <tenant> --budget-usd 25` for one) stops answers once it is spent, and alerts at 80% and 100%: a `budget.alert` webhook event, an audit event, a warning in the log and `ragolex_budget_alerts_total`. See [API › Budgets](api.md#budgets-and-their-alerts).
+
+The metrics also suit alerts across the whole server, in Prometheus:
+
+```yaml
+groups:
+  - name: ragolex-cost
+    rules:
+      - alert: RagolexSpendingFast
+        # More than $20 of answers in the last 24 hours, over all API processes.
+        expr: sum(increase(ragolex_llm_cost_usd_total[1d])) > 20
+      - alert: RagolexBudgetReached
+        expr: sum(increase(ragolex_budget_alerts_total{threshold="100"}[1h])) > 0
+```
+
 ## Malware scanning
 
 With `CLAMAV_URL` set, every new upload is scanned by ClamAV before it is kept, and refused when it cannot be scanned. `docker compose --profile scan up` starts a ClamAV daemon next to the API; point `CLAMAV_URL` at `tcp://clamav:3310`. See [API › Upload a file](api.md#upload-a-file).
+
+## Backups and restores
+
+A backup is the database and the uploaded files together, taken at the same time: one without the other cannot be restored. `tools/backup.sh` makes one archive of both and restores it.
+
+```bash
+# With docker compose: the backup service, written to ./backups
+docker compose --profile backup run --rm backup create /backups
+
+# Without docker: pg_dump, pg_restore and psql of the server's major version
+DATABASE_URL=postgresql://user:password@host:5432/ragolex FILES_DIR=assets/files \
+    tools/backup.sh create /var/backups/ragolex
+```
+
+| In the archive | |
+|---|---|
+| `database.dump` | `pg_dump`'s custom format: every table, the vector extension and the embeddings, so nothing needs indexing again |
+| `files.tar` | `FILES_DIR` as it was, with its owners |
+| `manifest.txt` | When it was made, the schema revision (`alembic_version`) and how many files |
+| `SHA256SUMS` | Checked before anything is restored: a damaged archive is refused |
+
+The compose `backup` service runs in the database's own image, so its `pg_dump` matches the server, and it reaches the database through its socket, which needs no password. Schedule it like any command, e.g. from cron on the host: `0 3 * * * cd /srv/ragolex && docker compose --profile backup run --rm backup create /backups`. Keep copies somewhere else as well: a backup on the same disk as the data goes with it.
+
+To restore, stop what writes (the API and any `ragolex worker`), restore, then start them again: a restore recreates the vector extension, which connections opened before it no longer recognize.
+
+```bash
+docker compose stop app
+docker compose --profile backup run --rm backup restore /backups/ragolex-20261018-030000.tar.gz --force
+docker compose start app
+```
+
+A restore refuses a database that has tables, or a files folder that is not empty, so it never mixes two states; `--force` replaces them. Restore with the same version of Ragolex, or an older backup: the API's migrations then bring the schema up to date when it starts. The schema revision in the manifest tells which version made it.
+
+Restores are tested in CI (`tests/test_backup.py`): an indexed project is backed up and restored into a new database and folder, where the files are byte for byte the same and search finds the same passages; restoring over a deleted project brings it back; a restore into a database with data is refused, and so is a damaged archive.
 
 ## Your own domain
 

@@ -33,6 +33,12 @@ export const router = createRouter({
           meta: { title: "Search" },
         },
         {
+          path: "study",
+          name: "study",
+          component: () => import("@/views/project/StudyView.vue"),
+          meta: { title: "Study" },
+        },
+        {
           path: "assistant",
           name: "assistant",
           component: () => import("@/views/project/AssistantView.vue"),

@@ -168,3 +168,4 @@ cython_debug/
 
 # Uploaded files (FILES_DIR default)
 /assets/
+backups/

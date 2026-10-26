@@ -4,6 +4,7 @@ import pytest
 
 from ragolex.core.errors import UnsupportedFileType
 from ragolex.domain.file_types import CONTENT_TYPES, content_type_for
+from ragolex.loaders.code_loader import CodeLoader
 from ragolex.loaders.docx_loader import DocxLoader
 from ragolex.loaders.html_loader import HtmlLoader
 from ragolex.loaders.markdown_loader import MarkdownLoader
@@ -22,6 +23,9 @@ from ragolex.loaders.text_loader import TextLoader
     ("abc_page.html", HtmlLoader),
     ("abc_page.HTM", HtmlLoader),
     ("abc_letter.docx", DocxLoader),
+    ("abc_app.py", CodeLoader),
+    ("abc_main.TS", CodeLoader),
+    ("abc_lib.rs", CodeLoader),
 ])
 def test_default_registry_picks_loader_by_extension(file_name, loader_type):
     assert isinstance(default_loader_registry().get(file_name), loader_type)
@@ -59,6 +63,11 @@ def test_every_known_file_type_has_a_loader():
     ("notes.md", "text/plain", "text/plain"),  # A declared type stays.
     ("archive.zip", "application/octet-stream", "application/octet-stream"),
     ("unknown", "", None),
+    # For code the extension decides: browsers name these types inconsistently.
+    ("app.py", "text/plain", "text/x-python"),
+    ("app.ts", "video/mp2t", "text/x-typescript"),
+    ("App.JSX", "", "text/javascript"),
+    ("lib.h", "application/octet-stream", "text/x-c"),
 ])
 def test_content_type_for_uses_the_extension_when_the_type_is_generic(file_name, declared,
                                                                        expected):

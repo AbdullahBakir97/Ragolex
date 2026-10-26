@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from ragolex.core import log_context
+from ragolex.core.tracing import current_trace_id
 
 LogFormat = Literal["text", "json"]
 
@@ -18,14 +19,17 @@ _STANDARD = set(vars(logging.makeLogRecord({}))) | {"message", "asctime", "conte
 
 
 class _ContextFilter(logging.Filter):
-    """Adds the current request id and tenant to each record."""
+    """Adds the current request id, tenant and trace id (when tracing) to each record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         request_id, tenant = log_context.request_id.get(), log_context.tenant.get()
+        trace_id = current_trace_id()
         tags = [f"request_id={request_id}"] if request_id else []
         if tenant:
             tags.append(f"tenant={tenant}")
-        record.__dict__.update(request_id=request_id, tenant=tenant,
+        if trace_id:
+            tags.append(f"trace_id={trace_id}")
+        record.__dict__.update(request_id=request_id, tenant=tenant, trace_id=trace_id,
                                context=f" [{' '.join(tags)}]" if tags else "")
         return True
 

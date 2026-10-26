@@ -63,6 +63,30 @@ class FileNotFound(AppError):
     status_code = HTTPStatus.NOT_FOUND
 
 
+class FileNotProcessed(AppError):
+    """The file has no chunks yet: it must be processed first."""
+
+    signal = ResponseSignal.FILE_NOT_PROCESSED
+    status_code = HTTPStatus.CONFLICT
+
+
+class DeckNotFound(AppError):
+    signal = ResponseSignal.DECK_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class DeckFull(AppError):
+    """The cards would take the deck over the cards it may hold."""
+
+    signal = ResponseSignal.DECK_FULL
+    status_code = HTTPStatus.CONFLICT
+
+
+class CardNotFound(AppError):
+    signal = ResponseSignal.CARD_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
 class ProjectNotFound(AppError):
     signal = ResponseSignal.PROJECT_NOT_FOUND
     status_code = HTTPStatus.NOT_FOUND
@@ -179,6 +203,13 @@ class AnswerQuotaExceeded(AppError):
     """The tenant used up its answers for this calendar month."""
 
     signal = ResponseSignal.ANSWER_QUOTA_EXCEEDED
+    status_code = HTTPStatus.TOO_MANY_REQUESTS
+
+
+class BudgetExceeded(AppError):
+    """The tenant's answers cost its whole budget for this calendar month."""
+
+    signal = ResponseSignal.BUDGET_EXCEEDED
     status_code = HTTPStatus.TOO_MANY_REQUESTS
 
 

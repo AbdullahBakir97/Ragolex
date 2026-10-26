@@ -109,6 +109,7 @@ export function failureMessage(error: unknown): string {
     case "rate_limited":
       return "Too many questions at once. Please try again in a minute.";
     case "answer_quota_exceeded":
+    case "budget_exceeded":
       return "This assistant cannot answer more questions right now. Please come back later.";
     case "conversation_not_found":
       return "This conversation has ended. Start a new one to keep asking.";

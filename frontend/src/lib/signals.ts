@@ -1,7 +1,7 @@
 // What each error signal of the API means to someone using the app.
 
 const MESSAGES: Record<string, string> = {
-  file_type_not_supported: "Only PDF, Word, Markdown, HTML and text files can be uploaded.",
+  file_type_not_supported: "Only PDF, Word, Markdown, HTML, text and source code files can be uploaded.",
   file_size_exceeded: "The file is larger than the server allows.",
   file_content_mismatch: "The file's content is not of its type, for example a program named like a text file.",
   file_infected: "The malware scanner found malware in this file, so it was not kept.",
@@ -41,6 +41,7 @@ const MESSAGES: Record<string, string> = {
   api_key_not_found: "That API key does not exist.",
   rate_limited: "Too many requests this minute. Wait a moment and try again.",
   answer_quota_exceeded: "This month's answers are used up. Ask the administrator for a higher quota.",
+  budget_exceeded: "This month's budget for answers is spent. Ask the administrator to raise it.",
   storage_quota_exceeded: "The file does not fit in the storage left. Delete files or ask for more room.",
   internal_error: "The server failed unexpectedly. Its log has the details, under the request's id.",
   validation_error: "The request was not valid.",

@@ -20,6 +20,8 @@ export interface Turn {
 
 export interface AskSettings extends SearchOptions {
   stream: boolean;
+  /** Research mode: the model plans the searches, for questions with several parts. */
+  research?: boolean;
   /** Answer only from these files; none means all. */
   files?: string[];
   /** Answer only from files with any of these tags; none means all. */
@@ -137,7 +139,7 @@ export function useAsk(
     if (busy.value || loading.value || !question.trim()) return;
     const id = nextId++;
     const started = performance.now();
-    const { stream, top_k, min_score, files, tags } = settings.value;
+    const { stream, top_k, min_score, files, tags, research } = settings.value;
     turns.value = [
       ...turns.value,
       {
@@ -173,6 +175,7 @@ export function useAsk(
         min_score,
         filters: Object.keys(filters).length ? filters : null,
         conversation_id: conversationId,
+        ...(research ? { research: true } : {}),
       };
       let text = "";
       const answer = stream

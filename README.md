@@ -11,8 +11,8 @@
 
 ## Features
 
-- **Upload** PDF, Word (`.docx`), Markdown, HTML and text files into separate projects, with type checks and a size limit enforced while streaming.
-- **Process** them into chunks that respect paragraphs, with exact overlap between chunks, page numbers for PDFs, and the section headings for Markdown, HTML and Word files.
+- **Upload** PDF, Word (`.docx`), Markdown, HTML, text and source code files into separate projects, with type checks and a size limit enforced while streaming.
+- **Process** them into chunks that respect paragraphs, with exact overlap between chunks, page numbers for PDFs, the section headings for Markdown, HTML and Word files, and one function or class at a time for source code in 12 languages.
 - **Index** chunks as embeddings with OpenAI or any OpenAI-compatible server, such as Ollama, in background jobs with progress and retries, run by the API or by separate workers.
 - **Search** by meaning and by words at once (hybrid search: pgvector and PostgreSQL full-text search, merged by rank fusion), best match first, with a similarity score.
 - **Ask** questions and get answers with citations to the file, page or section, and chunk, streamed as they are written if you like, or an explicit "no answer" when the documents don't say.
@@ -21,13 +21,14 @@
 - **Embed a chat widget** in any website with one `<script>` tag: streamed answers with clickable citations, in the site's colour and with its logo, allowed only on the websites you list, without API keys in the page. Give each project's assistant a name and instructions on tone and style; it still answers only from the documents.
 - **Build on it** with the [TypeScript and Python SDKs](sdk/README.md), generated from the OpenAPI schema: every endpoint typed, streamed answers, uploads and jobs.
 - **Connect agents** through a built-in MCP server (`/api/v1/mcp`) with `list_projects`, `search_knowledge` and `ask` tools, or the same tools as function-calling schemas.
-- **Sync websites** into a project: their pages are crawled (within the site, obeying robots.txt), indexed and kept up to date on a schedule, with new, changed and removed pages handled.
+- **Sync websites, feeds and GitHub repositories** into a project: website pages are crawled (within the site, obeying robots.txt), RSS and Atom entries and a repository's documents are read, and all are indexed and kept up to date on a schedule, with new, changed and removed pages handled.
 - **Automate** with signed webhooks: uploads, deletions and finished jobs are sent to n8n, Make, Zapier or any URL, retried for a day until received.
 - **Evaluate** retrieval with `ragolex eval` on a versioned dataset: hit rate, recall and MRR, checked in CI with a real embedding model so a change that makes search worse fails. With `--answers`, answers are graded too: citation precision, groundedness and correctness. Rated answers become new test cases with `ragolex feedback-export`.
 - **Browse** projects, files and chunks through paged endpoints; check readiness with a health endpoint.
 - **Operate** it with request ids on every log line (text or JSON) and response, and Prometheus metrics for traffic, answers, tokens, cost, jobs and webhooks.
 - **Serve several apps** from one deployment: tenants keep their projects apart, and API keys with scopes (`read`, `write`, `ask`, `admin`) say what each app may do, within its own rate limit and monthly quotas, with an audit log of who changed what.
-- **Use it in the browser** with the web app: projects, drag-and-drop uploads, conversations with streamed answers and clickable sources, search and usage, in light and dark.
+- **Study** a document: a summary, flashcards or a multiple-choice quiz, every item linked to the page it comes from. Keep flashcards in decks reviewed by spaced repetition, and export them to Anki.
+- **Use it in the browser** with the web app: projects, drag-and-drop uploads, conversations with streamed answers and clickable sources, search, study and usage, in light and dark.
 
 Better retrieval, hybrid search and reranking, measured by the evaluation, is next; see the [roadmap](docs/roadmap.md).
 
@@ -116,7 +117,8 @@ curl -X POST http://localhost:8000/api/v1/ask/demo \
 | [Architecture](docs/architecture.md) | Layers, rules and extension points |
 | [Web app](docs/web.md) | Pages, how it is built, running it |
 | [Evaluation](docs/evaluation.md) | Datasets, retrieval metrics and the CI check |
-| [Operations](docs/operations.md) | Health, logs, metrics and the audit log |
+| [Operations](docs/operations.md) | Health, logs, metrics, the audit log, and backups with tested restores |
+| [Deployment](docs/deployment.md) | Staging and production from GitHub, releases and rollbacks |
 | [Development](docs/development.md) | Tests, migrations and workflow |
 | [Roadmap](docs/roadmap.md) | Completed and planned work |
 

@@ -62,7 +62,8 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] More formats: DOCX, Markdown and HTML, split by section.
 - [ ] OCR for scanned PDFs.
 - [x] A website connector: crawled within its site and folder, obeying robots.txt, synced on a schedule, adding, replacing and removing pages.
-- [ ] More connectors: GitHub, Notion, Google Drive, RSS.
+- [x] RSS and Atom feeds, and GitHub repositories' documents, as sources synced like websites.
+- [ ] Connectors that need each user's sign-in (OAuth): Notion, Google Drive.
 - [x] Signed outgoing webhooks for automation tools such as n8n, Make and Zapier.
 - [ ] Telegram, Slack and WhatsApp bots.
 
@@ -70,37 +71,40 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 - [x] An MCP server with tools such as `search_knowledge`, `ask` and `list_projects`.
 - [x] Tool-calling schemas for agent frameworks.
-- [ ] Agentic retrieval: multi-step search for complex questions, with step and cost limits.
+- [x] Agentic retrieval: multi-step search for complex questions, with step and cost limits.
 
 ### Phase 6: Retrieval quality
 
 - [x] Hybrid search: PostgreSQL full-text search combined with vector search, merged by reciprocal rank fusion (hit rate 95.7% → 97.8% on `handbook/v1`).
 - [x] A reranking step behind a `Reranker` interface (any server with the common `POST /rerank` API).
 - [x] Filters by file, page, date and metadata; diversity in the top results (`max_per_file`).
-- [ ] Index and chunking parameters tuned from measured results.
+- [x] Index and chunking parameters tuned from measured results (`ragolex tune`, a Tune workflow; see [Evaluation](evaluation.md#tuning-chunk-size-and-overlap)).
 
 ### Phase 7: Study mode
 
-- [ ] Summaries, flashcards and quizzes generated from documents, each answer linked to its source page.
-- [ ] Spaced-repetition review and export to Anki.
-- [ ] Code-aware chunking for source repositories.
+- [x] Summaries, flashcards and quizzes generated from documents, each item linked to its source page ([API › Study](api.md#study)).
+- [x] Spaced-repetition review and export to Anki ([API › Decks](api.md#decks-and-spaced-repetition)).
+- [x] Code-aware chunking for source repositories.
 
 ### Phase 8: Security and privacy
 
 - [ ] User accounts with roles per tenant.
 - [x] File type checked from content, not the declared type; optional malware scanning with ClamAV.
-- [ ] Prompt-injection test cases; encryption at rest; per-tenant export and deletion.
+- [x] Prompt-injection test cases.
+- [ ] Encryption at rest.
+- [x] Per-tenant export and deletion.
 - [x] Dependency vulnerability scanning (`pip-audit`, `npm audit`) and secret scanning (`gitleaks`) in CI.
 - [x] An audit log of administrative actions, with the key and request behind each (`GET /api/v1/audit`, `ragolex audit`).
 
 ### Phase 9: Production
 
 - [x] A multi-stage, non-root Docker image and a full `compose.yaml` stack.
-- [ ] Automated deployments to staging and production.
+- [x] Automated deployments to staging and production, with automatic rollback ([Deployment](deployment.md)).
 - [x] Structured logs (text or JSON) with a request id on every line and response, and the tenant.
 - [x] Prometheus metrics: traffic by route, answers, tokens and cost, uploads, jobs and webhook deliveries ([Operations](operations.md#metrics)).
-- [ ] Tracing.
-- [ ] Cost dashboards and budget alerts; backups with tested restores.
+- [x] OpenTelemetry tracing of requests, database queries, searches, answers and jobs ([Operations](operations.md#tracing)).
+- [x] Cost dashboards and budget alerts ([Operations](operations.md#budgets-and-cost)).
+- [x] Backups with tested restores.
 - [x] Type checking (`mypy`) and a coverage threshold (95% of lines and branches) in CI.
 
 ### Phase 10: Web app
@@ -109,6 +113,6 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] A chat interface with citations, conversation history and feedback.
 - [x] Document management with upload, job status and website sources.
 - [x] An admin dashboard for keys, usage, cost and evaluation scores ([Web app](web.md)).
-- [ ] Accessible, responsive, tested end to end with Playwright.
+- [x] Accessible, responsive, tested end to end with Playwright.
 
 Ideas and feedback are welcome in [issues](https://github.com/AbdullahBakir97/Ragolex/issues).

@@ -11,6 +11,7 @@ from ragolex.api.schemas import (
     AskResponse,
     CitationResponse,
     ProjectId,
+    SearchStepResponse,
     UsageResponse,
     error_responses,
 )
@@ -53,7 +54,9 @@ def ask_response(answer: Answer) -> AskResponse:
             cost_usd=answer.cost_usd),
         conversation_id=answer.conversation_id,
         search_question=answer.search_question,
-        message_id=answer.message_id)
+        message_id=answer.message_id,
+        research=None if answer.research is None else [
+            SearchStepResponse(query=step.query, results=step.results) for step in answer.research])
 
 
 @router.post(
@@ -72,7 +75,7 @@ async def ask_project(project_id: ProjectId, request: AskRequest,
     answer = await service.ask(project_id, request.question, top_k=request.top_k,
                                min_score=request.min_score,
                                conversation_id=_conversation_id(request),
-                               filters=_filters(request))
+                               filters=_filters(request), research_steps=request.research_steps)
     return ask_response(answer)
 
 
@@ -109,7 +112,8 @@ async def ask_project_stream(project_id: ProjectId, request: AskRequest,
     prepared = await service.prepare(project_id, request.question, top_k=request.top_k,
                                      min_score=request.min_score,
                                      conversation_id=_conversation_id(request),
-                                     filters=_filters(request))
+                                     filters=_filters(request),
+                                     research_steps=request.research_steps)
 
     async def events() -> AsyncIterator[str]:
         try:

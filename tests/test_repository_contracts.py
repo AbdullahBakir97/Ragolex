@@ -27,6 +27,7 @@ CONTRACTS = [
     (interfaces.TenantRepository, sql.SqlTenantRepository, fakes.FakeTenants),
     (interfaces.ApiKeyRepository, sql.SqlApiKeyRepository, fakes.FakeApiKeys),
     (interfaces.UsageRepository, sql.SqlUsageRepository, fakes.FakeUsage),
+    (interfaces.DeckRepository, sql.SqlDeckRepository, fakes.FakeDecks),
     (interfaces.EvaluationRunRepository, sql.SqlEvaluationRunRepository,
      fakes.FakeEvaluationRuns),
     (interfaces.UnitOfWork, sql.SqlUnitOfWork, fakes.FakeUnitOfWork),
@@ -58,7 +59,7 @@ def test_implementation_matches_interface(interface, implementation):
 def test_unit_of_work_exposes_the_repositories(implementation):
     assert set(interfaces.UnitOfWork.__annotations__) == {"projects", "files", "chunks", "answers",
                                                             "conversations", "jobs", "webhooks",
-                                                            "widgets", "audit", "sources", "tenants", "api_keys", "usage",
+                                                            "widgets", "audit", "sources", "tenants", "api_keys", "usage", "decks",
                                                             "evaluations"}
     instance = implementation(None) if implementation is sql.SqlUnitOfWork else implementation()
 

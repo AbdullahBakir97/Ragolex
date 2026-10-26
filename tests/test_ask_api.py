@@ -18,8 +18,9 @@ GUIDE = "\n\n".join([
 
 # The model was not called, so the answer used no tokens and cost nothing.
 NOT_CALLED_USAGE = {"usage": {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}}
-# A question asked on its own, outside a conversation.
-NO_CONVERSATION = {"conversation_id": None, "search_question": None, "message_id": None}
+# A question asked on its own, outside a conversation and without research mode.
+NO_CONVERSATION = {"conversation_id": None, "search_question": None, "message_id": None,
+                   "research": None}
 
 
 def upload_process_and_index(client, project="demo", name="guide.txt", text=GUIDE,
