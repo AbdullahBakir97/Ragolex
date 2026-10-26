@@ -141,7 +141,7 @@ class Ragolex(_Base, Operations):
     Error responses raise ``RagolexError``. Use it as a context manager, or
     call ``close()``, to release its connections::
 
-        with Ragolex("https://rag.example.com", api_key="mrag_…") as rag:
+        with Ragolex("https://rag.example.com", api_key="ragolex_…") as rag:
             rag.add_document("handbook", "leave-policy.pdf", tags=["hr"])
             print(rag.ask_project("handbook", question="How many days of leave?").answer)
     """
@@ -249,7 +249,7 @@ class AsyncRagolex(_Base, AsyncOperations):
 
     ::
 
-        async with AsyncRagolex("https://rag.example.com", api_key="mrag_…") as rag:
+        async with AsyncRagolex("https://rag.example.com", api_key="ragolex_…") as rag:
             async for event in rag.ask_stream("handbook", "How many days of leave?"):
                 ...
     """

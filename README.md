@@ -27,7 +27,8 @@
 - **Browse** projects, files and chunks through paged endpoints; check readiness with a health endpoint.
 - **Operate** it with request ids on every log line (text or JSON) and response, and Prometheus metrics for traffic, answers, tokens, cost, jobs and webhooks.
 - **Serve several apps** from one deployment: tenants keep their projects apart, and API keys with scopes (`read`, `write`, `ask`, `admin`) say what each app may do, within its own rate limit and monthly quotas, with an audit log of who changed what.
-- **Use it in the browser** with the web app: projects, drag-and-drop uploads, conversations with streamed answers and clickable sources, search and usage, in light and dark.
+- **Study** a document: a summary, flashcards or a multiple-choice quiz, every item linked to the page it comes from. Keep flashcards in decks reviewed by spaced repetition, and export them to Anki.
+- **Use it in the browser** with the web app: projects, drag-and-drop uploads, conversations with streamed answers and clickable sources, search, study and usage, in light and dark.
 
 Better retrieval, hybrid search and reranking, measured by the evaluation, is next; see the [roadmap](docs/roadmap.md).
 
@@ -117,6 +118,7 @@ curl -X POST http://localhost:8000/api/v1/ask/demo \
 | [Web app](docs/web.md) | Pages, how it is built, running it |
 | [Evaluation](docs/evaluation.md) | Datasets, retrieval metrics and the CI check |
 | [Operations](docs/operations.md) | Health, logs, metrics, the audit log, and backups with tested restores |
+| [Deployment](docs/deployment.md) | Staging and production from GitHub, releases and rollbacks |
 | [Development](docs/development.md) | Tests, migrations and workflow |
 | [Roadmap](docs/roadmap.md) | Completed and planned work |
 
