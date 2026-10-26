@@ -2,6 +2,8 @@
 
 All endpoints are under `/api/v1` (only `/` sits outside it, redirecting to `/docs`). The interactive reference, generated from the code, is at `/docs` on a running server (and the schema at `/openapi.json`, also kept in [`sdk/openapi.json`](../sdk/openapi.json)). Each operation's `operationId` is the name of its route function, such as `upload_data` or `search_project`.
 
+**Versions:** within `/api/v1` the API only grows: nothing a client relies on is removed or changed, and anything retired is announced at least six months ahead. See [API versioning](versioning.md) for the promise and what clients must do.
+
 **SDKs:** a [TypeScript](../sdk/typescript/README.md) and a [Python](../sdk/python/README.md) client are generated from the schema: every endpoint, typed, with uploads, streamed answers and background jobs as methods. See [sdk/](../sdk/README.md).
 
 Every error response has the form `{"signal": "<name>"}` with a matching HTTP status; validation errors (`422`) list the fields that failed. An unexpected failure is `500` `{"signal": "internal_error", "request_id": "…"}`.
