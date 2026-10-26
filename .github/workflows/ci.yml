@@ -12,7 +12,9 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04: its PostgreSQL client tools match the version 16 server below.
+    # Those of 26.04 (ubuntu-latest) send settings version 16 rejects when restoring.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false

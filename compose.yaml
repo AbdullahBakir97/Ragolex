@@ -20,6 +20,8 @@ services:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+      # Its socket, for the backup service: local connections need no password.
+      - db-socket:/var/run/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ragolex -d ragolex"]
       interval: 5s
@@ -61,6 +63,28 @@ services:
       - clamav-db:/var/lib/clamav
     restart: unless-stopped
 
+  backup:
+    # Backs up the database and the uploaded files into ./backups, or restores a
+    # backup (tools/backup.sh; see docs/operations.md). Not started by `up`:
+    #   docker compose --profile backup run --rm backup create /backups
+    #   docker compose --profile backup run --rm backup restore /backups/<archive>
+    # It runs in the database's image, for a pg_dump of the server's version, and
+    # reaches the database through its socket.
+    image: pgvector/pgvector:pg16
+    profiles: ["backup"]
+    entrypoint: ["sh", "/tools/backup.sh"]
+    environment:
+      DATABASE_URL: postgresql:///ragolex?host=/var/run/postgresql&user=ragolex
+      FILES_DIR: /files
+    volumes:
+      - ./tools:/tools:ro
+      - ./backups:/backups
+      - files:/files
+      - db-socket:/var/run/postgresql
+    depends_on:
+      db:
+        condition: service_healthy
+
   jaeger:
     # Jaeger, to look at the traces the API and workers send (TRACING_ENABLED).
     # Started only with --profile tracing; it keeps traces in memory.
@@ -84,4 +108,5 @@ services:
 volumes:
   clamav-db:
   db-data:
+  db-socket:
   files:
