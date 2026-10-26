@@ -1,9 +1,9 @@
 import json
 
-from mini_rag import cli
-from mini_rag.evaluation.dataset import load_dataset
-from mini_rag.evaluation.metrics import normalize
-from mini_rag.services.feedback_export_service import evidence
+from ragolex import cli
+from ragolex.evaluation.dataset import load_dataset
+from ragolex.evaluation.metrics import normalize
+from ragolex.services.feedback_export_service import evidence
 
 from .test_ask_api import GUIDE, ask, upload_process_and_index
 from .test_conversations_api import feedback_url, start

@@ -2,14 +2,14 @@ import zipfile
 
 import pytest
 
-from mini_rag.core.errors import UnsupportedFileType
-from mini_rag.domain.file_types import CONTENT_TYPES, content_type_for
-from mini_rag.loaders.docx_loader import DocxLoader
-from mini_rag.loaders.html_loader import HtmlLoader
-from mini_rag.loaders.markdown_loader import MarkdownLoader
-from mini_rag.loaders.pdf_loader import PdfLoader
-from mini_rag.loaders.registry import LoaderRegistry, default_loader_registry
-from mini_rag.loaders.text_loader import TextLoader
+from ragolex.core.errors import UnsupportedFileType
+from ragolex.domain.file_types import CONTENT_TYPES, content_type_for
+from ragolex.loaders.docx_loader import DocxLoader
+from ragolex.loaders.html_loader import HtmlLoader
+from ragolex.loaders.markdown_loader import MarkdownLoader
+from ragolex.loaders.pdf_loader import PdfLoader
+from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
+from ragolex.loaders.text_loader import TextLoader
 
 
 @pytest.mark.parametrize(("file_name", "loader_type"), [

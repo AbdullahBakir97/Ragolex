@@ -9,17 +9,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from mini_rag.core.config import get_settings
-from mini_rag.core.errors import WebhookFailed
-from mini_rag.core.network import is_local_host, is_public_address
-from mini_rag.persistence.database import create_engine, create_session_factory
-from mini_rag.persistence.repositories import unit_of_work_factory
-from mini_rag.services.webhook_dispatcher import WebhookDispatcher, signature
-from mini_rag.webhooks.http_sender import HTTPWebhookSender
+from ragolex.core.config import get_settings
+from ragolex.core.errors import WebhookFailed
+from ragolex.core.network import is_local_host, is_public_address
+from ragolex.persistence.database import create_engine, create_session_factory
+from ragolex.persistence.repositories import unit_of_work_factory
+from ragolex.services.webhook_dispatcher import WebhookDispatcher, signature
+from ragolex.webhooks.http_sender import HTTPWebhookSender
 
 from .test_jobs import enqueue, upload
 
-URL = "https://hooks.example.com/mini-rag"
+URL = "https://hooks.example.com/ragolex"
 
 
 def create(client, project="p1", url=URL, events=("file.uploaded", "job.succeeded"), **body):
@@ -171,11 +171,11 @@ def test_a_delivery_is_signed_and_marked_delivered(client, dispatch):
     [(url, body, headers, raw)] = sender.requests
     [delivery] = deliveries(client, created["id"])["items"]
     assert url == URL
-    assert body["id"] == delivery["id"] == headers["X-Mini-RAG-Delivery"]
-    assert (body["event"], headers["X-Mini-RAG-Event"]) == ("file.uploaded", "file.uploaded")
+    assert body["id"] == delivery["id"] == headers["X-Ragolex-Delivery"]
+    assert (body["event"], headers["X-Ragolex-Event"]) == ("file.uploaded", "file.uploaded")
     assert headers["Content-Type"] == "application/json"
     expected = hmac.new(created["secret"].encode(), b"1700000000." + raw, hashlib.sha256)
-    assert headers["X-Mini-RAG-Signature"] == f"t=1700000000,v1={expected.hexdigest()}"
+    assert headers["X-Ragolex-Signature"] == f"t=1700000000,v1={expected.hexdigest()}"
     assert (delivery["status"], delivery["attempts"], delivery["response_status"]) == (
         "delivered", 1, 204)
     assert delivery["delivered_at"] is not None and delivery["next_attempt_at"] is None

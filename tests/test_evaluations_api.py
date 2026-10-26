@@ -1,9 +1,9 @@
-"""Evaluation runs: recorded by `mini-rag eval`, listed for the admin dashboard."""
+"""Evaluation runs: recorded by `ragolex eval`, listed for the admin dashboard."""
 
 import pytest
 
-from mini_rag import cli
-from mini_rag.core.config import get_settings
+from ragolex import cli
+from ragolex.core.config import get_settings
 
 from .test_auth import bearer, make_key
 from .test_eval_command import HANDBOOK, embedder  # noqa: F401 (a fixture)

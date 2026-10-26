@@ -15,9 +15,9 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from itertools import count
 
-from mini_rag.core.errors import EmbeddingFailed, LLMFailed
-from mini_rag.domain.llm import Completion, Message, TokenUsage
-from mini_rag.domain.models import (
+from ragolex.core.errors import EmbeddingFailed, LLMFailed
+from ragolex.domain.llm import Completion, Message, TokenUsage
+from ragolex.domain.models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
@@ -44,7 +44,7 @@ from mini_rag.domain.models import (
     WebhookDelivery,
     Widget,
 )
-from mini_rag.persistence.tables import EMBEDDING_DIMENSIONS
+from ragolex.persistence.tables import EMBEDDING_DIMENSIONS
 
 
 class FakeProjects:

@@ -134,7 +134,7 @@ describe("AdminEvaluations", () => {
     const wrapper = mount(AdminEvaluations);
     await flushPromises();
 
-    expect(wrapper.text()).toContain("mini-rag eval evals/handbook/v1");
+    expect(wrapper.text()).toContain("ragolex eval evals/handbook/v1");
   });
 });
 

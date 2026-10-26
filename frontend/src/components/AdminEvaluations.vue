@@ -6,7 +6,7 @@ import { ApiError, api } from "@/api/client";
 import type { EvaluationRun } from "@/api/types";
 import { formatDate } from "@/lib/format";
 
-// Retrieval and answer quality over time, from the `mini-rag eval` runs recorded
+// Retrieval and answer quality over time, from the `ragolex eval` runs recorded
 // for the tenant. Runs compare only with runs of the same parameters.
 const runs = ref<EvaluationRun[] | null>(null);
 const error = ref<string | null>(null);
@@ -88,7 +88,7 @@ function setup(run: EvaluationRun): string {
     <div v-else-if="!runs.length" class="empty card">
       <FlaskConical :size="20" class="subtle" />
       <p class="small">
-        No evaluation runs yet. Run <code>mini-rag eval evals/handbook/v1</code> on the server; each run's metrics show here.
+        No evaluation runs yet. Run <code>ragolex eval evals/handbook/v1</code> on the server; each run's metrics show here.
       </p>
     </div>
     <template v-else>

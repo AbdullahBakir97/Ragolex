@@ -2,9 +2,9 @@ import asyncio
 
 import pytest
 
-from mini_rag.core.errors import FileTooLarge, UnsupportedFileType, UploadFailed
-from mini_rag.services.upload_service import UploadService
-from mini_rag.storage.file_storage import FileStorage
+from ragolex.core.errors import FileTooLarge, UnsupportedFileType, UploadFailed
+from ragolex.services.upload_service import UploadService
+from ragolex.storage.file_storage import FileStorage
 
 from .fakes import FakeUnitOfWork
 
