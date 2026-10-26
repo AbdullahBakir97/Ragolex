@@ -7,7 +7,7 @@ Clients for the Ragolex API, generated from its OpenAPI schema, so they cover ev
 | [TypeScript](typescript/README.md) | `@ragolex/client` | Every endpoint typed from the schema; uploads, streamed answers and jobs as methods. Node 20+ and browsers. |
 | [Python](python/README.md) | `ragolex-client` | A method per endpoint with Pydantic models, sync and asyncio; uploads, streamed answers and jobs. Python 3.10+. |
 
-Both send the API key as `Authorization: Bearer mrag_…`, raise an error carrying the API's `signal` (such as `project_not_found`) and its HTTP status for error responses, and stream answers as they are written.
+Both send the API key as `Authorization: Bearer ragolex_…`, raise an error carrying the API's `signal` (such as `project_not_found`) and its HTTP status for error responses, and stream answers as they are written.
 
 ## How they are made
 
