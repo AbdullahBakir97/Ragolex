@@ -502,6 +502,10 @@ class FakeTenants:
     async def list_all(self) -> list[Tenant]:
         return [self.by_name[name] for name in sorted(self.by_name)]
 
+    async def delete(self, tenant_id: int) -> bool:
+        tenant = await self.get_by_id(tenant_id)
+        return tenant is not None and self.by_name.pop(tenant.name) is not None
+
     async def set_limits(self, tenant_id: int, limits) -> None:
         tenant = await self.get_by_id(tenant_id)
         self.by_name[tenant.name] = replace(tenant, **limits)

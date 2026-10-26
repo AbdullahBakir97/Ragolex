@@ -48,7 +48,7 @@ curl http://localhost:8000/api/v1/keys -H "Authorization: Bearer ragolex_…"
 curl -X DELETE http://localhost:8000/api/v1/keys/<key id> -H "Authorization: Bearer ragolex_…"
 ```
 
-The first key of a tenant comes from the command line (`ragolex keys create`), run where the database is reachable, e.g. `docker compose exec app ragolex keys create --tenant acme --name admin`. `ragolex keys list` and `ragolex keys revoke` work there too, and `ragolex tenants list` lists tenants. Projects that existed before tenants belong to `default`.
+The first key of a tenant comes from the command line (`ragolex keys create`), run where the database is reachable, e.g. `docker compose exec app ragolex keys create --tenant acme --name admin`. `ragolex keys list` and `ragolex keys revoke` work there too, `ragolex tenants list` lists tenants, and `ragolex tenants export` and `ragolex tenants delete` [export and delete](#export-and-delete-a-tenants-data) one. Projects that existed before tenants belong to `default`.
 
 ## Audit log
 
@@ -68,8 +68,41 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
 | `project.assistant_updated` | The project's name | The assistant's name and instructions |
 | `file.deleted`, `project.deleted` | The file's id, or the project's name | The project |
+| `tenant.exported` | The tenant's name | How many projects, files, conversations, keys and audit events the archive holds |
 
 `actor` is the API key that did it, with its name; it is `null` for the server's operators: the command line, or requests while authentication is off. `request_id` matches the request's `X-Request-ID` and its log lines. Events are kept as long as the tenant; a revoked key still shows by name.
+
+## Export and delete a tenant's data
+
+`GET /api/v1/export` (`admin` scope) returns everything the tenant has as one ZIP archive, for a backup, a move to another server, or a data request:
+
+```bash
+curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/api/v1/export
+```
+
+| In the archive | What it holds |
+|---|---|
+| `manifest.json` | The format and its version, the tenant, when it was made, how many of each thing it holds, and files the database lists that were no longer on disk |
+| `tenant.json` | The tenant and its limits |
+| `api_keys.json` | Each key's id, name, prefix, scopes and dates; never the key or its hash |
+| `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
+| `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
+| `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
+| `projects/<project>/files/<file_id>` | The files, exactly as uploaded |
+| `projects/<project>/sources.json`, `widgets.json`, `webhooks.json` | The project's sources, chat widgets and webhooks; webhooks without their signing secret |
+| `projects/<project>/conversations.jsonl` | Each conversation with its questions and answers, their citations and feedback |
+
+Chunks and their embeddings are left out: processing the files again makes them, with whichever embedding model is used then. Each export is recorded in the audit log as `tenant.exported`.
+
+Operators can do the same from the command line, where the database and the files are reachable, and delete a tenant:
+
+```bash
+ragolex tenants export acme acme.zip   # never overwrites a file
+ragolex tenants delete acme            # says what would be deleted
+ragolex tenants delete acme --yes      # deletes it
+```
+
+Deleting a tenant deletes each of its projects as `DELETE /api/v1/projects/{project_id}` does (the rows first, then the files on disk), then the tenant itself with its API keys, its rate-limit counters and its audit log. There is no undo, so export first. If it stops partway, running it again finishes the job. Other tenants are not touched, and the `default` tenant comes back, empty, the next time a request uses it.
 
 ## Rate limits and quotas
 
@@ -103,6 +136,7 @@ A `limit` of `null` is unlimited.
 | `GET` | `/api/v1/me` | The tenant and scopes of the API key used |
 | `GET` | `/api/v1/usage` | The tenant's usage this month, against its limits |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |
+| `GET` | `/api/v1/export` | Everything the tenant has as a ZIP archive (`admin`); see [Export](#export-and-delete-a-tenants-data) |
 | `POST` | `/api/v1/mcp` | Model Context Protocol server: the tools below, for agents |
 | `GET` | `/api/v1/tools` | The same tools as function-calling schemas |
 | `GET` | `/api/v1/keys` | The tenant's API keys (`admin`) |

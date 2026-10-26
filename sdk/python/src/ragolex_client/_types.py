@@ -48,6 +48,11 @@ def _none(data: Any) -> None:
     return None
 
 
+def _bytes(data: bytes) -> bytes:
+    """The result of an operation that answers with a file: its bytes, not JSON."""
+    return data
+
+
 def _raw(data: Any) -> Any:
     """A result the schema does not describe with a model: the JSON as it came."""
     return data

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal, TypeVar
 
-from ._types import UNSET, Unset, _body, _list, _none, _path, _raw
+from ._types import UNSET, Unset, _body, _bytes, _list, _none, _path, _raw
 from .models import (
     ApiKeyCreatedResponse,
     ApiKeyRequest,
@@ -549,6 +549,15 @@ class Operations:
         """
         return self._request('GET', '/api/v1/audit', query={'action': action, 'offset': offset, 'limit': limit}, json=None, response=AuditListResponse.model_validate)
 
+    def export_tenant(
+        self,
+    ) -> bytes:
+        """Everything the tenant has, as a ZIP archive
+
+        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+        """
+        return self._request('GET', '/api/v1/export', query={}, json=None, response=_bytes)
+
     def tool_schemas(
         self,
     ) -> list[dict[str, Any]]:
@@ -778,12 +787,12 @@ class Operations:
         self,
         project_id: str,
         deck_id: str,
-    ) -> None:
+    ) -> bytes:
         """Export a deck for Anki
 
         A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
         """
-        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_none)
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_bytes)
 
 
 class AsyncOperations:
@@ -1261,6 +1270,15 @@ class AsyncOperations:
         """
         return await self._request('GET', '/api/v1/audit', query={'action': action, 'offset': offset, 'limit': limit}, json=None, response=AuditListResponse.model_validate)
 
+    async def export_tenant(
+        self,
+    ) -> bytes:
+        """Everything the tenant has, as a ZIP archive
+
+        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+        """
+        return await self._request('GET', '/api/v1/export', query={}, json=None, response=_bytes)
+
     async def tool_schemas(
         self,
     ) -> list[dict[str, Any]]:
@@ -1490,12 +1508,12 @@ class AsyncOperations:
         self,
         project_id: str,
         deck_id: str,
-    ) -> None:
+    ) -> bytes:
         """Export a deck for Anki
 
         A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
         """
-        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_none)
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_bytes)
 
 
 __all__ = ['AsyncOperations', 'Operations']

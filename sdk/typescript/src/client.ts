@@ -165,6 +165,16 @@ export class Ragolex {
     throw new RagolexError(502, "llm_failed", { message: "The answer stream ended before the answer was complete." });
   }
 
+  /**
+   * Everything the tenant has, as a ZIP archive: projects with their files,
+   * conversations, widgets and webhooks, and the tenant's keys (names only)
+   * and audit log. Needs a key with the `admin` scope.
+   */
+  async exportTenant(options: { signal?: AbortSignal } = {}): Promise<Blob> {
+    const response = await this.send("/api/v1/export", { method: "GET", signal: options.signal });
+    return response.blob();
+  }
+
   private async send(path: string, init: RequestInit): Promise<Response> {
     let response: Response;
     try {

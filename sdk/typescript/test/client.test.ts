@@ -132,6 +132,17 @@ describe("Ragolex", () => {
     await expect(rag.waitForJob("docs", "j1")).rejects.toMatchObject({ signal: "file_has_no_text" });
   });
 
+  it("exports the tenant as a ZIP archive", async () => {
+    const zip = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+    const { rag, requests } = clientWith(() => new Response(zip, { headers: { "Content-Type": "application/zip" } }));
+
+    const archive = await rag.exportTenant();
+
+    expect(new Uint8Array(await archive.arrayBuffer())).toEqual(zip);
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/export");
+    expect(requests[0]!.headers.get("Authorization")).toBe("Bearer ragolex_test");
+  });
+
   it("searches and asks with options", async () => {
     const { rag, requests } = clientWith((request) =>
       new URL(request.url).pathname.startsWith("/api/v1/search")
