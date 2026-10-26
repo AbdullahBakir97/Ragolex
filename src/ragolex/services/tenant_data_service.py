@@ -23,6 +23,7 @@ import json
 import logging
 import zipfile
 from collections.abc import AsyncIterator, Collection
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -53,6 +54,8 @@ class TenantExport:
     counts: dict[str, int] = field(default_factory=dict)
     # Files the database lists that are no longer on disk.
     missing_files: list[str] = field(default_factory=list)
+    # Where the files are stored, to put them in the archive as uploaded (decrypted).
+    storage: FileStorage | None = None
 
     def add_json(self, name: str, value: Any) -> None:
         self.entries.append((name, json.dumps(value, indent=2, ensure_ascii=False,
@@ -76,7 +79,9 @@ class TenantExport:
                                                          default=_json_value) + "\n")
             for name, content in self.entries:
                 if isinstance(content, Path):
-                    archive.write(content, name)
+                    with (self.storage.plaintext(content) if self.storage
+                          else nullcontext(content)) as plain:
+                        archive.write(plain, name)
                 else:
                     archive.writestr(name, content)
 
@@ -90,7 +95,7 @@ class TenantDataService:
 
     async def export(self, tenant: Tenant) -> TenantExport:
         """Gathers the tenant's data; ``TenantExport.write`` then makes the archive."""
-        export = TenantExport(tenant)
+        export = TenantExport(tenant, storage=self.storage)
         export.add_json("tenant.json", _plain(tenant))
         keys = await self.uow.api_keys.list_for_tenant(tenant.id)
         export.add_json("api_keys.json", [_plain(key, keep={"id"}) for key in keys])

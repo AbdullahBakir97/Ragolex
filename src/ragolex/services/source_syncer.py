@@ -97,7 +97,7 @@ class SourceSyncer:
                       unit_of_work: Callable[..., AbstractAsyncContextManager[UnitOfWork]],
                       crawlers: Mapping[str, Crawler],
                       scanner: MalwareScanner | None) -> "SourceSyncer":
-        return cls(unit_of_work, FileStorage(root=settings.FILES_DIR), crawlers,
+        return cls(unit_of_work, FileStorage.from_settings(settings), crawlers,
                    allowed_types=settings.FILE_ALLOWED_TYPES,
                    max_bytes=settings.max_upload_bytes, read_size=settings.FILE_DEFAULT_CHUNK_SIZE,
                    max_attempts=settings.JOB_MAX_ATTEMPTS, scanner=scanner,
