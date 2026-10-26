@@ -113,6 +113,7 @@ curl -X POST http://localhost:8000/api/v1/ask/demo \
 | [Configuration](docs/configuration.md) | Every setting, with defaults |
 | [API](docs/api.md) | Endpoints, requests, responses and errors |
 | [SDKs](sdk/README.md) | The TypeScript and Python clients |
+| [API versioning](docs/versioning.md) | What may change within `/api/v1`, and how endpoints are retired |
 | [Architecture](docs/architecture.md) | Layers, rules and extension points |
 | [Web app](docs/web.md) | Pages, how it is built, running it |
 | [Evaluation](docs/evaluation.md) | Datasets, retrieval metrics and the CI check |
