@@ -1,4 +1,4 @@
-// Shapes of the Mini RAG API's requests and responses (see /docs).
+// Shapes of the Ragolex API's requests and responses (see /docs).
 
 export interface Welcome {
   message: string;

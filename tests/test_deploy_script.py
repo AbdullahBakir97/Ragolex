@@ -13,10 +13,10 @@ import pytest
 SCRIPT = Path(__file__).resolve().parents[1] / "tools" / "deploy.sh"
 
 FAKE_DOCKER = """#!/bin/sh
-echo "$* | $MINI_RAG_IMAGE | $MINI_RAG_WEB_IMAGE" >> "$DOCKER_LOG"
+echo "$* | $RAGOLEX_IMAGE | $RAGOLEX_WEB_IMAGE" >> "$DOCKER_LOG"
 if [ "$2" = up ]; then
     for tag in $FAIL_TAGS; do
-        case $MINI_RAG_IMAGE in *:"$tag") exit 1 ;; esac
+        case $RAGOLEX_IMAGE in *:"$tag") exit 1 ;; esac
     done
 fi
 exit 0
@@ -26,7 +26,7 @@ exit 0
 @pytest.fixture
 def server(tmp_path):
     """A deployment folder, and a PATH whose docker is the stand-in."""
-    folder = tmp_path / "mini-rag"
+    folder = tmp_path / "ragolex"
     folder.mkdir()
     (folder / "compose.yaml").write_text("services: {}\n")
     (folder / ".env").write_text("OPENAI_API_KEY=unused\n")
@@ -43,7 +43,7 @@ def deploy(server, *args, fail=()):
     log.unlink(missing_ok=True)
     env = {**os.environ, "PATH": f"{server.parent / 'bin'}:{os.environ['PATH']}",
            "DOCKER_LOG": str(log), "FAIL_TAGS": " ".join(fail),
-           "MINI_RAG_IMAGES": "ghcr.io/acme", "DEPLOY_TIMEOUT": "30"}
+           "RAGOLEX_IMAGES": "ghcr.io/acme", "DEPLOY_TIMEOUT": "30"}
     result = subprocess.run(["sh", str(SCRIPT), *args], cwd=server, env=env,
                             capture_output=True, text=True, timeout=30)
     calls = log.read_text().splitlines() if log.exists() else []
@@ -60,7 +60,7 @@ def test_a_deployment_pulls_and_starts_the_images_of_a_tag(server):
     result, calls = deploy(server, "sha-1111111")
 
     assert result.returncode == 0, result.stderr
-    images = "ghcr.io/acme/mini-rag:sha-1111111 | ghcr.io/acme/mini-rag-web:sha-1111111"
+    images = "ghcr.io/acme/ragolex:sha-1111111 | ghcr.io/acme/ragolex-web:sha-1111111"
     assert calls == [
         f"compose pull --quiet app web | {images}",
         f"compose up --detach --no-build --wait --wait-timeout 30 app web | {images}",
@@ -88,7 +88,7 @@ def test_unhealthy_images_are_rolled_back(server):
     assert "1.0.0 runs again" in result.stderr
     # What went wrong is in the log, then the images before run again.
     assert any(call.startswith("compose logs --no-color --tail 50 app web") for call in calls)
-    assert calls[-1].startswith("compose up") and calls[-1].endswith("mini-rag-web:1.0.0")
+    assert calls[-1].startswith("compose up") and calls[-1].endswith("ragolex-web:1.0.0")
     assert state(server) == {"current": "1.0.0"}
 
 
@@ -116,7 +116,7 @@ def test_rolling_back_by_hand_swaps_the_deployments(server):
     result, calls = deploy(server, "rollback")
 
     assert result.returncode == 0, result.stderr
-    assert calls[-1].endswith("ghcr.io/acme/mini-rag-web:1.0.0")
+    assert calls[-1].endswith("ghcr.io/acme/ragolex-web:1.0.0")
     assert state(server) == {"current": "1.0.0", "previous": "1.1.0"}
     status, _ = deploy(server, "status")
     assert status.stdout.split() == ["current:", "1.0.0", "previous:", "1.1.0"]

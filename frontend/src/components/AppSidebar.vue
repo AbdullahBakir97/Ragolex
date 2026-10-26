@@ -41,7 +41,7 @@ onMounted(async () => {
 <template>
   <aside class="sidebar">
     <div class="head">
-      <RouterLink to="/" class="brand-link" aria-label="Mini RAG home"><BrandMark /></RouterLink>
+      <RouterLink to="/" class="brand-link" aria-label="Ragolex home"><BrandMark /></RouterLink>
       <button class="btn btn-ghost btn-icon btn-sm close" aria-label="Close navigation" @click="$emit('close')">
         <X :size="18" />
       </button>

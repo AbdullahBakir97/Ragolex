@@ -1,14 +1,14 @@
 import pytest
 
-from mini_rag.core.errors import EmbeddingFailed
-from mini_rag.evaluation.dataset import load_dataset
-from mini_rag.loaders.registry import default_loader_registry
-from mini_rag.services.evaluation_service import EvaluationService, project_name
-from mini_rag.services.indexing_service import IndexingService
-from mini_rag.services.processing_service import ProcessingService
-from mini_rag.services.search_service import SearchService
-from mini_rag.services.upload_service import UploadService
-from mini_rag.storage.file_storage import FileStorage
+from ragolex.core.errors import EmbeddingFailed
+from ragolex.evaluation.dataset import load_dataset
+from ragolex.loaders.registry import default_loader_registry
+from ragolex.services.evaluation_service import EvaluationService, project_name
+from ragolex.services.indexing_service import IndexingService
+from ragolex.services.processing_service import ProcessingService
+from ragolex.services.search_service import SearchService
+from ragolex.services.upload_service import UploadService
+from ragolex.storage.file_storage import FileStorage
 
 from .fakes import FakeEmbedder, FakeUnitOfWork
 from .test_eval_dataset import CAT, write_dataset
@@ -66,8 +66,8 @@ async def test_a_project_left_by_an_earlier_run_is_replaced(tmp_path):
 
 
 async def test_answers_are_written_and_graded(tmp_path):
-    from mini_rag.services.answer_service import AnswerService
-    from mini_rag.services.evaluation_service import AnswerSettings
+    from ragolex.services.answer_service import AnswerService
+    from ragolex.services.evaluation_service import AnswerSettings
 
     from .fakes import FakeLLM
 

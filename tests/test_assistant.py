@@ -53,7 +53,7 @@ def test_the_assistant_is_validated(client, embedder, body):
 
 
 def test_changing_the_assistant_needs_the_admin_scope(client, db, monkeypatch):
-    from mini_rag.core.config import get_settings
+    from ragolex.core.config import get_settings
 
     monkeypatch.setenv("AUTH_ENABLED", "true")
     get_settings.cache_clear()

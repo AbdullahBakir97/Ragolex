@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { MiniRag, MiniRagError } from "../src/index.js";
+import { Ragolex, RagolexError } from "../src/index.js";
 
 type Handler = (request: Request) => Response | Promise<Response>;
 
@@ -12,7 +12,7 @@ function clientWith(handler: Handler, apiKey: string | null = "mrag_test") {
     requests.push(request.clone());
     return handler(request);
   });
-  const rag = new MiniRag({ baseUrl: "https://rag.example.com/", apiKey: apiKey ?? undefined, fetch });
+  const rag = new Ragolex({ baseUrl: "https://rag.example.com/", apiKey: apiKey ?? undefined, fetch });
   return { rag, requests };
 }
 
@@ -32,7 +32,7 @@ function sse(...events: [string, unknown][]): Response {
 
 const ANSWER = { signal: "answer_success", answer: "25 days [1].", citations: [] };
 
-describe("MiniRag", () => {
+describe("Ragolex", () => {
   it("calls the typed API with the key, and returns the data", async () => {
     const { rag, requests } = clientWith(() => Response.json({ total: 0, offset: 0, limit: 5, items: [] }));
 
@@ -53,14 +53,14 @@ describe("MiniRag", () => {
     expect(requests[0]!.headers.has("Authorization")).toBe(false);
   });
 
-  it("throws error responses as MiniRagErrors with their signal", async () => {
+  it("throws error responses as RagolexErrors with their signal", async () => {
     const { rag } = clientWith(() =>
       Response.json({ signal: "rate_limited" }, { status: 429, headers: { "Retry-After": "12" } }),
     );
 
     const error = await rag.api.GET("/api/v1/projects").catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(MiniRagError);
+    expect(error).toBeInstanceOf(RagolexError);
     expect(error).toMatchObject({ status: 429, signal: "rate_limited", retryAfter: 12 });
   });
 

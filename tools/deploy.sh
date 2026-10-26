@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run published images of Mini RAG on this server with docker compose, and go
+# Run published images of Ragolex on this server with docker compose, and go
 # back to the images before when the new ones do not come up healthy.
 #
 #   tools/deploy.sh <tag>      run the images tagged <tag>, e.g. sha-1a2b3c4 or 1.4.0
@@ -11,15 +11,15 @@
 # usable by the release before it, for a rollback to work.
 #
 # Settings, from the environment:
-#   MINI_RAG_IMAGES  where the images are (default ghcr.io/abdullahbakir97):
-#                    <MINI_RAG_IMAGES>/mini-rag and <MINI_RAG_IMAGES>/mini-rag-web
+#   RAGOLEX_IMAGES  where the images are (default ghcr.io/abdullahbakir97):
+#                    <RAGOLEX_IMAGES>/ragolex and <RAGOLEX_IMAGES>/ragolex-web
 #   DEPLOY_TIMEOUT   seconds the services have to become healthy (default 180)
 #   COMPOSE          the compose command (default "docker compose")
 #
 # The tags deployed are kept in .deploy/current and .deploy/previous.
 set -eu
 
-images=${MINI_RAG_IMAGES:-ghcr.io/abdullahbakir97}
+images=${RAGOLEX_IMAGES:-ghcr.io/abdullahbakir97}
 timeout=${DEPLOY_TIMEOUT:-180}
 compose=${COMPOSE:-docker compose}
 state=.deploy
@@ -35,7 +35,7 @@ valid_tag() {
 
 # Pull the images of a tag and start them, waiting until they are healthy.
 run() (
-    export MINI_RAG_IMAGE="$images/mini-rag:$1" MINI_RAG_WEB_IMAGE="$images/mini-rag-web:$1"
+    export RAGOLEX_IMAGE="$images/ragolex:$1" RAGOLEX_WEB_IMAGE="$images/ragolex-web:$1"
     # shellcheck disable=SC2086 # $compose is a command and its arguments.
     $compose pull --quiet app web &&
         $compose up --detach --no-build --wait --wait-timeout "$timeout" app web

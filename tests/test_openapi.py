@@ -17,7 +17,7 @@ def response_schema(schema, path, status):
 
 
 def test_app_metadata_comes_from_settings(schema):
-    assert schema["info"] == {"title": "mini-RAG-test", "version": "0.0.1"}
+    assert schema["info"] == {"title": "Ragolex-test", "version": "0.0.1"}
 
 
 def test_success_responses_are_documented(schema):
@@ -120,7 +120,7 @@ def test_operations_are_named_after_their_route_functions(schema):
 def test_the_sdks_schema_is_up_to_date(schema):
     """sdk/openapi.json is what the SDKs are generated from: regenerate both after API changes.
 
-    Run `mini-rag openapi --output sdk/openapi.json`, then see sdk/README.md.
+    Run `ragolex openapi --output sdk/openapi.json`, then see sdk/README.md.
     """
     committed = json.loads((ROOT / "sdk" / "openapi.json").read_text(encoding="utf-8"))
 
@@ -128,7 +128,7 @@ def test_the_sdks_schema_is_up_to_date(schema):
 
 
 def test_the_cli_writes_the_schema(tmp_path, capsys):
-    from mini_rag.cli import main
+    from ragolex.cli import main
 
     assert main(["openapi", "--output", str(tmp_path / "openapi.json")]) == 0
     assert main(["openapi"]) == 0

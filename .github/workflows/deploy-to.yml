@@ -95,7 +95,7 @@ jobs:
           # shellcheck disable=SC2029
           printf '%s' "$REGISTRY_TOKEN" | ssh server "docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin"
           # shellcheck disable=SC2029
-          ssh server "cd '$DEPLOY_PATH' && MINI_RAG_IMAGES='$registry' sh deploy.sh '$TAG'"
+          ssh server "cd '$DEPLOY_PATH' && RAGOLEX_IMAGES='$registry' sh deploy.sh '$TAG'"
       - name: Check the API answers
         if: steps.settings.outputs.configured == 'true' && env.APP_URL != ''
         run: curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors "$APP_URL/api/v1/health"

@@ -53,7 +53,7 @@ jobs:
         id: app
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.tag.outputs.registry }}/mini-rag
+          images: ${{ steps.tag.outputs.registry }}/ragolex
           tags: |
             type=sha,prefix=sha-,format=short
             type=edge,branch=start-001
@@ -63,7 +63,7 @@ jobs:
         id: web
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.tag.outputs.registry }}/mini-rag-web
+          images: ${{ steps.tag.outputs.registry }}/ragolex-web
           tags: |
             type=sha,prefix=sha-,format=short
             type=edge,branch=start-001

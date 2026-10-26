@@ -3,10 +3,10 @@ import json
 import httpx2
 import pytest
 
-from mini_rag.core.config import get_settings
-from mini_rag.core.errors import RerankFailed
-from mini_rag.rerankers.factory import create_reranker
-from mini_rag.rerankers.http_reranker import HTTPReranker
+from ragolex.core.config import get_settings
+from ragolex.core.errors import RerankFailed
+from ragolex.rerankers.factory import create_reranker
+from ragolex.rerankers.http_reranker import HTTPReranker
 
 pytestmark = pytest.mark.anyio
 

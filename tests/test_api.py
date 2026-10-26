@@ -1,6 +1,6 @@
 import pytest
 
-from mini_rag.storage.file_storage import clean_file_name
+from ragolex.storage.file_storage import clean_file_name
 
 
 def upload(client, project_id, name="notes.txt", content=b"hello", content_type="text/plain"):
@@ -23,7 +23,7 @@ def test_welcome_returns_app_info(client):
     assert response.status_code == 200
     assert response.json() == {
         "message": "Hello All",
-        "app_name": "mini-RAG-test",
+        "app_name": "Ragolex-test",
         "app_version": "0.0.1",
     }
 
@@ -98,7 +98,7 @@ def test_upload_disk_failure_is_a_server_error(client, files_dir, monkeypatch, c
     def failing_open(*args, **kwargs):
         raise OSError("No space left on device")
 
-    monkeypatch.setattr("mini_rag.services.upload_service.aiofiles.open", failing_open)
+    monkeypatch.setattr("ragolex.services.upload_service.aiofiles.open", failing_open)
 
     response = upload(client, "p1")
 
