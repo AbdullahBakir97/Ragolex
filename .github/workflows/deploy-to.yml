@@ -1,0 +1,101 @@
+name: Deploy to an environment
+
+# Called by deploy.yml: runs the images of a tag on the environment's server
+# with tools/deploy.sh, over SSH, then checks the API answers. Each GitHub
+# environment (staging, production) sets where:
+#   variables  DEPLOY_HOST, DEPLOY_USER, DEPLOY_PATH, DEPLOY_PORT (default 22),
+#              DEPLOY_KNOWN_HOSTS (the server's host key line), APP_URL
+#   secret     DEPLOY_SSH_KEY (a private key the server accepts)
+# Without DEPLOY_HOST the images are published and nothing is deployed.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      tag:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.APP_URL }}
+    # One deployment per environment at a time; the next waits for it.
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      APP_URL: ${{ vars.APP_URL }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the settings
+        id: settings
+        run: |
+          # The tag goes into a command on the server: only what registries allow.
+          if ! [[ "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "::error::'$TAG' is not an image tag."
+            exit 1
+          fi
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "::notice::The ${{ inputs.environment }} environment has no DEPLOY_HOST: the images of $TAG are published, nothing is deployed."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for name in DEPLOY_USER DEPLOY_PATH; do
+            if [ -z "${!name}" ]; then echo "::error::Set the $name variable of the ${{ inputs.environment }} environment."; exit 1; fi
+          done
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+      - name: Set up SSH
+        if: steps.settings.outputs.configured == 'true'
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$SSH_KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "::error::Set the DEPLOY_SSH_KEY secret and the DEPLOY_KNOWN_HOSTS variable of the ${{ inputs.environment }} environment."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          {
+            echo "Host server"
+            echo "  HostName $DEPLOY_HOST"
+            echo "  User $DEPLOY_USER"
+            echo "  Port $DEPLOY_PORT"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  StrictHostKeyChecking yes"
+          } > ~/.ssh/config
+      - name: Deploy ${{ inputs.tag }}
+        if: steps.settings.outputs.configured == 'true'
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          # The server gets this release's compose file and script; its own
+          # changes belong in compose.override.yaml and .env, which stay.
+          scp compose.yaml tools/deploy.sh "server:$DEPLOY_PATH/"
+          # The job's token reads the images; it expires when the job ends.
+          # The commands' values are this job's: expanded here, not on the server.
+          # shellcheck disable=SC2029
+          printf '%s' "$REGISTRY_TOKEN" | ssh server "docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin"
+          # shellcheck disable=SC2029
+          ssh server "cd '$DEPLOY_PATH' && RAGOLEX_IMAGES='$registry' sh deploy.sh '$TAG'"
+      - name: Check the API answers
+        if: steps.settings.outputs.configured == 'true' && env.APP_URL != ''
+        run: curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors "$APP_URL/api/v1/health"

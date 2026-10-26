@@ -49,7 +49,7 @@ def test_without_auth_everything_acts_for_the_default_tenant(client):
 
 def test_with_auth_a_key_is_required(client, auth_on):
     missing = client.get("/api/v1/projects")
-    wrong = client.get("/api/v1/projects", headers=bearer("mrag_not-a-real-key"))
+    wrong = client.get("/api/v1/projects", headers=bearer("ragolex_not-a-real-key"))
 
     assert (missing.status_code, missing.json()) == (401, {"signal": "api_key_required"})
     assert (wrong.status_code, wrong.json()) == (401, {"signal": "api_key_invalid"})
@@ -66,7 +66,7 @@ def test_a_key_works_as_bearer_or_header(client, db, auth_on, query):
     assert me == same
     assert (me["tenant"], me["auth_enabled"]) == ("acme", True)
     assert query("SELECT key_hash, last_used_at IS NOT NULL FROM api_keys") == [(hash_key(key), True)]
-    assert key.startswith("mrag_") and len(key) > 40
+    assert key.startswith("ragolex_") and len(key) > 40
 
 
 @pytest.mark.parametrize(("scopes", "allowed", "refused"), [
@@ -183,7 +183,7 @@ def test_the_cli_manages_tenants_and_keys(db, capsys):
     out = capsys.readouterr().out
     key = out.splitlines()[1]
     key_id = out.split()[1]
-    assert "with read" in out and key.startswith("mrag_")
+    assert "with read" in out and key.startswith("ragolex_")
 
     assert cli.main(["keys", "list", "--tenant", "acme"]) == 0
     assert f"{key_id}\t{key[:12]}…\tci\tread\tactive" in capsys.readouterr().out
