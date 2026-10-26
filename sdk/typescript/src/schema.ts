@@ -1388,7 +1388,7 @@ export interface components {
             page: number | null;
             /**
              * Section
-             * @description The headings above the passage in Markdown, HTML and Word files, e.g. "Setup > Install"; null otherwise.
+             * @description The headings above the passage in Markdown, HTML and Word files, e.g. "Setup > Install"; the function or class in source code, e.g. "Parser.parse"; null otherwise.
              */
             section?: string | null;
             /**

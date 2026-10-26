@@ -46,7 +46,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `LOG_FORMAT` | `"text"` | `text`: readable lines. `json`: one JSON object per line (`time`, `level`, `logger`, `message`, `request_id`, `tenant`, `trace_id` when tracing, and fields such as `method`, `path`, `status` and `duration_ms` on access lines), uvicorn's own lines included, for log collectors |
 | `TRACING_ENABLED` | `false` | Send OpenTelemetry traces of requests, database queries and the answer pipeline over OTLP/HTTP, to the collector the standard `OTEL_EXPORTER_OTLP_ENDPOINT` names; needs the `tracing` extra, which the Docker image has. See [Operations](operations.md#tracing) |
 | `FILES_DIR` | `"assets/files"` | Folder where uploaded files are stored, one subfolder per project |
-| `FILE_ALLOWED_TYPES` | Text, Markdown, HTML, PDF and Word (`.docx`) | MIME types accepted for upload. An upload with no type, or `application/octet-stream`, gets the type of its extension |
+| `FILE_ALLOWED_TYPES` | Text, Markdown, HTML, PDF, Word (`.docx`) and [source code](api.md#source-code) | MIME types accepted for upload. An upload with no type, or `application/octet-stream`, gets the type of its extension |
 | `FILE_MAX_SIZE` | `10` | Maximum upload size in MB |
 | `FILE_DEFAULT_CHUNK_SIZE` | `512000` | Bytes read per chunk while saving an upload |
 

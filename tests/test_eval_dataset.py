@@ -106,7 +106,7 @@ def test_loads_a_dataset(tmp_path):
     ([{**CAT, "reference_answer": None}], ("notes.txt",), "or neither"),
     ([{**CAT, "question": " "}], ("notes.txt",), "needs an 'id' and a 'question'"),
     (["{not json"], ("notes.txt",), "cases.jsonl:1: not valid JSON"),
-    ([CAT], ("notes.doc",), r"only .txt, .md, .markdown, .html, .htm, .pdf, .docx documents"),
+    ([CAT], ("notes.doc",), r"\.doc is not a supported document type"),
     ([], ("notes.txt",), "there are no cases"),
 ])
 def test_rejects_invalid_datasets(tmp_path, cases, documents, message):

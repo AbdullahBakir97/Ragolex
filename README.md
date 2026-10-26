@@ -11,8 +11,8 @@
 
 ## Features
 
-- **Upload** PDF, Word (`.docx`), Markdown, HTML and text files into separate projects, with type checks and a size limit enforced while streaming.
-- **Process** them into chunks that respect paragraphs, with exact overlap between chunks, page numbers for PDFs, and the section headings for Markdown, HTML and Word files.
+- **Upload** PDF, Word (`.docx`), Markdown, HTML, text and source code files into separate projects, with type checks and a size limit enforced while streaming.
+- **Process** them into chunks that respect paragraphs, with exact overlap between chunks, page numbers for PDFs, the section headings for Markdown, HTML and Word files, and one function or class at a time for source code in 12 languages.
 - **Index** chunks as embeddings with OpenAI or any OpenAI-compatible server, such as Ollama, in background jobs with progress and retries, run by the API or by separate workers.
 - **Search** by meaning and by words at once (hybrid search: pgvector and PostgreSQL full-text search, merged by rank fusion), best match first, with a similarity score.
 - **Ask** questions and get answers with citations to the file, page or section, and chunk, streamed as they are written if you like, or an explicit "no answer" when the documents don't say.

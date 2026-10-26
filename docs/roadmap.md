@@ -84,7 +84,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 - [x] Summaries, flashcards and quizzes generated from documents, each item linked to its source page ([API › Study](api.md#study)).
 - [x] Spaced-repetition review and export to Anki ([API › Decks](api.md#decks-and-spaced-repetition)).
-- [ ] Code-aware chunking for source repositories.
+- [x] Code-aware chunking for source repositories.
 
 ### Phase 8: Security and privacy
 

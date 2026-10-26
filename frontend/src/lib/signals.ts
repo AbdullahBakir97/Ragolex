@@ -1,7 +1,7 @@
 // What each error signal of the API means to someone using the app.
 
 const MESSAGES: Record<string, string> = {
-  file_type_not_supported: "Only PDF, Word, Markdown, HTML and text files can be uploaded.",
+  file_type_not_supported: "Only PDF, Word, Markdown, HTML, text and source code files can be uploaded.",
   file_size_exceeded: "The file is larger than the server allows.",
   file_content_mismatch: "The file's content is not of its type, for example a program named like a text file.",
   file_infected: "The malware scanner found malware in this file, so it was not kept.",

@@ -200,7 +200,7 @@ A `limit` of `null` is unlimited.
 
 ## Upload a file
 
-`project_id` may contain letters, digits, `_` and `-` (1–64 characters). Files are stored under `FILES_DIR/<project_id>/` (default `assets/files/`) with a random prefix, so uploads never overwrite each other. A missing or generic content type (`application/octet-stream`, as browsers often send for Markdown) is taken from the file's extension. Each file's SHA-256 is kept, and content the project already has is not stored again, whatever the file's name: the response then carries the existing file's id, so uploading the same files twice is safe.
+`project_id` may contain letters, digits, `_` and `-` (1–64 characters). Files are stored under `FILES_DIR/<project_id>/` (default `assets/files/`) with a random prefix, so uploads never overwrite each other. A missing or generic content type (`application/octet-stream`, as browsers often send for Markdown) is taken from the file's extension, and so is the type of any [source code](#source-code) file. Each file's SHA-256 is kept, and content the project already has is not stored again, whatever the file's name: the response then carries the existing file's id, so uploading the same files twice is safe.
 
 The content must be of the file's type, whatever its name and declared type say: a PDF starts with `%PDF-` (within its first kilobyte), a Word document is a ZIP archive, and text is not binary (not a PDF or ZIP archive, and not more than a tenth control characters, as programs, images and UTF-16 text are). When `CLAMAV_URL` is set, every new file is also scanned for malware by ClamAV before it is kept; a file that cannot be scanned is refused rather than kept unscanned. A refused file leaves nothing behind.
 
@@ -259,8 +259,22 @@ Supported files, chosen by extension:
 | `.md`, `.markdown` | One document per section, keeping the Markdown; YAML front matter is left out | `section` |
 | `.html`, `.htm` | The readable text, one document per section; scripts, styles, navigation, footers and forms are left out | `section`, `title` (the page's `<title>`) |
 | `.docx` | One document per section; tables as one line per row, list items with `-` | `section` |
+| Source code: `.py`, `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, `.tsx`, `.go`, `.java`, `.kt`, `.kts`, `.cs`, `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.rs`, `.php`, `.swift` | One document per definition; see [Source code](#source-code) | `section` (the definition's name), `language` |
 
 A section starts at a heading (in Word, a paragraph in a heading style) and its text starts with that heading. `section` is the path of headings above it, such as `"Setup > Install"`, so chunks never mix two sections and citations can say where they come from. Scanned PDFs and the older `.doc` format are not read.
+
+### Source code
+
+A chunk holding the end of one function and the start of the next answers questions about neither, so source files are split where their definitions start:
+
+- Each top-level function, class, interface, struct or other type is a document of its own. The comments, decorators and annotations right above it come with it, and its name is the `section`: `read`, `Reader`, `Point::Point`, or `Server.Start` for a Go method.
+- A class longer than 1,500 characters is split again into its members, named `Reader.close`. The lines before the first member (the class line, its docstring, its fields) stay under the class's name.
+- The lines between definitions, such as imports and constants, are documents without a section. One-line statements are never definitions of their own.
+- Each document is then split into chunks like any text, so a long function still becomes several chunks, all with its `section`. Methods are dedented so they read as code of their own.
+
+Python is read with Python's own parser. The other languages are read by following their brackets, which needs no grammar per language: C, C++, C#, Go, Java, JavaScript, Kotlin, PHP, Rust, Swift and TypeScript. A file that cannot be followed this way, such as one with a syntax error or a regular expression holding a lone bracket, is still read, as one document.
+
+For code, the extension decides the content type whatever the upload declares (`text/x-python`, `text/x-typescript` and so on): browsers name code types inconsistently, sending a `.ts` file as `video/mp2t` for instance. The content must still be text.
 
 | Case | Status | Response |
 |---|---|---|
