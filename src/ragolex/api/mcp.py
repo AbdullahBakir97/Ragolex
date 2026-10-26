@@ -115,7 +115,8 @@ async def _search(box: Toolbox, args: dict[str, Any]) -> str:
 async def _ask(box: Toolbox, args: dict[str, Any]) -> str:
     answers = await box.services("answers")
     answer = await answers.ask(args["project"], args["question"], top_k=args.get("top_k", 5),
-                               filters=_filters(args))
+                               filters=_filters(args),
+                               research_steps=3 if args.get("research") else 0)
     if answer.text is None:
         return "The project's documents do not answer this question."
     sources = "\n\n".join(_source(c.number, c.source) for c in answer.citations)
@@ -144,7 +145,12 @@ TOOLS = [
          {"type": "object", "properties": {
              "project": PROJECT,
              "question": {"type": "string", "minLength": 1, "maxLength": 2000},
-             "top_k": TOP_K, "tags": TAGS}, "required": ["project", "question"]}, _ask),
+             "top_k": TOP_K, "tags": TAGS,
+             "research": {"type": "boolean", "default": False,
+                          "description": "For questions with several parts: plan several "
+                                         "searches and search again for what is missing. "
+                                         "Slower, and costs more model calls."}},
+          "required": ["project", "question"]}, _ask),
 ]
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
 
@@ -177,6 +183,9 @@ def _check_arguments(tool: Tool, args: Any) -> dict[str, Any]:
                     or not all(isinstance(item, str) for item in value)):
                 raise RpcError(INVALID_PARAMS,
                                f"{name} must be a list of at most {rule['maxItems']} strings")
+        elif rule["type"] == "boolean":
+            if not isinstance(value, bool):
+                raise RpcError(INVALID_PARAMS, f"{name} must be true or false")
     return args
 
 

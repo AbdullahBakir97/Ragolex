@@ -19,7 +19,7 @@ With `AUTH_ENABLED=false` (the default, for your own computer), no key is needed
 ```bash
 ragolex tenants create acme
 ragolex keys create --tenant acme --name website --scope read --scope ask
-curl -H "Authorization: Bearer mrag_…" http://localhost:8000/api/v1/projects
+curl -H "Authorization: Bearer ragolex_…" http://localhost:8000/api/v1/projects
 ```
 
 A key belongs to one tenant and has one or more **scopes**:
@@ -42,13 +42,13 @@ A key is shown once, when it is created; the server keeps only its SHA-256, and 
 `GET /api/v1/me` shows the tenant and scopes of the key used. With an `admin` key, a tenant manages its own keys:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/keys -H "Authorization: Bearer mrag_…" \
+curl -X POST http://localhost:8000/api/v1/keys -H "Authorization: Bearer ragolex_…" \
   -H "Content-Type: application/json" -d '{"name": "ci", "scopes": ["read"]}'
-curl http://localhost:8000/api/v1/keys -H "Authorization: Bearer mrag_…"
-curl -X DELETE http://localhost:8000/api/v1/keys/<key id> -H "Authorization: Bearer mrag_…"
+curl http://localhost:8000/api/v1/keys -H "Authorization: Bearer ragolex_…"
+curl -X DELETE http://localhost:8000/api/v1/keys/<key id> -H "Authorization: Bearer ragolex_…"
 ```
 
-The first key of a tenant comes from the command line (`ragolex keys create`), run where the database is reachable, e.g. `docker compose exec app ragolex keys create --tenant acme --name admin`. `ragolex keys list` and `ragolex keys revoke` work there too, and `ragolex tenants list` lists tenants. Projects that existed before tenants belong to `default`.
+The first key of a tenant comes from the command line (`ragolex keys create`), run where the database is reachable, e.g. `docker compose exec app ragolex keys create --tenant acme --name admin`. `ragolex keys list` and `ragolex keys revoke` work there too, `ragolex tenants list` lists tenants, and `ragolex tenants export` and `ragolex tenants delete` [export and delete](#export-and-delete-a-tenants-data) one. Projects that existed before tenants belong to `default`.
 
 ## Audit log
 
@@ -56,7 +56,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 
 ```json
 {"id": 12, "action": "api_key.created", "target": "0b5c3e8e-…",
- "details": {"name": "ci", "prefix": "mrag_Xq2v…", "scopes": ["read"]},
+ "details": {"name": "ci", "prefix": "ragolex_Xq2v…", "scopes": ["read"]},
  "actor": {"key_id": "8d1f…", "name": "ops laptop"}, "request_id": "3f2a…", "created_at": "2026-10-18T12:30:02Z"}
 ```
 
@@ -68,8 +68,41 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
 | `project.assistant_updated` | The project's name | The assistant's name and instructions |
 | `file.deleted`, `project.deleted` | The file's id, or the project's name | The project |
+| `tenant.exported` | The tenant's name | How many projects, files, conversations, keys and audit events the archive holds |
 
 `actor` is the API key that did it, with its name; it is `null` for the server's operators: the command line, or requests while authentication is off. `request_id` matches the request's `X-Request-ID` and its log lines. Events are kept as long as the tenant; a revoked key still shows by name.
+
+## Export and delete a tenant's data
+
+`GET /api/v1/export` (`admin` scope) returns everything the tenant has as one ZIP archive, for a backup, a move to another server, or a data request:
+
+```bash
+curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/api/v1/export
+```
+
+| In the archive | What it holds |
+|---|---|
+| `manifest.json` | The format and its version, the tenant, when it was made, how many of each thing it holds, and files the database lists that were no longer on disk |
+| `tenant.json` | The tenant and its limits |
+| `api_keys.json` | Each key's id, name, prefix, scopes and dates; never the key or its hash |
+| `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
+| `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
+| `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
+| `projects/<project>/files/<file_id>` | The files, exactly as uploaded |
+| `projects/<project>/sources.json`, `widgets.json`, `webhooks.json` | The project's sources, chat widgets and webhooks; webhooks without their signing secret |
+| `projects/<project>/conversations.jsonl` | Each conversation with its questions and answers, their citations and feedback |
+
+Chunks and their embeddings are left out: processing the files again makes them, with whichever embedding model is used then. Each export is recorded in the audit log as `tenant.exported`.
+
+Operators can do the same from the command line, where the database and the files are reachable, and delete a tenant:
+
+```bash
+ragolex tenants export acme acme.zip   # never overwrites a file
+ragolex tenants delete acme            # says what would be deleted
+ragolex tenants delete acme --yes      # deletes it
+```
+
+Deleting a tenant deletes each of its projects as `DELETE /api/v1/projects/{project_id}` does (the rows first, then the files on disk), then the tenant itself with its API keys, its rate-limit counters and its audit log. There is no undo, so export first. If it stops partway, running it again finishes the job. Other tenants are not touched, and the `default` tenant comes back, empty, the next time a request uses it.
 
 ## Rate limits and quotas
 
@@ -131,6 +164,7 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/api/v1/usage` | The tenant's usage this month, against its limits |
 | `GET` | `/api/v1/usage/history` | The tenant's answers and their cost per day, project and model |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |
+| `GET` | `/api/v1/export` | Everything the tenant has as a ZIP archive (`admin`); see [Export](#export-and-delete-a-tenants-data) |
 | `POST` | `/api/v1/mcp` | Model Context Protocol server: the tools below, for agents |
 | `GET` | `/api/v1/tools` | The same tools as function-calling schemas |
 | `GET` | `/api/v1/keys` | The tenant's API keys (`admin`) |
@@ -166,6 +200,13 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `POST` | `/api/v1/search/{project_id}` | Find the chunks that best match a question |
 | `POST` | `/api/v1/ask/{project_id}` | Answer a question from the project's documents, with citations |
 | `POST` | `/api/v1/ask/{project_id}/stream` | The same answer, streamed as it is written (Server-Sent Events) |
+| `POST` | `/api/v1/study/{project_id}` | A summary, flashcards or a quiz from a document, each item linked to its source |
+| `GET`, `POST` | `/api/v1/projects/{project_id}/decks` | List the project's decks of flashcards, or create one |
+| `GET`, `DELETE` | `/api/v1/projects/{project_id}/decks/{deck_id}` | A deck with its counts of cards and of cards due, or delete it |
+| `GET`, `POST` | `/api/v1/projects/{project_id}/decks/{deck_id}/cards` | A deck's cards in order, or add some |
+| `GET` | `/api/v1/projects/{project_id}/decks/{deck_id}/review` | The cards due for review now |
+| `POST` | `/api/v1/projects/{project_id}/decks/{deck_id}/cards/{card_id}/review` | Grade a review and schedule the card's next one |
+| `GET` | `/api/v1/projects/{project_id}/decks/{deck_id}/anki` | The deck as a text file to import in Anki |
 | `GET` | `/api/v1/projects` | List projects in name order (paged) |
 | `GET` | `/api/v1/projects/{project_id}` | Project details with file, chunk and index counts |
 | `GET` | `/api/v1/projects/{project_id}/usage` | Token usage and cost of the project's answers |
@@ -297,7 +338,7 @@ curl http://localhost:8000/api/v1/projects/demo1/tags
 {"items": [{"tag": "handbook", "files": 12}, {"tag": "v2", "files": 3}]}
 ```
 
-`PUT .../tags` replaces the file's tags (`[]` removes them) and returns the file, with its `tags`; every file listed carries its `tags`. Tags are given at upload too, and a [website source](#website-sources) gives its own to the pages it stores. Limit a search or an answer to files with any of some tags with the `tags` [filter](#filters); a [chat widget](#chat-widget) with tags answers its visitors only from those files. An invalid tag in a body is a validation error (`422`); in `?tag=` or an upload's `tags`, it is `422` `{"signal": "tag_invalid"}`.
+`PUT .../tags` replaces the file's tags (`[]` removes them) and returns the file, with its `tags`; every file listed carries its `tags`. Tags are given at upload too, and a [source](#sources-websites-feeds-and-github-repositories) gives its own to the pages it stores. Limit a search or an answer to files with any of some tags with the `tags` [filter](#filters); a [chat widget](#chat-widget) with tags answers its visitors only from those files. An invalid tag in a body is a validation error (`422`); in `?tag=` or an upload's `tags`, it is `422` `{"signal": "tag_invalid"}`.
 
 ## Delete files and projects
 
@@ -364,9 +405,9 @@ A job is `queued`, then `running` (`stage` is `processing`, then `indexing`, whi
 | No such project, file or job | `404` | `{"signal": "project_not_found"}` / `{"signal": "file_not_found"}` / `{"signal": "job_not_found"}` |
 | Options not valid, such as `overlap_size` not smaller than `chunk_size` | `422` | Validation error details |
 
-## Website sources
+## Sources: websites, feeds and GitHub repositories
 
-A source keeps a website's pages in a project: they are crawled, stored as files and indexed, then synced again on a schedule.
+A source keeps a website's pages, a feed's entries or a GitHub repository's documents in a project: they are fetched, stored as files and indexed, then synced again on a schedule. `kind` says which (default `website`); the rest of this section describes websites, and [feeds and repositories](#feeds-and-github-repositories) below.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/projects/demo1/sources \
@@ -388,6 +429,20 @@ curl -X POST http://localhost:8000/api/v1/projects/demo1/sources \
 - **Kept in sync.** The first sync starts at once, then every `sync_interval_hours` (0: only on `POST …/sync`). A new page is added, a changed page replaces its file, and an unchanged one is left alone. A page that is gone (no longer linked, or `404`) has its file deleted. A page that could not be fetched this time (a timeout, a `5xx`) keeps what it had, and when the site cannot be crawled at all, `last_error` says why and every page is kept. Files the project already had are never deleted by a sync.
 
 Syncs run in the API's workers when `JOB_WORKERS` is above 0, and in `ragolex worker`; a source is held by one worker at a time. Deleting a source deletes the files its syncs created, unless `?keep_files=true`.
+
+### Feeds and GitHub repositories
+
+```bash
+curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Type: application/json" \
+  -d '{"kind": "feed", "url": "https://blog.example.com/feed.xml", "max_pages": 100}'
+curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Type: application/json" \
+  -d '{"kind": "github", "url": "https://github.com/acme/handbook/tree/main/docs", "sync_interval_hours": 6}'
+```
+
+- **`feed`:** an RSS 2.0, RSS 1.0 or Atom feed. Each entry, up to `max_pages` from the newest, becomes a page at its own address, holding its title, date and content (the full content when the feed has it, its summary otherwise). Entries that drop off the feed are **kept**, since feeds list only their latest; delete them by hand, or the source, if they should go. The feed is fetched with the website crawler's safeguards: public addresses only (unless `CRAWLER_ALLOW_PRIVATE_URLS`), the size limit, and at most five redirects.
+- **`github`:** `https://github.com/<owner>/<repo>`, at its default branch, or `.../tree/<branch or tag>/<folder>` for one branch and folder. Its Markdown, text, reStructuredText, HTML and PDF files are kept, top-level ones first, up to `max_pages`; hidden and vendored folders (`.github`, `node_modules`, `vendor`) are skipped. Each is a page at its `github.com/.../blob/...` address, so answers cite it, and files deleted from the repository are removed from the project. `GITHUB_TOKEN` reads private repositories and raises GitHub's rate limit from 60 requests an hour to 5000: a sync makes two requests, plus one per file. A repository that cannot be read (not found, rate limited) fails the sync with `last_error` and keeps every page.
+
+Any other `kind`, or a `github` URL that is not a repository's, is refused with `422`.
 
 ## Webhooks
 
@@ -452,7 +507,7 @@ Webhooks reach only public addresses: an address on this server's network (`loca
 
 ## Tools for agents (MCP)
 
-`POST /api/v1/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server, so agents and assistants that speak MCP can use a tenant's projects as tools. It uses the Streamable HTTP transport without sessions: each POST carries one JSON-RPC message (`Content-Type: application/json`) and gets a JSON answer. Point an MCP client at `https://<your server>/api/v1/mcp`, with the API key in its headers (`Authorization: Bearer mrag_…`) when authentication is on.
+`POST /api/v1/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server, so agents and assistants that speak MCP can use a tenant's projects as tools. It uses the Streamable HTTP transport without sessions: each POST carries one JSON-RPC message (`Content-Type: application/json`) and gets a JSON answer. Point an MCP client at `https://<your server>/api/v1/mcp`, with the API key in its headers (`Authorization: Bearer ragolex_…`) when authentication is on.
 
 | Tool | Scope | Does |
 |---|---|---|
@@ -461,7 +516,7 @@ Webhooks reach only public addresses: an address on this server's network (`loca
 | `search_knowledge` | `read` | The best matching passages, each with file, page or section, and score |
 | `ask` | `ask` | An answer from the documents with `[n]` citations and its sources; counts against the answer quota |
 
-`search_knowledge` and `ask` take an optional `tags` list, to use only the files with at least one of those [tags](#tags-and-collections).
+`search_knowledge` and `ask` take an optional `tags` list, to use only the files with at least one of those [tags](#tags-and-collections). `ask` also takes `research: true` for [research mode](#research-mode), for questions with several parts.
 
 `tools/list` shows only the tools the key may use. A tool that fails (an unknown project, no embedding model, the quota reached) answers with `isError: true` and the signal, so the agent can change course; bad arguments are a JSON-RPC error (`-32602`). Requests count against the tenant's rate limit like any other. Requests from a web page on another site (an `Origin` header for another host) are refused.
 
@@ -633,6 +688,8 @@ That happens when no indexed chunk scores at least `min_score` (the model is the
 | `min_score` | `ANSWER_MIN_SCORE` (`0.3`) | -1 to 1; chunks scoring below it are not used |
 | `filters` | none | Answer only from the chunks these [filters](#filters) keep |
 | `conversation_id` | none | A conversation of this project (see [Conversations](#conversations)); omit to ask on its own |
+| `research` | `false` | [Research mode](#research-mode): the model plans the searches, for questions with several parts |
+| `max_steps` | `3` | 1–5; in research mode, the most planning and review steps, capped by `RESEARCH_MAX_STEPS` |
 
 | Case | Status | Response |
 |---|---|---|
@@ -672,6 +729,37 @@ data: {"signal": "answer_success", "answer": "Each chunk begins with up to overl
 | `error` | `{"signal": "llm_failed"}` | The language model failed partway; the stream ends |
 
 A `no_answer` reply sends no `delta` events, only the final `answer` event: text that might still be the model's no-answer reply is held back until it is clearly an answer. Errors found before streaming starts, such as an unknown project or a missing model configuration, are ordinary JSON responses with the status codes in the table above.
+
+### Research mode
+
+One search finds the chunks closest to the whole question, which can miss a part of a question that asks several things ("How long is the refund window, and who pays for return shipping?"). With `"research": true`, the model plans the searches instead:
+
+1. It splits the question into up to four searches, one for each thing it needs to find.
+2. It reads the start of what they found and searches again for any part still missing, or stops when everything is covered.
+3. Step 2 repeats until nothing is missing or `max_steps` steps (counting step 1) are taken.
+
+The answer then uses the best chunk of each search in turn, up to `top_k`, so every part of the question gets its sources. A query is never searched twice, and a plan the model gets wrong falls back to searching the question itself. Filters, `min_score` and conversations work as usual; in a conversation, the rewritten follow-up is what gets planned.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/ask/demo1 \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How long is the refund window, and who pays for return shipping?", "research": true}'
+```
+
+The answer has the usual fields, plus `research`: the searches made, in order, with how many chunks each found (it is `null` without research mode).
+
+```json
+{
+  "signal": "answer_success",
+  "answer": "Refunds are accepted for 30 days after delivery [1]. Return shipping is free for damaged items [2].",
+  "research": [
+    {"query": "refund window", "results": 3},
+    {"query": "who pays return shipping", "results": 2}
+  ]
+}
+```
+
+Research mode is slower and costs more: each step is one more model call, and each search one more embedding call. The steps' tokens are included in `usage`, and the whole answer counts once against the [answer quota](#rate-limits-and-quotas). The stream endpoint takes `research` too: the searches happen before the first `delta`, and the trail is in the final `answer` event. Agents get it through the MCP `ask` tool's `research` argument.
 
 ### Token usage and cost
 
@@ -754,3 +842,63 @@ The response is the message with its new `feedback`; rating again replaces it, a
 ```
 
 `ragolex feedback-export` turns these into evaluation cases; see [Evaluation](evaluation.md#growing-the-test-set-from-feedback).
+
+## Study
+
+`POST /api/v1/study/{project_id}` turns one processed document into study material, for learning it rather than asking it questions:
+
+| `kind` | Items |
+|---|---|
+| `summary` | Key points in the document's order: `text` |
+| `flashcards` | A question or term on the `front`, its answer on the `back` |
+| `quiz` | Multiple-choice questions: the `question`, four `choices`, the position of the right one in `answer` (from 0), and an `explanation` of why it is right |
+
+```bash
+curl -X POST http://localhost:8000/api/v1/study/demo1 \
+  -H "Content-Type: application/json" \
+  -d '{"file_id": "9jaqw1s4jucs_onboarding.pdf", "kind": "flashcards", "count": 10}'
+```
+
+```json
+{"kind": "flashcards", "file_id": "9jaqw1s4jucs_onboarding.pdf", "original_name": "onboarding.pdf",
+ "items": [{"front": "How many vacation days does an employee get?", "back": "25 days a year.", "sources": [3]}],
+ "sources": [{"number": 3, "chunk_index": 7, "page": 2, "section": null, "text": "Every employee gets 25 days of paid vacation a year…"}],
+ "prompt_version": "study-flashcards-v1",
+ "usage": {"input_tokens": 3184, "output_tokens": 412, "cost_usd": 0.0007248},
+ "passages": 12, "chunks": 12}
+```
+
+- **Linked to the source.** The document's chunks go to the model as numbered passages, and every item lists in `sources` the passages it comes from; `sources` in the response gives each one's chunk, page (PDFs) or section (Markdown, HTML, Word) and text. Items that cite no passage of the document are left out.
+- **At most `count` items** (1–30, by default 10), fewer when the document has less to say; `items` is empty when the model wrote nothing usable.
+- **Long documents.** Up to `STUDY_MAX_CHARACTERS` of the document goes to the model at once. A longer document is given in chunks spread evenly over it: `passages` says how many of its `chunks` were used.
+- **Costs an answer.** It needs the `ask` scope, makes one model call and is recorded like an answer: in the project's usage, the tenant's answer quota and its costs. The material itself is not stored.
+- **Errors.** A document that is not processed yet answers `409` `{"signal": "file_not_processed"}`; an unknown project or file `404`; a failing model `502` `{"signal": "llm_failed"}`.
+
+### Decks and spaced repetition
+
+Flashcards worth keeping go into a deck, to learn by spaced repetition: each card comes back for review just before it would be forgotten, less and less often as it is remembered.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/projects/demo1/decks \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Onboarding", "cards": [{"front": "How many vacation days does an employee get?",
+        "back": "25 days a year.", "file_id": "9jaqw1s4jucs_onboarding.pdf", "chunk_index": 7, "page": 2}]}'
+```
+
+```json
+{"id": "5b0f6c3e-…", "name": "Onboarding", "cards": 1, "due": 1, "created_at": "2026-10-18T21:40:02Z"}
+```
+
+- **Cards.** Each has a `front` and a `back` (up to 2,000 characters), and optionally where it comes from: `file_id`, `chunk_index`, `page`, `section`, as `POST /study` gives them. `POST .../decks/{deck_id}/cards` adds more; a deck holds up to 2,000 cards (`409` `{"signal": "deck_full"}` beyond). A new card is due at once. Creating a deck in a project that has no files yet creates the project.
+- **Reviewing.** `GET .../review?limit=20` gives the cards due now, the longest due first, each with the `intervals` (in days) each grade would give it. `POST .../cards/{card_id}/review` with `{"grade": "again" | "hard" | "good" | "easy"}` schedules the next review, as Anki does:
+
+  | Grade | A new card | A card being learnt |
+  |---|---|---|
+  | `again` | In 10 minutes | In 10 minutes, starting over; a lapse |
+  | `hard` | In 1 day | 1.2 × the last interval; the ease drops by 0.15 |
+  | `good` | In 1 day, then 3 | The last interval × the ease (2.5 at first) |
+  | `easy` | In 4 days | 1.3 × what `good` would give; the ease rises by 0.15 |
+
+  Every card answered `hard` or better comes back at least a day later than last time, and within three years.
+- **Anki.** `GET .../anki` downloads the deck as a text file for Anki's File > Import: one Basic note per card, in a deck of the same name, tagged `ragolex` and the project's name, with the document and page under each answer.
+- **Scopes.** Reading decks and their cards needs `read`; creating, adding, reviewing and deleting need `write`. An unknown deck is `404` `{"signal": "deck_not_found"}`, a card of another deck `404` `{"signal": "card_not_found"}`.

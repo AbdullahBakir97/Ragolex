@@ -11,10 +11,12 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from ragolex.connectors.factory import create_crawler
+from ragolex.connectors.factory import create_crawlers
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.errors import AppError
 from ragolex.core.logging_config import configure_logging
+from ragolex.core.tracing import setup_tracing
+from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
 from ragolex.domain.models import DEFAULT_TENANT, SCOPES
 from ragolex.embeddings.factory import create_embedder
 from ragolex.evaluation.dataset import Dataset, DatasetError, load_dataset
@@ -25,6 +27,7 @@ from ragolex.evaluation.report import (
     build_report,
     compare,
 )
+from ragolex.evaluation.tuning import Trial, grid, rank
 from ragolex.llm.factory import create_llm
 from ragolex.loaders.registry import default_loader_registry
 from ragolex.persistence.database import (
@@ -34,6 +37,7 @@ from ragolex.persistence.database import (
     match_embedding_dimensions,
     resize_embeddings,
     stored_embedding_dimensions,
+    trace_engine,
 )
 from ragolex.persistence.repositories import (
     SqlTenantRepository,
@@ -56,6 +60,7 @@ from ragolex.services.job_runner import JobRunner
 from ragolex.services.processing_service import ProcessingService
 from ragolex.services.search_service import SearchService
 from ragolex.services.source_syncer import SourceSyncer
+from ragolex.services.tenant_data_service import TenantDataService
 from ragolex.services.upload_service import UploadService
 from ragolex.services.webhook_dispatcher import WebhookDispatcher
 from ragolex.storage.file_storage import FileStorage
@@ -63,6 +68,10 @@ from ragolex.webhooks.factory import create_webhook_sender
 
 # Exit codes of `ragolex eval`.
 PASSED, REGRESSED, FAILED = 0, 1, 2
+
+# What `ragolex tune` tries by default.
+TUNE_CHUNK_SIZES = [300, 500, 750, 1000, 1500, 2000]
+TUNE_OVERLAPS = [0, 100, 200]
 
 
 async def _resize_embeddings() -> int:
@@ -258,6 +267,9 @@ def _print_answers(report: dict) -> None:
             ("correct", "correct", "agreement with the reference answer, per the judge")]
     for label, key, meaning in rows:
         print(f"  {label:<19}{_percent(metrics[key])}   {meaning}")
+    if metrics["injected"]:
+        print(f"  {'resisted':<19}{_percent(metrics['resisted'])}   answers without what a prompt "
+              f"injection asked for ({metrics['injected']} questions)")
     if metrics["unjudged"]:
         print(f"  The judge gave no clear verdict on {metrics['unjudged']} answers.")
     wrong = [case for case in report["cases"]
@@ -267,6 +279,12 @@ def _print_answers(report: dict) -> None:
         print("\n  Not fully correct:")
         for case in wrong:
             print(f"    {case['id']}: {case['answer']['reason'] or case['question']}")
+    followed = [case for case in report["cases"]
+                if case.get("answer") and case["answer"].get("resisted") is False]
+    if followed:
+        print("\n  Followed a prompt injection:")
+        for case in followed:
+            print(f"    {case['id']}: {case['question']}")
     usage = report["answer_usage"]
     for name in ("answers", "judge"):
         spent = usage[name]
@@ -347,6 +365,61 @@ async def _evaluate(args: argparse.Namespace) -> int:
         return FAILED
 
 
+async def _tune(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    pairs = grid(args.chunk_sizes, args.overlaps)
+    if not pairs:
+        print("No overlap is smaller than a chunk size: nothing to try.", file=sys.stderr)
+        return FAILED
+    try:
+        dataset = load_dataset(args.dataset)
+        trials = []
+        parameters = None
+        for number, (chunk_size, overlap_size) in enumerate(pairs, start=1):
+            run = argparse.Namespace(search_mode=args.search_mode, top_k=args.top_k,
+                                     chunk_size=chunk_size, overlap_size=overlap_size,
+                                     min_score=args.min_score, answers=False, judge_model=None)
+            report = await _run(settings, run, dataset)
+            parameters = parameters or report["parameters"]
+            trial = Trial.from_report(report)
+            trials.append(trial)
+            print(f"[{number}/{len(pairs)}] chunks of {chunk_size} with {overlap_size} overlap: "
+                  f"hit rate {_percent(trial.hit_rate).strip()}, MRR {_percent(trial.mrr).strip()}"
+                  f", {trial.chunks} chunks", flush=True)
+    except (DatasetError, _Failure) as exc:
+        print(exc, file=sys.stderr)
+        return FAILED
+    except AppError as exc:
+        cause = f" ({exc.__cause__})" if exc.__cause__ else ""
+        print(f"The evaluation failed: {exc}{cause}", file=sys.stderr)
+        return FAILED
+
+    ranked = rank(trials)
+    assert parameters is not None
+    print(f"\nRetrieval on {parameters['dataset']} with {parameters['embedding_model']}, "
+          f"{parameters['search_mode']} search, top {parameters['top_k']}, best first:\n")
+    print(f"  {'chunk':>6}{'overlap':>9}{'hit rate':>10}{'MRR':>8}{'recall':>8}"
+          f"{'chunks':>8}{'min score':>11}")
+    for trial in ranked:
+        default = (trial.chunk_size, trial.overlap_size) == (DEFAULT_CHUNK_SIZE,
+                                                             DEFAULT_OVERLAP_SIZE)
+        suggestion = "–" if trial.suggested_min_score is None else f"{trial.suggested_min_score}"
+        print(f"  {trial.chunk_size:>6}{trial.overlap_size:>9}{_percent(trial.hit_rate):>10}"
+              f"{_percent(trial.mrr):>8}{_percent(trial.recall):>8}{trial.chunks:>8}"
+              f"{suggestion:>11}" + ("   (the default)" if default else ""))
+    best = ranked[0]
+    print(f"\nBest: chunks of {best.chunk_size} with {best.overlap_size} overlap. The min score "
+          "column is the lowest that keeps every answerable question while turning away the "
+          "others, where one does.")
+    if args.output:
+        result = {"parameters": {key: value for key, value in parameters.items()
+                                 if key not in ("chunk_size", "overlap_size")},
+                  "best": best.as_dict(), "trials": [trial.as_dict() for trial in ranked]}
+        args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        print(f"Results written to {args.output}.")
+    return PASSED
+
+
 async def _export_feedback(args: argparse.Namespace) -> int:
     settings = get_settings()
     output: Path = args.output
@@ -399,6 +472,40 @@ async def _export_feedback(args: argparse.Namespace) -> int:
     return PASSED
 
 
+async def _tenant_data(args: argparse.Namespace, session) -> int:
+    """`ragolex tenants export` and `ragolex tenants delete`."""
+    tenant = await SqlUnitOfWork(session).tenants.get_by_name(args.name)
+    if tenant is None:
+        print(f"There is no tenant {args.name!r}.", file=sys.stderr)
+        return 1
+    settings = get_settings()
+    service = TenantDataService(SqlUnitOfWork(session, tenant.id),
+                                FileStorage(root=settings.FILES_DIR))
+    if args.action == "export":
+        if args.output.exists():
+            print(f"{args.output} exists already; choose a new file.", file=sys.stderr)
+            return 1
+        export = await service.export(tenant)
+        with args.output.open("xb") as target:
+            export.write(target, settings.APP_VERSION)
+        counts = ", ".join(f"{count} {name.replace('_', ' ')}"
+                           for name, count in export.counts.items())
+        print(f"Exported tenant {tenant.name} to {args.output}: {counts}.")
+        for missing in export.missing_files:
+            print(f"  Not on disk, left out: {missing}", file=sys.stderr)
+        return 0
+    if not args.yes:
+        projects = await SqlUnitOfWork(session, tenant.id).projects.count()
+        print(f"This deletes tenant {tenant.name} for good: its {projects} projects with their "
+              f"files on disk, its API keys and its audit log. Export it first with "
+              f"`ragolex tenants export {tenant.name} <file.zip>`, then run this again with "
+              f"--yes.", file=sys.stderr)
+        return 1
+    deleted = await service.delete(tenant)
+    print(f"Deleted tenant {tenant.name} with its {deleted} projects.")
+    return 0
+
+
 async def _tenants_and_keys(args: argparse.Namespace) -> int:
     """`ragolex tenants …`, `ragolex keys …` and `ragolex audit`."""
     engine = create_engine(get_settings().DATABASE_URL)
@@ -428,6 +535,8 @@ async def _tenants_and_keys(args: argparse.Namespace) -> int:
                 await uow.commit()
                 print(_limits_line(await uow.tenants.get_by_id(limited.id)))
                 return 0
+            if args.command == "tenants" and args.action in ("export", "delete"):
+                return await _tenant_data(args, session)
             if args.command == "tenants":
                 for tenant in await uow.tenants.list_all():
                     print(f"{tenant.id}\t{tenant.name}\t{tenant.created_at:%Y-%m-%d}\t"
@@ -474,22 +583,26 @@ async def _work(workers: int) -> int:
     settings = get_settings()
     configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
     engine = create_engine(settings.DATABASE_URL)
+    if settings.TRACING_ENABLED:
+        setup_tracing("ragolex-worker", settings.APP_VERSION)
+        trace_engine(engine)
     embedder = create_embedder(settings)
     sender = create_webhook_sender(settings)
     unit_of_work = unit_of_work_factory(create_session_factory(engine))
     runner = JobRunner(unit_of_work, FileStorage(root=settings.FILES_DIR),
                        default_loader_registry(), embedder, settings.EMBEDDING_BATCH_SIZE)
     dispatcher = WebhookDispatcher(unit_of_work, sender)
-    crawler = create_crawler(settings)
+    crawlers = create_crawlers(settings)
     scanner = create_scanner(settings)
-    syncer = SourceSyncer.from_settings(settings, unit_of_work, crawler, scanner)
+    syncer = SourceSyncer.from_settings(settings, unit_of_work, crawlers, scanner)
     print(f"Running jobs with {workers} workers, sending webhooks and syncing websites; "
           "stop with Ctrl+C.", flush=True)
     try:
         await asyncio.gather(dispatcher.run(), syncer.run(),
                              *(runner.run() for _ in range(workers)))
     finally:
-        await crawler.aclose()
+        for crawler in crawlers.values():
+            await crawler.aclose()
         if embedder is not None:
             await embedder.aclose()
         await sender.aclose()
@@ -520,10 +633,12 @@ def main(argv: list[str] | None = None) -> int:
                           help="hybrid or vector search (default SEARCH_MODE)")
     evaluate.add_argument("--top-k", type=_positive, default=5,
                           help="results per question (default 5, as for answers)")
-    evaluate.add_argument("--chunk-size", type=_positive, default=1000,
-                          help="characters per chunk (default 1000, as for uploads)")
-    evaluate.add_argument("--overlap-size", type=_non_negative, default=200,
-                          help="characters of overlap between chunks (default 200)")
+    evaluate.add_argument("--chunk-size", type=_positive, default=DEFAULT_CHUNK_SIZE,
+                          help=f"characters per chunk (default {DEFAULT_CHUNK_SIZE}, as for "
+                               "uploads)")
+    evaluate.add_argument("--overlap-size", type=_non_negative, default=DEFAULT_OVERLAP_SIZE,
+                          help=f"characters of overlap between chunks (default "
+                               f"{DEFAULT_OVERLAP_SIZE})")
     evaluate.add_argument("--min-score", type=float,
                           help="the minimum score for an answer (default ANSWER_MIN_SCORE)")
     evaluate.add_argument("--answers", action="store_true",
@@ -539,6 +654,27 @@ def main(argv: list[str] | None = None) -> int:
                           help="how much lower a metric may be than the baseline (default 0.02)")
     evaluate.add_argument("--save-baseline", type=Path,
                           help="write this run's parameters and metrics as a baseline")
+    tune = commands.add_parser(
+        "tune",
+        help="compare chunk sizes and overlaps on a dataset, to choose the best",
+        description="Run the retrieval evaluation once per chunk size and overlap, and rank "
+                    "them: by hit rate, then MRR, then recall, and fewer chunks between equals. "
+                    "Each run embeds the dataset's documents again, with the configured "
+                    "embedding model.")
+    tune.add_argument("dataset", type=Path, help="the dataset folder, e.g. evals/handbook/v1")
+    tune.add_argument("--chunk-sizes", type=_numbers(1), default=TUNE_CHUNK_SIZES,
+                      help="comma-separated chunk sizes in characters (default "
+                           f"{','.join(map(str, TUNE_CHUNK_SIZES))})")
+    tune.add_argument("--overlaps", type=_numbers(0), default=TUNE_OVERLAPS,
+                      help="comma-separated overlaps; each is tried with the larger chunk "
+                           f"sizes (default {','.join(map(str, TUNE_OVERLAPS))})")
+    tune.add_argument("--search-mode", choices=["hybrid", "vector"],
+                      help="hybrid or vector search (default SEARCH_MODE)")
+    tune.add_argument("--top-k", type=_positive, default=5,
+                      help="results per question (default 5, as for answers)")
+    tune.add_argument("--min-score", type=float,
+                      help="the minimum score for an answer (default ANSWER_MIN_SCORE)")
+    tune.add_argument("--output", type=Path, help="write every run's results here as JSON")
     export = commands.add_parser(
         "feedback-export",
         help="turn a project's rated answers into an evaluation dataset",
@@ -561,7 +697,7 @@ def main(argv: list[str] | None = None) -> int:
                     "queues jobs.")
     worker.add_argument("--workers", type=_positive,
                         help="jobs to run at once (default JOB_WORKERS, or 1 when it is 0)")
-    tenants = commands.add_parser("tenants", help="create and list tenants",
+    tenants = commands.add_parser("tenants", help="create, list, export and delete tenants",
                                   description="Tenants keep their projects apart; API keys "
                                               "belong to one.")
     tenant_actions = tenants.add_subparsers(dest="action", required=True, metavar="action")
@@ -578,6 +714,19 @@ def main(argv: list[str] | None = None) -> int:
         tenant_limits.add_argument(f"--{option}", type=_limit, metavar="N|default")
     tenant_limits.add_argument("--budget-usd", type=_budget, metavar="USD|default",
                                help="US dollars of answers per calendar month, e.g. 25.50")
+    export_tenant = tenant_actions.add_parser(
+        "export", help="write everything a tenant has to a ZIP archive",
+        description="Projects with their files, sources, widgets, webhooks (without secrets) "
+                    "and conversations, and the tenant's API keys (names only) and audit log. "
+                    "Chunks and embeddings are left out.")
+    export_tenant.add_argument("name")
+    export_tenant.add_argument("output", type=Path, help="a new .zip file")
+    delete_tenant = tenant_actions.add_parser(
+        "delete", help="delete a tenant with all its projects, files, keys and audit log",
+        description="There is no undo: export the tenant first. Without --yes, only says "
+                    "what would be deleted.")
+    delete_tenant.add_argument("name")
+    delete_tenant.add_argument("--yes", action="store_true", help="really delete it")
     keys = commands.add_parser("keys", help="create, list and revoke a tenant's API keys")
     key_actions = keys.add_subparsers(dest="action", required=True, metavar="action")
     create_key = key_actions.add_parser("create", help="create a key; it is printed once")
@@ -614,6 +763,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
     if args.command == "feedback-export":
         return asyncio.run(_export_feedback(args))
+    if args.command == "tune":
+        return asyncio.run(_tune(args))
     if args.command == "eval":
         if args.overlap_size >= args.chunk_size:
             parser.error("--overlap-size must be smaller than --chunk-size")
@@ -670,6 +821,19 @@ def _tenant_name(value: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", value):
         raise argparse.ArgumentTypeError("use 1-64 letters, digits, _ and -")
     return value
+
+
+def _numbers(smallest: int):
+    """An argument type for comma-separated whole numbers of at least ``smallest``."""
+    def parse(value: str) -> list[int]:
+        try:
+            numbers = [int(part) for part in value.split(",") if part.strip()]
+        except ValueError:
+            raise argparse.ArgumentTypeError("use comma-separated whole numbers") from None
+        if not numbers or min(numbers) < smallest:
+            raise argparse.ArgumentTypeError(f"use numbers of {smallest} or more")
+        return numbers
+    return parse
 
 
 def _positive(value: str) -> int:

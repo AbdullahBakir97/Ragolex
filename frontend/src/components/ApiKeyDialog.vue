@@ -64,7 +64,7 @@ async function signIn() {
           v-model="key"
           class="input mono"
           type="password"
-          placeholder="mrag_…"
+          placeholder="ragolex_…"
           autocomplete="off"
           spellcheck="false"
           :aria-invalid="!!error"

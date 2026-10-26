@@ -67,6 +67,7 @@ try {
 | `search(project, query, options)` | The best matching chunks |
 | `ask(project, question, options)` | An answer with citations |
 | `askStream(project, question, options)` | The answer as it is written: `delta` events, then `answer` |
+| `exportTenant()` | Everything the tenant has, as a ZIP archive (`Blob`); needs the `admin` scope |
 
 ## Development
 

@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     METRICS_TOKEN: str | None = None
     # "json" writes one JSON object per line, for log collectors.
     LOG_FORMAT: Literal["text", "json"] = "text"
+    # Spans to the OTLP collector named by the OTEL_* variables (see core/tracing).
+    TRACING_ENABLED: bool = False
 
     DATABASE_URL: str = Field(
         default=LOCAL_DATABASE_URL,
@@ -74,6 +76,10 @@ class Settings(BaseSettings):
         default=None, ge=0, le=2, description="Sampling temperature; empty uses the model's default")
     LLM_STREAM_USAGE: bool = Field(
         default=True, description="Ask for token usage at the end of streamed answers")
+    RESEARCH_MAX_STEPS: int = Field(
+        default=3, ge=1, le=5,
+        description="The most planning and review steps research mode may take per question; "
+                    "each is one model call before the answer, followed by its searches")
     LLM_INPUT_PRICE_PER_MILLION: float | None = Field(
         default=None, ge=0, description="US dollars per million prompt tokens; empty: cost unknown")
     LLM_OUTPUT_PRICE_PER_MILLION: float | None = Field(
@@ -104,6 +110,10 @@ class Settings(BaseSettings):
     BUDGET_USD_PER_MONTH: float = Field(
         default=0, ge=0, le=1_000_000_000,
         description="US dollars of answers per calendar month per tenant; 0 is unlimited")
+    STUDY_MAX_CHARACTERS: int = Field(
+        default=32_000, ge=1_000, le=1_000_000,
+        description="Characters of a document given to the model for study material; a longer "
+                    "document is given in chunks spread over it")
     JOB_WORKERS: int = Field(
         default=1, ge=0, le=32,
         description="Background jobs the app runs at once; 0 leaves them to `ragolex worker`")
@@ -120,6 +130,9 @@ class Settings(BaseSettings):
     CRAWLER_ALLOW_PRIVATE_URLS: bool = False
     CRAWLER_DELAY_SECONDS: float = Field(default=0.5, ge=0, le=10)
     CRAWLER_TIMEOUT_SECONDS: float = Field(default=15, gt=0, le=120)
+    # GitHub sources: a token reads private repositories and raises the
+    # API's rate limit (60 requests an hour without one, 5000 with).
+    GITHUB_TOKEN: str | None = None
     WEBHOOK_TIMEOUT_SECONDS: float = Field(
         default=10, gt=0, le=60, description="How long a webhook's receiver has to answer")
 

@@ -36,12 +36,16 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `CRAWLER_ALLOW_PRIVATE_URLS` | `false` | Let website sources reach `localhost` and private networks, e.g. an intranet wiki. Off, only public addresses are crawled |
 | `CRAWLER_DELAY_SECONDS` | `0.5` | Pause between a crawl's requests (0–10); a site's robots.txt `Crawl-delay` can make it longer |
 | `CRAWLER_TIMEOUT_SECONDS` | `15` | How long one page may take to arrive (up to 120) |
+| `GITHUB_TOKEN` | unset | A GitHub token for [GitHub sources](api.md#feeds-and-github-repositories): reads private repositories (fine-grained, with *Contents: read*) and raises the rate limit from 60 requests an hour to 5000 |
 | `WEBHOOK_TIMEOUT_SECONDS` | `10` | How long a webhook's receiver has to answer (up to 60) |
 | `SEARCH_MODE` | `"hybrid"` | `hybrid` ranks chunks by meaning and by the words they share with the question, merged by reciprocal rank fusion; `vector` by meaning only. Scores are the cosine similarity either way |
 | `ANSWER_MIN_SCORE` | `0.3` | Chunks scoring below this cosine similarity are not used for answers; with none left the answer is `no_answer`. The default suits `text-embedding-3-small`; other models may need another value |
+| `RESEARCH_MAX_STEPS` | `3` | Most planning and review steps of [research mode](api.md#research-mode) (1–5), whatever a request asks for. Each step is one model call, and its searches are embedding calls |
+| `STUDY_MAX_CHARACTERS` | `32000` | Characters of a document given to the model at once for [study material](api.md#study) (1,000–1,000,000); a longer document is given in chunks spread evenly over it. Raise it for models with a large context |
 | `LOG_LEVEL` | `"INFO"` | Level for the app's own logs: `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` (libraries log warnings and above) |
 | `METRICS_TOKEN` | unset | When set, `GET /metrics` requires `Authorization: Bearer <token>`; set it whenever the API's port is reachable from outside. See [Operations](operations.md#metrics) |
-| `LOG_FORMAT` | `"text"` | `text`: readable lines. `json`: one JSON object per line (`time`, `level`, `logger`, `message`, `request_id`, `tenant`, and fields such as `method`, `path`, `status` and `duration_ms` on access lines), uvicorn's own lines included, for log collectors |
+| `LOG_FORMAT` | `"text"` | `text`: readable lines. `json`: one JSON object per line (`time`, `level`, `logger`, `message`, `request_id`, `tenant`, `trace_id` when tracing, and fields such as `method`, `path`, `status` and `duration_ms` on access lines), uvicorn's own lines included, for log collectors |
+| `TRACING_ENABLED` | `false` | Send OpenTelemetry traces of requests, database queries and the answer pipeline over OTLP/HTTP, to the collector the standard `OTEL_EXPORTER_OTLP_ENDPOINT` names; needs the `tracing` extra, which the Docker image has. See [Operations](operations.md#tracing) |
 | `FILES_DIR` | `"assets/files"` | Folder where uploaded files are stored, one subfolder per project |
 | `FILE_ALLOWED_TYPES` | Text, Markdown, HTML, PDF and Word (`.docx`) | MIME types accepted for upload. An upload with no type, or `application/octet-stream`, gets the type of its extension |
 | `FILE_MAX_SIZE` | `10` | Maximum upload size in MB |
