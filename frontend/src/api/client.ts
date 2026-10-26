@@ -9,6 +9,7 @@ import type {
   ChatWidget,
   ChatWidgetSettings,
   Chunk,
+  SourceKind,
   SourcePage,
   WebsiteSource,
   Conversation,
@@ -260,7 +261,10 @@ export const api = {
       limit: page.limit ?? 10,
     }),
   sources: (name: string) => get<{ items: WebsiteSource[] }>(`/projects/${project(name)}/sources`),
-  createSource: (name: string, body: { url: string; max_pages: number; sync_interval_hours: number; tags: string[] }) =>
+  createSource: (
+    name: string,
+    body: { kind: SourceKind; url: string; max_pages: number; sync_interval_hours: number; tags: string[] },
+  ) =>
     post<WebsiteSource>(`/projects/${project(name)}/sources`, body),
   syncSource: (name: string, sourceId: string) =>
     post<WebsiteSource>(`/projects/${project(name)}/sources/${encodeURIComponent(sourceId)}/sync`),

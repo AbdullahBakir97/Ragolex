@@ -362,7 +362,7 @@ class Widget:
     logo_url: str | None = None
 
 
-SourceKind = Literal["website"]
+SourceKind = Literal["website", "feed", "github"]
 
 
 @dataclass(frozen=True)

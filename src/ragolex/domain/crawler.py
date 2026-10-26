@@ -20,13 +20,19 @@ class UnreachablePage:
 
 
 class Crawler(Protocol):
+    """Fetches a source's pages: a website's, a feed's entries, a repository's documents."""
+
+    # Whether a page missing from a complete crawl is gone, and its file
+    # deleted: true for websites and repositories, false for feeds, which
+    # list only their latest entries.
+    removes_missing: bool
 
     def crawl(self, start_url: str, max_pages: int) -> AsyncIterator[CrawledPage | UnreachablePage]:
-        """The pages of the site under ``start_url``, following its links, up to ``max_pages``.
+        """The source's pages, up to ``max_pages``.
 
         Pages that are gone (404, 410), refused by robots.txt or outside the
-        site are not yielded. Raises CrawlFailed when the site cannot be
-        crawled at all.
+        source are not yielded. Raises CrawlFailed when the source cannot be
+        read at all.
         """
         ...
 

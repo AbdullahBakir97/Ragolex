@@ -11,7 +11,7 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from ragolex.connectors.factory import create_crawler
+from ragolex.connectors.factory import create_crawlers
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.errors import AppError
 from ragolex.core.logging_config import configure_logging
@@ -490,16 +490,17 @@ async def _work(workers: int) -> int:
     runner = JobRunner(unit_of_work, FileStorage(root=settings.FILES_DIR),
                        default_loader_registry(), embedder, settings.EMBEDDING_BATCH_SIZE)
     dispatcher = WebhookDispatcher(unit_of_work, sender)
-    crawler = create_crawler(settings)
+    crawlers = create_crawlers(settings)
     scanner = create_scanner(settings)
-    syncer = SourceSyncer.from_settings(settings, unit_of_work, crawler, scanner)
+    syncer = SourceSyncer.from_settings(settings, unit_of_work, crawlers, scanner)
     print(f"Running jobs with {workers} workers, sending webhooks and syncing websites; "
           "stop with Ctrl+C.", flush=True)
     try:
         await asyncio.gather(dispatcher.run(), syncer.run(),
                              *(runner.run() for _ in range(workers)))
     finally:
-        await crawler.aclose()
+        for crawler in crawlers.values():
+            await crawler.aclose()
         if embedder is not None:
             await embedder.aclose()
         await sender.aclose()

@@ -32,17 +32,20 @@ def _source(source: Source) -> SourceResponse:
 
 @router.post(
     "/{project_id}/sources", dependencies=[WRITE], status_code=status.HTTP_201_CREATED,
-    summary="Keep a website's pages in the project",
-    description="The site's pages under the URL's folder are crawled, following their links "
-                "(robots.txt is obeyed), and each page is stored as a file and processed and "
-                "indexed in the background; then again every `sync_interval_hours`, adding new "
-                "pages, replacing changed ones and deleting the ones that are gone. The first "
-                "sync starts at once. The project is created if it has no files yet.",
+    summary="Keep a website's pages, a feed's entries or a GitHub repository's documents",
+    description="A website's pages under the URL's folder are crawled, following their links "
+                "(robots.txt is obeyed); a feed's entries are read; a GitHub repository's "
+                "documents are listed and fetched. Each page is stored as a file and processed "
+                "and indexed in the background; then again every `sync_interval_hours`, adding "
+                "new pages, replacing changed ones and deleting the ones that are gone (a "
+                "feed's older entries stay). The first sync starts at once. The project is "
+                "created if it has no files yet.",
     responses=error_responses(SourceUrlNotAllowed))
 async def create_source(project_id: ProjectId, request: SourceRequest,
                         service: SourceServiceDep) -> SourceResponse:
     return _source(await service.create(project_id, str(request.url), request.max_pages,
-                                        request.sync_interval_hours, request.tags))
+                                        request.sync_interval_hours, request.tags,
+                                        request.kind))
 
 
 @router.get("/{project_id}/sources", dependencies=[READ], summary="List a project's sources",

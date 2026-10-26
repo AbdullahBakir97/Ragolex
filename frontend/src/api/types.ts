@@ -312,9 +312,12 @@ export interface Assistant {
   instructions: string | null;
 }
 
+/** website: a site's pages; feed: an RSS or Atom feed's entries; github: a repository's documents. */
+export type SourceKind = "website" | "feed" | "github";
+
 export interface WebsiteSource {
   id: string;
-  kind: "website";
+  kind: SourceKind;
   url: string;
   max_pages: number;
   /** 0: synced only when asked. */

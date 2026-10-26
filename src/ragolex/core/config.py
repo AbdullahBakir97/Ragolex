@@ -122,6 +122,9 @@ class Settings(BaseSettings):
     CRAWLER_ALLOW_PRIVATE_URLS: bool = False
     CRAWLER_DELAY_SECONDS: float = Field(default=0.5, ge=0, le=10)
     CRAWLER_TIMEOUT_SECONDS: float = Field(default=15, gt=0, le=120)
+    # GitHub sources: a token reads private repositories and raises the
+    # API's rate limit (60 requests an hour without one, 5000 with).
+    GITHUB_TOKEN: str | None = None
     WEBHOOK_TIMEOUT_SECONDS: float = Field(
         default=10, gt=0, le=60, description="How long a webhook's receiver has to answer")
 

@@ -276,7 +276,7 @@ curl http://localhost:8000/api/v1/projects/demo1/tags
 {"items": [{"tag": "handbook", "files": 12}, {"tag": "v2", "files": 3}]}
 ```
 
-`PUT .../tags` replaces the file's tags (`[]` removes them) and returns the file, with its `tags`; every file listed carries its `tags`. Tags are given at upload too, and a [website source](#website-sources) gives its own to the pages it stores. Limit a search or an answer to files with any of some tags with the `tags` [filter](#filters); a [chat widget](#chat-widget) with tags answers its visitors only from those files. An invalid tag in a body is a validation error (`422`); in `?tag=` or an upload's `tags`, it is `422` `{"signal": "tag_invalid"}`.
+`PUT .../tags` replaces the file's tags (`[]` removes them) and returns the file, with its `tags`; every file listed carries its `tags`. Tags are given at upload too, and a [source](#sources-websites-feeds-and-github-repositories) gives its own to the pages it stores. Limit a search or an answer to files with any of some tags with the `tags` [filter](#filters); a [chat widget](#chat-widget) with tags answers its visitors only from those files. An invalid tag in a body is a validation error (`422`); in `?tag=` or an upload's `tags`, it is `422` `{"signal": "tag_invalid"}`.
 
 ## Delete files and projects
 
@@ -343,9 +343,9 @@ A job is `queued`, then `running` (`stage` is `processing`, then `indexing`, whi
 | No such project, file or job | `404` | `{"signal": "project_not_found"}` / `{"signal": "file_not_found"}` / `{"signal": "job_not_found"}` |
 | Options not valid, such as `overlap_size` not smaller than `chunk_size` | `422` | Validation error details |
 
-## Website sources
+## Sources: websites, feeds and GitHub repositories
 
-A source keeps a website's pages in a project: they are crawled, stored as files and indexed, then synced again on a schedule.
+A source keeps a website's pages, a feed's entries or a GitHub repository's documents in a project: they are fetched, stored as files and indexed, then synced again on a schedule. `kind` says which (default `website`); the rest of this section describes websites, and [feeds and repositories](#feeds-and-github-repositories) below.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/projects/demo1/sources \
@@ -367,6 +367,20 @@ curl -X POST http://localhost:8000/api/v1/projects/demo1/sources \
 - **Kept in sync.** The first sync starts at once, then every `sync_interval_hours` (0: only on `POST …/sync`). A new page is added, a changed page replaces its file, and an unchanged one is left alone. A page that is gone (no longer linked, or `404`) has its file deleted. A page that could not be fetched this time (a timeout, a `5xx`) keeps what it had, and when the site cannot be crawled at all, `last_error` says why and every page is kept. Files the project already had are never deleted by a sync.
 
 Syncs run in the API's workers when `JOB_WORKERS` is above 0, and in `ragolex worker`; a source is held by one worker at a time. Deleting a source deletes the files its syncs created, unless `?keep_files=true`.
+
+### Feeds and GitHub repositories
+
+```bash
+curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Type: application/json" \
+  -d '{"kind": "feed", "url": "https://blog.example.com/feed.xml", "max_pages": 100}'
+curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Type: application/json" \
+  -d '{"kind": "github", "url": "https://github.com/acme/handbook/tree/main/docs", "sync_interval_hours": 6}'
+```
+
+- **`feed`:** an RSS 2.0, RSS 1.0 or Atom feed. Each entry, up to `max_pages` from the newest, becomes a page at its own address, holding its title, date and content (the full content when the feed has it, its summary otherwise). Entries that drop off the feed are **kept**, since feeds list only their latest; delete them by hand, or the source, if they should go. The feed is fetched with the website crawler's safeguards: public addresses only (unless `CRAWLER_ALLOW_PRIVATE_URLS`), the size limit, and at most five redirects.
+- **`github`:** `https://github.com/<owner>/<repo>`, at its default branch, or `.../tree/<branch or tag>/<folder>` for one branch and folder. Its Markdown, text, reStructuredText, HTML and PDF files are kept, top-level ones first, up to `max_pages`; hidden and vendored folders (`.github`, `node_modules`, `vendor`) are skipped. Each is a page at its `github.com/.../blob/...` address, so answers cite it, and files deleted from the repository are removed from the project. `GITHUB_TOKEN` reads private repositories and raises GitHub's rate limit from 60 requests an hour to 5000: a sync makes two requests, plus one per file. A repository that cannot be read (not found, rate limited) fails the sync with `last_error` and keeps every page.
+
+Any other `kind`, or a `github` URL that is not a repository's, is refused with `422`.
 
 ## Webhooks
 

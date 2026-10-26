@@ -21,7 +21,7 @@
 - **Embed a chat widget** in any website with one `<script>` tag: streamed answers with clickable citations, in the site's colour and with its logo, allowed only on the websites you list, without API keys in the page. Give each project's assistant a name and instructions on tone and style; it still answers only from the documents.
 - **Build on it** with the [TypeScript and Python SDKs](sdk/README.md), generated from the OpenAPI schema: every endpoint typed, streamed answers, uploads and jobs.
 - **Connect agents** through a built-in MCP server (`/api/v1/mcp`) with `list_projects`, `search_knowledge` and `ask` tools, or the same tools as function-calling schemas.
-- **Sync websites** into a project: their pages are crawled (within the site, obeying robots.txt), indexed and kept up to date on a schedule, with new, changed and removed pages handled.
+- **Sync websites, feeds and GitHub repositories** into a project: website pages are crawled (within the site, obeying robots.txt), RSS and Atom entries and a repository's documents are read, and all are indexed and kept up to date on a schedule, with new, changed and removed pages handled.
 - **Automate** with signed webhooks: uploads, deletions and finished jobs are sent to n8n, Make, Zapier or any URL, retried for a day until received.
 - **Evaluate** retrieval with `ragolex eval` on a versioned dataset: hit rate, recall and MRR, checked in CI with a real embedding model so a change that makes search worse fails. With `--answers`, answers are graded too: citation precision, groundedness and correctness. Rated answers become new test cases with `ragolex feedback-export`.
 - **Browse** projects, files and chunks through paged endpoints; check readiness with a health endpoint.

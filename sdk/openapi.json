@@ -1728,8 +1728,8 @@
         "tags": [
           "sources"
         ],
-        "summary": "Keep a website's pages in the project",
-        "description": "The site's pages under the URL's folder are crawled, following their links (robots.txt is obeyed), and each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone. The first sync starts at once. The project is created if it has no files yet.",
+        "summary": "Keep a website's pages, a feed's entries or a GitHub repository's documents",
+        "description": "A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.",
         "operationId": "create_source",
         "security": [
           {
@@ -8765,12 +8765,23 @@
       },
       "SourceRequest": {
         "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "website",
+              "feed",
+              "github"
+            ],
+            "title": "Kind",
+            "description": "`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.",
+            "default": "website"
+          },
           "url": {
             "type": "string",
             "minLength": 1,
             "format": "uri",
             "title": "Url",
-            "description": "Where to start: the site's pages under this URL's folder are crawled, following their links.",
+            "description": "The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.",
             "examples": [
               "https://docs.example.com/guide/"
             ]
@@ -8821,7 +8832,11 @@
           },
           "kind": {
             "type": "string",
-            "const": "website",
+            "enum": [
+              "website",
+              "feed",
+              "github"
+            ],
             "title": "Kind"
           },
           "url": {

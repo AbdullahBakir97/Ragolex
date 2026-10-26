@@ -32,7 +32,7 @@ from ragolex.api.routes import (
     widgets,
 )
 from ragolex.api.widget_cors import WidgetCors
-from ragolex.connectors.factory import create_crawler
+from ragolex.connectors.factory import create_crawlers
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.logging_config import configure_logging
 from ragolex.core.tracing import setup_tracing
@@ -85,7 +85,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         app.state.reranker = reranker = create_reranker(settings)
         app.state.scanner = scanner = create_scanner(settings)
         sender = create_webhook_sender(settings)
-        crawler = create_crawler(settings)
+        crawlers = create_crawlers(settings)
         workers: list[asyncio.Task] = []
         try:
             await _check_embedding_dimensions(engine, settings)
@@ -99,7 +99,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
             if settings.JOB_WORKERS:
                 dispatcher = WebhookDispatcher(unit_of_work, sender)
                 workers.append(asyncio.create_task(dispatcher.run(), name="webhook-dispatcher"))
-                syncer = SourceSyncer.from_settings(settings, unit_of_work, crawler, scanner)
+                syncer = SourceSyncer.from_settings(settings, unit_of_work, crawlers, scanner)
                 workers.append(asyncio.create_task(syncer.run(), name="source-syncer"))
             yield
         finally:
@@ -108,7 +108,8 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
             # A running job goes back to the queue for the next start.
             await asyncio.gather(*workers, return_exceptions=True)
             await sender.aclose()
-            await crawler.aclose()
+            for crawler in crawlers.values():
+                await crawler.aclose()
             if embedder is not None:
                 await embedder.aclose()
             if llm is not None:
