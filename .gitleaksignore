@@ -1,0 +1,3 @@
+# Findings that are not secrets. Each line is a gitleaks fingerprint: commit:file:rule:line.
+# A made-up API key in the admin page's tests (since replaced by an obviously fake one).
+41e41c6541c02a427796a2aa8ec95b5b0fab80dc:frontend/src/__tests__/admin.test.ts:generic-api-key:57
