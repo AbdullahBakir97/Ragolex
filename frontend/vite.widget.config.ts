@@ -10,7 +10,7 @@ export default defineConfig({
     emptyOutDir: false,
     lib: {
       entry: fileURLToPath(new URL("./src/widget/embed.ts", import.meta.url)),
-      name: "MiniRagWidget",
+      name: "RagolexWidget",
       formats: ["iife"],
       fileName: () => "widget.js",
     },

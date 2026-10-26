@@ -4,8 +4,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from mini_rag import cli
-from mini_rag.core.config import get_settings
+from ragolex import cli
+from ragolex.core.config import get_settings
 
 from .test_ask_api import upload_process_and_index
 from .test_auth import bearer, make_key

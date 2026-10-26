@@ -5,8 +5,8 @@ from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import inspect, text
 
-from mini_rag.persistence.database import create_engine
-from mini_rag.persistence.tables import Base
+from ragolex.persistence.database import create_engine
+from ragolex.persistence.tables import Base
 
 from .conftest import alembic_config
 

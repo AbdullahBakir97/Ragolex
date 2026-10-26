@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 from sqlalchemy import text
 
-from mini_rag import cli
-from mini_rag.core.config import get_settings
-from mini_rag.persistence.database import create_engine
+from ragolex import cli
+from ragolex.core.config import get_settings
+from ragolex.persistence.database import create_engine
 
 from .fakes import FakeEmbedder, FakeLLM
 

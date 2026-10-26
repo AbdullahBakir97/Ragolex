@@ -4,7 +4,7 @@ import { ref } from "vue";
  * The API key the web app sends, kept in this browser. Without one, the app
  * works against a server with authentication off; a 401 asks for a key.
  */
-const STORAGE_KEY = "mini-rag.api-key";
+const STORAGE_KEY = "ragolex.api-key";
 
 function stored(): string | null {
   try {

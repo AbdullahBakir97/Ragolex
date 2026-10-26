@@ -3,13 +3,13 @@ import json
 
 import httpx
 import pytest
-from mini_rag_client import (
+from ragolex_client import (
     UNSET,
     AnswerDelta,
     AnswerDone,
-    AsyncMiniRag,
-    MiniRag,
-    MiniRagError,
+    AsyncRagolex,
+    Ragolex,
+    RagolexError,
     models,
 )
 
@@ -40,10 +40,10 @@ class Server:
         return response(request) if callable(response) else response
 
     def client(self, api_key="mrag_test"):
-        return MiniRag("https://rag.example.com/", api_key, transport=httpx.MockTransport(self))
+        return Ragolex("https://rag.example.com/", api_key, transport=httpx.MockTransport(self))
 
     def async_client(self):
-        return AsyncMiniRag("https://rag.example.com", "mrag_test",
+        return AsyncRagolex("https://rag.example.com", "mrag_test",
                             transport=httpx.MockTransport(self))
 
 
@@ -108,11 +108,11 @@ def test_errors_carry_the_signal_and_retry_after():
                     httpx.Response(500, text="oops"))
 
     with server.client() as rag:
-        with pytest.raises(MiniRagError) as limited:
+        with pytest.raises(RagolexError) as limited:
             rag.list_projects()
-        with pytest.raises(MiniRagError) as invalid:
+        with pytest.raises(RagolexError) as invalid:
             rag.list_projects()
-        with pytest.raises(MiniRagError) as broken:
+        with pytest.raises(RagolexError) as broken:
             rag.list_projects()
 
     assert (limited.value.status, limited.value.signal, limited.value.retry_after) == (429, "rate_limited", 12)
@@ -124,8 +124,8 @@ def test_a_server_it_cannot_reach():
     def refuse(request):
         raise httpx.ConnectError("refused", request=request)
 
-    with MiniRag("http://nowhere", transport=httpx.MockTransport(refuse)) as rag:
-        with pytest.raises(MiniRagError) as error:
+    with Ragolex("http://nowhere", transport=httpx.MockTransport(refuse)) as rag:
+        with pytest.raises(RagolexError) as error:
             rag.health()
 
     assert (error.value.status, error.value.signal) == (0, "network_error")
@@ -176,7 +176,7 @@ def test_a_failed_job_raises_and_duplicates_are_not_processed():
                     httpx.Response(200, json={"signal": "file_already_uploaded", "file_id": "a_x.txt"}))
 
     with server.client() as rag:
-        with pytest.raises(MiniRagError) as failed:
+        with pytest.raises(RagolexError) as failed:
             rag.wait_for_job("docs", "j1")
         rag.add_document("docs", b"x", filename="x.txt")
 
@@ -204,7 +204,7 @@ def test_a_stream_raises_its_error_and_an_early_end():
     refused = Server(httpx.Response(503, json={"signal": "llm_not_configured"}))
 
     for server, signal in ((failing, "llm_failed"), (cut, "llm_failed"), (refused, "llm_not_configured")):
-        with server.client() as rag, pytest.raises(MiniRagError) as error:
+        with server.client() as rag, pytest.raises(RagolexError) as error:
             list(rag.ask_stream("docs", "q"))
         assert error.value.signal == signal
 

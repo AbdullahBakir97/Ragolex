@@ -2,7 +2,7 @@
 
 import pytest
 
-from mini_rag.core.config import get_settings
+from ragolex.core.config import get_settings
 
 from .fakes import FakeEmbedder, FakeLLM
 from .test_ask_api import upload_process_and_index
@@ -36,7 +36,7 @@ def test_initialize_negotiates_the_protocol_version(client):
     result = known.json()["result"]
     assert result["protocolVersion"] == "2025-03-26"
     assert result["capabilities"] == {"tools": {"listChanged": False}}
-    assert result["serverInfo"]["name"] == "mini-rag"
+    assert result["serverInfo"]["name"] == "ragolex"
     assert "list_projects" in result["instructions"]
     assert unknown.json()["result"]["protocolVersion"] == "2025-06-18"
 
