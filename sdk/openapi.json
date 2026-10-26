@@ -1728,8 +1728,8 @@
         "tags": [
           "sources"
         ],
-        "summary": "Keep a website's pages in the project",
-        "description": "The site's pages under the URL's folder are crawled, following their links (robots.txt is obeyed), and each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone. The first sync starts at once. The project is created if it has no files yet.",
+        "summary": "Keep a website's pages, a feed's entries or a GitHub repository's documents",
+        "description": "A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.",
         "operationId": "create_source",
         "security": [
           {
@@ -3373,7 +3373,7 @@
             }
           },
           "429": {
-            "description": "Signal: `rate_limited`, `answer_quota_exceeded`",
+            "description": "Signal: `rate_limited`, `answer_quota_exceeded`, `budget_exceeded`",
             "content": {
               "application/json": {
                 "examples": {
@@ -3385,6 +3385,11 @@
                   "answer_quota_exceeded": {
                     "value": {
                       "signal": "answer_quota_exceeded"
+                    }
+                  },
+                  "budget_exceeded": {
+                    "value": {
+                      "signal": "budget_exceeded"
                     }
                   }
                 },
@@ -3793,6 +3798,60 @@
         ]
       }
     },
+    "/api/v1/usage/history": {
+      "get": {
+        "tags": [
+          "keys"
+        ],
+        "summary": "The tenant's answers and their cost per day, project and model",
+        "description": "Over the last `days` days (UTC), today included: for a cost dashboard. Costs are those known, as in `/usage`.",
+        "operationId": "usage_history",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 366,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "tags": [
@@ -3879,6 +3938,32 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/export": {
+      "get": {
+        "tags": [
+          "export"
+        ],
+        "summary": "Everything the tenant has, as a ZIP archive",
+        "description": "Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.",
+        "operationId": "export_tenant",
+        "responses": {
+          "200": {
+            "description": "The archive, named <tenant>-<date>.zip.",
+            "content": {
+              "application/zip": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ]
       }
     },
     "/api/v1/mcp": {
@@ -5006,6 +5091,993 @@
           }
         }
       }
+    },
+    "/api/v1/study/{project_id}": {
+      "post": {
+        "tags": [
+          "study"
+        ],
+        "summary": "Write a summary, flashcards or a quiz from a document",
+        "description": "Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.",
+        "operationId": "study",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `file_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "file_not_found": {
+                    "value": {
+                      "signal": "file_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `file_not_processed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "file_not_processed": {
+                    "value": {
+                      "signal": "file_not_processed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Signal: `llm_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "llm_failed": {
+                    "value": {
+                      "signal": "llm_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Signal: `llm_not_configured`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "llm_not_configured": {
+                    "value": {
+                      "signal": "llm_not_configured"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/decks": {
+      "get": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "List the project's decks, newest first",
+        "operationId": "list_decks",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeckResponse"
+                  },
+                  "title": "Response List Decks"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "Create a deck of flashcards",
+        "description": "Usually with the flashcards of `POST /study`; every card is new and due at once.",
+        "operationId": "create_deck",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeckRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeckResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/decks/{deck_id}": {
+      "get": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "A deck, with how many cards are due",
+        "operationId": "get_deck",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "deck_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The deck's id.",
+              "title": "Deck Id"
+            },
+            "description": "The deck's id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeckResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `deck_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "deck_not_found": {
+                    "value": {
+                      "signal": "deck_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "Delete a deck and its cards",
+        "operationId": "delete_deck",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "deck_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The deck's id.",
+              "title": "Deck Id"
+            },
+            "description": "The deck's id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `deck_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "deck_not_found": {
+                    "value": {
+                      "signal": "deck_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/decks/{deck_id}/cards": {
+      "get": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "A deck's cards, in order",
+        "operationId": "list_cards",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "deck_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The deck's id.",
+              "title": "Deck Id"
+            },
+            "description": "The deck's id."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Items to skip.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Items to skip."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items to return (1-100).",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Items to return (1-100)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `deck_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "deck_not_found": {
+                    "value": {
+                      "signal": "deck_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "Add cards to a deck",
+        "description": "After its other cards, new and due at once. A deck holds up to 2,000 cards.",
+        "operationId": "add_cards",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "deck_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The deck's id.",
+              "title": "Deck Id"
+            },
+            "description": "The deck's id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeckResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `deck_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "deck_not_found": {
+                    "value": {
+                      "signal": "deck_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `deck_full`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "deck_full": {
+                    "value": {
+                      "signal": "deck_full"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/decks/{deck_id}/review": {
+      "get": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "The cards due for review now",
+        "description": "The longest due first, each with the interval every grade would give it. Review them one at a time with `POST .../review`.",
+        "operationId": "review_queue",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "deck_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The deck's id.",
+              "title": "Deck Id"
+            },
+            "description": "The deck's id."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewQueueResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `deck_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "deck_not_found": {
+                    "value": {
+                      "signal": "deck_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/decks/{deck_id}/cards/{card_id}/review": {
+      "post": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "Grade a review of a card, and schedule its next one",
+        "description": "Spaced repetition as in Anki: `again` brings the card back in ten minutes, the other grades in days that grow with each good review.",
+        "operationId": "review_card",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "deck_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The deck's id.",
+              "title": "Deck Id"
+            },
+            "description": "The deck's id."
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The card's id.",
+              "title": "Card Id"
+            },
+            "description": "The card's id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `deck_not_found`, `card_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "deck_not_found": {
+                    "value": {
+                      "signal": "deck_not_found"
+                    }
+                  },
+                  "card_not_found": {
+                    "value": {
+                      "signal": "card_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/decks/{deck_id}/anki": {
+      "get": {
+        "tags": [
+          "decks"
+        ],
+        "summary": "Export a deck for Anki",
+        "description": "A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.",
+        "operationId": "export_anki",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "deck_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The deck's id.",
+              "title": "Deck Id"
+            },
+            "description": "The deck's id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `deck_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "deck_not_found": {
+                    "value": {
+                      "signal": "deck_not_found"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5233,6 +6305,20 @@
               }
             ],
             "description": "Answer only from the chunks these filters leave."
+          },
+          "research": {
+            "type": "boolean",
+            "title": "Research",
+            "description": "Research mode, for questions with several parts: the model plans the searches, and reviews what they found, searching again for what is still missing. Slower, and each step is a model call that counts in `usage`.",
+            "default": false
+          },
+          "max_steps": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "description": "In research mode, the most planning and review steps; the server's RESEARCH_MAX_STEPS caps it.",
+            "default": 3
           }
         },
         "type": "object",
@@ -5314,6 +6400,21 @@
             ],
             "title": "Message Id",
             "description": "In a conversation: the answer's message, to rate it with PUT .../messages/{message_id}/feedback."
+          },
+          "research": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SearchStepResponse"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Research",
+            "description": "In research mode: the searches made, in order; null otherwise."
           }
         },
         "type": "object",
@@ -5556,6 +6657,268 @@
         ],
         "title": "Body_upload_data"
       },
+      "CardListResponse": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CardResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "offset",
+          "limit",
+          "items"
+        ],
+        "title": "CardListResponse"
+      },
+      "CardRequest": {
+        "properties": {
+          "front": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Front",
+            "description": "The question or term."
+          },
+          "back": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Back",
+            "description": "Its answer."
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "pattern": "^[\\w.]+$",
+                "description": "The file_id returned by the upload endpoint.",
+                "examples": [
+                  "a16q20nzrtvj_notes.txt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id",
+            "description": "The document it comes from."
+          },
+          "chunk_index": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Index",
+            "description": "The passage it comes from."
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          }
+        },
+        "type": "object",
+        "required": [
+          "front",
+          "back"
+        ],
+        "title": "CardRequest"
+      },
+      "CardResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "front": {
+            "type": "string",
+            "title": "Front"
+          },
+          "back": {
+            "type": "string",
+            "title": "Back"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CardSourceResponse",
+            "description": "Where it comes from; all null when unknown."
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Due At",
+            "description": "When it is next due for review."
+          },
+          "interval_days": {
+            "type": "number",
+            "title": "Interval Days",
+            "description": "Days from the last review to `due_at`; 0 for a card never reviewed."
+          },
+          "ease": {
+            "type": "number",
+            "title": "Ease",
+            "description": "How much the interval grows after a good review."
+          },
+          "repetitions": {
+            "type": "integer",
+            "title": "Repetitions",
+            "description": "Reviews in a row it was remembered."
+          },
+          "lapses": {
+            "type": "integer",
+            "title": "Lapses",
+            "description": "Times it was forgotten after being learnt."
+          },
+          "last_reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reviewed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "front",
+          "back",
+          "source",
+          "due_at",
+          "interval_days",
+          "ease",
+          "repetitions",
+          "lapses",
+          "last_reviewed_at",
+          "created_at"
+        ],
+        "title": "CardResponse"
+      },
+      "CardSourceResponse": {
+        "properties": {
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "chunk_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Index"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_id",
+          "chunk_index",
+          "page",
+          "section"
+        ],
+        "title": "CardSourceResponse"
+      },
+      "CardsRequest": {
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardRequest"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Cards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cards"
+        ],
+        "title": "CardsRequest"
+      },
       "ChunkListResponse": {
         "properties": {
           "total": {
@@ -5648,7 +7011,7 @@
               }
             ],
             "title": "Section",
-            "description": "The headings above the passage in Markdown, HTML and Word files, e.g. \"Setup > Install\"; null otherwise."
+            "description": "The headings above the passage in Markdown, HTML and Word files, e.g. \"Setup > Install\"; the function or class in source code, e.g. \"Parser.parse\"; null otherwise."
           },
           "score": {
             "type": "number",
@@ -5831,6 +7194,103 @@
           "updated_at"
         ],
         "title": "ConversationResponse"
+      },
+      "DayUsageResponse": {
+        "properties": {
+          "answers": {
+            "type": "integer",
+            "title": "Answers",
+            "description": "Questions asked, streamed or not."
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "description": "Known cost, in US dollars."
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day",
+            "description": "The day, in UTC."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "day"
+        ],
+        "title": "DayUsageResponse"
+      },
+      "DeckRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardRequest"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Cards",
+            "description": "Flashcards to start with, e.g. from `POST /study` with `kind: flashcards`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "DeckRequest"
+      },
+      "DeckResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "cards": {
+            "type": "integer",
+            "title": "Cards",
+            "description": "Cards in the deck."
+          },
+          "due": {
+            "type": "integer",
+            "title": "Due",
+            "description": "Cards due for review now."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "cards",
+          "due",
+          "created_at"
+        ],
+        "title": "DeckResponse"
       },
       "DeliveryListResponse": {
         "properties": {
@@ -6182,6 +7642,32 @@
         ],
         "title": "FileTagsRequest"
       },
+      "FlashcardResponse": {
+        "properties": {
+          "front": {
+            "type": "string",
+            "title": "Front"
+          },
+          "back": {
+            "type": "string",
+            "title": "Back"
+          },
+          "sources": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "front",
+          "back",
+          "sources"
+        ],
+        "title": "FlashcardResponse"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -6471,6 +7957,27 @@
         ],
         "title": "JobResponse"
       },
+      "KeyPointResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "sources": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "sources"
+        ],
+        "title": "KeyPointResponse"
+      },
       "MeResponse": {
         "properties": {
           "tenant": {
@@ -6622,6 +8129,49 @@
         ],
         "title": "Meter"
       },
+      "ModelShareResponse": {
+        "properties": {
+          "answers": {
+            "type": "integer",
+            "title": "Answers",
+            "description": "Questions asked, streamed or not."
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "description": "Known cost, in US dollars."
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "The language model; null for questions that matched no source, so no model was called."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "model"
+        ],
+        "title": "ModelShareResponse"
+      },
       "ProcessRequest": {
         "properties": {
           "file_id": {
@@ -6769,6 +8319,41 @@
         ],
         "title": "ProjectResponse"
       },
+      "ProjectShareResponse": {
+        "properties": {
+          "answers": {
+            "type": "integer",
+            "title": "Answers",
+            "description": "Questions asked, streamed or not."
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "description": "Known cost, in US dollars."
+          },
+          "project": {
+            "type": "string",
+            "title": "Project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "project"
+        ],
+        "title": "ProjectShareResponse"
+      },
       "ProjectUsageResponse": {
         "properties": {
           "answers": {
@@ -6812,6 +8397,48 @@
           "unpriced_answers"
         ],
         "title": "ProjectUsageResponse"
+      },
+      "QuizQuestionResponse": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Choices",
+            "description": "Four choices."
+          },
+          "answer": {
+            "type": "integer",
+            "title": "Answer",
+            "description": "The position of the right choice, from 0."
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "description": "Why it is right, from the document."
+          },
+          "sources": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "choices",
+          "answer",
+          "explanation",
+          "sources"
+        ],
+        "title": "QuizQuestionResponse"
       },
       "RatedAnswerResponse": {
         "properties": {
@@ -6873,6 +8500,10 @@
           "file_not_found",
           "project_not_found",
           "file_has_no_text",
+          "file_not_processed",
+          "deck_not_found",
+          "card_not_found",
+          "deck_full",
           "processing_success",
           "processing_failed",
           "indexing_success",
@@ -6904,6 +8535,7 @@
           "api_key_not_found",
           "rate_limited",
           "answer_quota_exceeded",
+          "budget_exceeded",
           "storage_quota_exceeded",
           "internal_error",
           "file_content_mismatch",
@@ -6911,6 +8543,142 @@
           "malware_scan_failed"
         ],
         "title": "ResponseSignal"
+      },
+      "ReviewCardResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "front": {
+            "type": "string",
+            "title": "Front"
+          },
+          "back": {
+            "type": "string",
+            "title": "Back"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CardSourceResponse",
+            "description": "Where it comes from; all null when unknown."
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Due At",
+            "description": "When it is next due for review."
+          },
+          "interval_days": {
+            "type": "number",
+            "title": "Interval Days",
+            "description": "Days from the last review to `due_at`; 0 for a card never reviewed."
+          },
+          "ease": {
+            "type": "number",
+            "title": "Ease",
+            "description": "How much the interval grows after a good review."
+          },
+          "repetitions": {
+            "type": "integer",
+            "title": "Repetitions",
+            "description": "Reviews in a row it was remembered."
+          },
+          "lapses": {
+            "type": "integer",
+            "title": "Lapses",
+            "description": "Times it was forgotten after being learnt."
+          },
+          "last_reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reviewed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "intervals": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "again",
+                "hard",
+                "good",
+                "easy"
+              ]
+            },
+            "type": "object",
+            "title": "Intervals",
+            "description": "Days until the card is due again for each grade, to show on the buttons."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "front",
+          "back",
+          "source",
+          "due_at",
+          "interval_days",
+          "ease",
+          "repetitions",
+          "lapses",
+          "last_reviewed_at",
+          "created_at",
+          "intervals"
+        ],
+        "title": "ReviewCardResponse"
+      },
+      "ReviewQueueResponse": {
+        "properties": {
+          "deck": {
+            "$ref": "#/components/schemas/DeckResponse"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewCardResponse"
+            },
+            "type": "array",
+            "title": "Cards",
+            "description": "Cards due now, the longest due first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "deck",
+          "cards"
+        ],
+        "title": "ReviewQueueResponse"
+      },
+      "ReviewRequest": {
+        "properties": {
+          "grade": {
+            "type": "string",
+            "enum": [
+              "again",
+              "hard",
+              "good",
+              "easy"
+            ],
+            "title": "Grade",
+            "description": "How well the card was remembered: `again` (not at all), `hard`, `good` or `easy`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "grade"
+        ],
+        "title": "ReviewRequest"
       },
       "SearchFiltersRequest": {
         "properties": {
@@ -7153,6 +8921,26 @@
         ],
         "title": "SearchResult"
       },
+      "SearchStepResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "description": "What was searched for."
+          },
+          "results": {
+            "type": "integer",
+            "title": "Results",
+            "description": "How many chunks the search found."
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "results"
+        ],
+        "title": "SearchStepResponse"
+      },
       "SourceListResponse": {
         "properties": {
           "items": {
@@ -7227,12 +9015,23 @@
       },
       "SourceRequest": {
         "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "website",
+              "feed",
+              "github"
+            ],
+            "title": "Kind",
+            "description": "`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.",
+            "default": "website"
+          },
           "url": {
             "type": "string",
             "minLength": 1,
             "format": "uri",
             "title": "Url",
-            "description": "Where to start: the site's pages under this URL's folder are crawled, following their links.",
+            "description": "The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.",
             "examples": [
               "https://docs.example.com/guide/"
             ]
@@ -7283,7 +9082,11 @@
           },
           "kind": {
             "type": "string",
-            "const": "website",
+            "enum": [
+              "website",
+              "feed",
+              "github"
+            ],
             "title": "Kind"
           },
           "url": {
@@ -7376,6 +9179,177 @@
         ],
         "title": "SourceResponse"
       },
+      "StudyRequest": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^[\\w.]+$",
+            "title": "File Id",
+            "description": "The document to study; it must be processed.",
+            "examples": [
+              "a16q20nzrtvj_notes.txt"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "flashcards",
+              "quiz"
+            ],
+            "title": "Kind",
+            "description": "`summary`: key points in the document's order. `flashcards`: a question or term on the front, its answer on the back. `quiz`: multiple-choice questions with four choices, the right one and why."
+          },
+          "count": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "description": "Most items to write.",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_id",
+          "kind"
+        ],
+        "title": "StudyRequest"
+      },
+      "StudyResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "flashcards",
+              "quiz"
+            ],
+            "title": "Kind"
+          },
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "original_name": {
+            "type": "string",
+            "title": "Original Name"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/KeyPointResponse"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FlashcardResponse"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/QuizQuestionResponse"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Items",
+            "description": "Of the requested kind; each cites the passages it comes from. Empty when the model wrote nothing usable."
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/StudySourceResponse"
+            },
+            "type": "array",
+            "title": "Sources",
+            "description": "The passages the items cite."
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageResponse"
+          },
+          "passages": {
+            "type": "integer",
+            "title": "Passages",
+            "description": "Chunks given to the model."
+          },
+          "chunks": {
+            "type": "integer",
+            "title": "Chunks",
+            "description": "Chunks of the document: more than `passages` when the document is longer than the model reads at once, and only chunks spread over it were used."
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "file_id",
+          "original_name",
+          "items",
+          "sources",
+          "prompt_version",
+          "usage",
+          "passages",
+          "chunks"
+        ],
+        "title": "StudyResponse"
+      },
+      "StudySourceResponse": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number",
+            "description": "What items cite in their `sources`."
+          },
+          "chunk_index": {
+            "type": "integer",
+            "title": "Chunk Index"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page",
+            "description": "Page number for PDFs, starting at 1; null otherwise."
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section",
+            "description": "The headings above the passage, when known."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "chunk_index",
+          "page",
+          "section",
+          "text"
+        ],
+        "title": "StudySourceResponse"
+      },
       "TagListResponse": {
         "properties": {
           "items": {
@@ -7456,6 +9430,18 @@
             "type": "number",
             "title": "Cost Usd",
             "description": "Known cost of this month's answers, in US dollars."
+          },
+          "budget_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Usd",
+            "description": "The monthly budget, in US dollars; null when there is none. Asking is refused once `cost_usd` reaches it."
           }
         },
         "type": "object",
@@ -7493,6 +9479,48 @@
           "file_id"
         ],
         "title": "UploadResponse"
+      },
+      "UsageHistoryResponse": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start",
+            "description": "Start of the first day counted (UTC)."
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayUsageResponse"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "Every day, oldest first; days without answers have zeros."
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectShareResponse"
+            },
+            "type": "array",
+            "title": "Projects",
+            "description": "Projects with answers in the period, costliest first."
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelShareResponse"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "Likewise, per model."
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "days",
+          "projects",
+          "models"
+        ],
+        "title": "UsageHistoryResponse"
       },
       "UsageResponse": {
         "properties": {
@@ -7682,7 +9710,8 @@
                 "file.deleted",
                 "job.succeeded",
                 "job.failed",
-                "source.synced"
+                "source.synced",
+                "budget.alert"
               ]
             },
             "type": "array",
@@ -8161,7 +10190,7 @@
     "securitySchemes": {
       "HTTPBearer": {
         "type": "http",
-        "description": "An API key: `Authorization: Bearer mrag_…`",
+        "description": "An API key: `Authorization: Bearer ragolex_…`",
         "scheme": "bearer"
       },
       "APIKeyHeader": {

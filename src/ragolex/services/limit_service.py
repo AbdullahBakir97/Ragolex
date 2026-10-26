@@ -1,12 +1,25 @@
+import logging
 import math
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta
 
-from ragolex.core.errors import AnswerQuotaExceeded, RateLimited, StorageQuotaExceeded
-from ragolex.domain.models import Limits, TenantUsage
+from ragolex.core.errors import (
+    AnswerQuotaExceeded,
+    BudgetExceeded,
+    RateLimited,
+    StorageQuotaExceeded,
+)
+from ragolex.core.metrics import BUDGET_ALERTS
+from ragolex.domain.models import Limits, Project, TenantUsage, UsageHistory
 from ragolex.domain.repositories import UnitOfWork
+from ragolex.services.audit import record
+from ragolex.services.webhook_service import envelope
+
+logger = logging.getLogger(__name__)
 
 BYTES_PER_MB = 1024 * 1024
+# Percents of the monthly budget that send an alert, once each per month.
+BUDGET_ALERT_THRESHOLDS = (80, 100)
 
 
 @dataclass(frozen=True)
@@ -53,10 +66,47 @@ class LimitService:
         return RateState(limit, limit - count, reset_at)
 
     async def check_answers(self, tenant_id: int) -> None:
-        """Refuse an answer once the tenant's answers this month reach its quota."""
-        quota = (await self.limits_for(tenant_id)).answers_per_month
-        if quota and (await self.uow.usage.tenant_usage(tenant_id)).answers >= quota:
-            raise AnswerQuotaExceeded(f"All {quota} answers of this month are used")
+        """Refuse an answer once the tenant's answers this month reach its quota or budget."""
+        limits = await self.limits_for(tenant_id)
+        if not (limits.answers_per_month or limits.budget_usd_per_month):
+            return
+        used = await self.uow.usage.tenant_usage(tenant_id)
+        if limits.answers_per_month and used.answers >= limits.answers_per_month:
+            raise AnswerQuotaExceeded(f"All {limits.answers_per_month} answers of this month "
+                                      "are used")
+        if limits.budget_usd_per_month and used.cost_usd >= limits.budget_usd_per_month:
+            raise BudgetExceeded(f"This month's budget of ${limits.budget_usd_per_month:,.2f} "
+                                 "is spent")
+
+    async def note_spending(self, project: Project) -> list[int]:
+        """Alert about the budget thresholds the tenant's spending this month has reached.
+
+        Called after an answer is recorded, in its transaction. Each threshold
+        is announced once a month: a ``budget.alert`` webhook event to the
+        tenant's webhooks that subscribe to it, an audit event and a warning
+        in the log. Returns the thresholds announced now.
+        """
+        budget = (await self.limits_for(project.tenant_id)).budget_usd_per_month
+        if not budget:
+            return []
+        used = await self.uow.usage.tenant_usage(project.tenant_id)
+        reached = [threshold for threshold in BUDGET_ALERT_THRESHOLDS
+                   if used.cost_usd >= budget * threshold / 100
+                   and await self.uow.usage.add_budget_alert(project.tenant_id, threshold)]
+        for threshold in reached:
+            details = {"threshold_percent": threshold, "budget_usd": budget,
+                       "cost_usd": round(used.cost_usd, 6),
+                       "period_start": used.period_start.isoformat()}
+            await self.uow.webhooks.enqueue_for_tenant(
+                project.tenant_id, "budget.alert", envelope(project, "budget.alert", details))
+            await record(self.uow, project.tenant_id, "budget.alert", None, **details)
+            logger.warning("Budget alert: the tenant's answers cost %s this month, %d%% of its "
+                           "%s budget", _dollars(used.cost_usd), threshold, _dollars(budget))
+            BUDGET_ALERTS.labels(threshold=str(threshold)).inc()
+        return reached
+
+    async def history(self, tenant_id: int, days: int) -> UsageHistory:
+        return await self.uow.usage.history(tenant_id, days)
 
     async def storage_left(self, tenant_id: int) -> int | None:
         """Bytes the tenant may still upload; None when unlimited."""
@@ -78,6 +128,10 @@ def _headers(state: RateState) -> dict[str, str]:
     return {"X-RateLimit-Limit": str(state.limit),
             "X-RateLimit-Remaining": str(state.remaining),
             "X-RateLimit-Reset": str(int(state.reset_at.timestamp()))}
+
+
+def _dollars(amount: float) -> str:
+    return f"${amount:,.2f}" if amount >= 1 else f"${amount:.4g}"
 
 
 def _now(like: datetime) -> datetime:

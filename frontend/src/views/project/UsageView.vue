@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from "vue";
 
 import { ApiError, api } from "@/api/client";
 import type { ProjectUsage, TenantUsage } from "@/api/types";
+import CostHistory from "@/components/CostHistory.vue";
 import FeedbackList from "@/components/FeedbackList.vue";
 import { useProject } from "@/composables/useProject";
 import { formatBytes, formatCost, formatNumber, formatPercent } from "@/lib/format";
@@ -55,8 +56,27 @@ const meters = computed(() => {
   const t = tenant.value;
   if (!t) return [];
   return [
-    { label: "Answers this month", used: t.answers.used, limit: t.answers.limit, format: formatNumber },
-    { label: "Storage", used: t.storage_bytes.used, limit: t.storage_bytes.limit, format: formatBytes },
+    {
+      label: "Answers this month",
+      used: t.answers.used,
+      limit: t.answers.limit,
+      format: formatNumber,
+      full: "Questions are refused until the month ends.",
+    },
+    {
+      label: "Storage",
+      used: t.storage_bytes.used,
+      limit: t.storage_bytes.limit,
+      format: formatBytes,
+      full: "Uploads are refused until files are deleted.",
+    },
+    {
+      label: "Budget this month",
+      used: t.cost_usd,
+      limit: t.budget_usd,
+      format: formatCost,
+      full: "The budget is spent: questions are refused until the month ends.",
+    },
   ].filter((meter) => meter.limit !== null);
 });
 
@@ -109,9 +129,12 @@ onMounted(async () => {
         <div class="bar" role="progressbar" :aria-label="meter.label" :aria-valuenow="Math.round((meter.used / meter.limit!) * 100)" aria-valuemin="0" aria-valuemax="100">
           <span :class="{ full: meter.used >= meter.limit! }" :style="{ width: `${Math.min(100, (meter.used / meter.limit!) * 100)}%` }" />
         </div>
+        <p v-if="meter.used >= meter.limit!" class="full-note small">{{ meter.full }}</p>
       </div>
       <p v-if="tenant?.requests_per_minute" class="subtle small">Up to {{ formatNumber(tenant.requests_per_minute) }} requests a minute.</p>
     </div>
+
+    <CostHistory :project="name" />
 
     <FeedbackList :project="name" class="feedback-section" />
   </section>
@@ -180,6 +203,11 @@ onMounted(async () => {
 
 .bar span.full {
   background: var(--danger);
+}
+
+.full-note {
+  margin-top: 4px;
+  color: var(--danger);
 }
 
 .feedback-section {

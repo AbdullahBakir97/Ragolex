@@ -1,7 +1,7 @@
 """Request and response models, and the shared ID types used by routes."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -12,12 +12,15 @@ from pydantic import (
     AnyHttpUrl,
     BaseModel,
     Field,
+    StringConstraints,
     field_validator,
     model_validator,
 )
 
+from ragolex.connectors.github import parse_repository
 from ragolex.core.errors import AppError
-from ragolex.domain.models import SearchFilters
+from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
+from ragolex.domain.models import ReviewGrade, SearchFilters
 from ragolex.domain.signals import ResponseSignal
 from ragolex.domain.tags import MAX_TAGS_PER_FILE, normalize_tags
 
@@ -100,9 +103,9 @@ class UploadResponse(BaseModel):
 
 class ProcessRequest(BaseModel):
     file_id: FileId
-    chunk_size: int = Field(default=1000, gt=0, le=100_000,
+    chunk_size: int = Field(default=DEFAULT_CHUNK_SIZE, gt=0, le=100_000,
                             description="Maximum chunk length in characters, overlap included.")
-    overlap_size: int = Field(default=200, ge=0,
+    overlap_size: int = Field(default=DEFAULT_OVERLAP_SIZE, ge=0,
                               description="Characters of preceding text repeated at the start of each chunk.")
 
     @model_validator(mode="after")
@@ -209,6 +212,15 @@ class AskRequest(BaseModel):
                     "answer to it. Omit for a question on its own.")
     filters: SearchFiltersRequest | None = Field(
         default=None, description="Answer only from the chunks these filters leave.")
+    research: bool = Field(
+        default=False,
+        description="Research mode, for questions with several parts: the model plans the "
+                    "searches, and reviews what they found, searching again for what is still "
+                    "missing. Slower, and each step is a model call that counts in `usage`.")
+    max_steps: int = Field(
+        default=3, ge=1, le=5,
+        description="In research mode, the most planning and review steps; the server's "
+                    "RESEARCH_MAX_STEPS caps it.")
 
     @field_validator("question")
     @classmethod
@@ -216,6 +228,16 @@ class AskRequest(BaseModel):
         if not question.strip():
             raise ValueError("question must not be blank")
         return question
+
+    @property
+    def research_steps(self) -> int:
+        """The steps research mode may take; 0 without it."""
+        return self.max_steps if self.research else 0
+
+
+class SearchStepResponse(BaseModel):
+    query: str = Field(description="What was searched for.")
+    results: int = Field(description="How many chunks the search found.")
 
 
 class CitationResponse(BaseModel):
@@ -225,7 +247,8 @@ class CitationResponse(BaseModel):
     page: int | None = Field(description="Page number for PDFs, starting at 1; null otherwise.")
     section: str | None = Field(default=None, description=(
         "The headings above the passage in Markdown, HTML and Word files, "
-        "e.g. \"Setup > Install\"; null otherwise."))
+        "e.g. \"Setup > Install\"; the function or class in source code, e.g. "
+        "\"Parser.parse\"; null otherwise."))
     score: float = Field(description="Cosine similarity to the question: 1 is the best match.")
     text: str
 
@@ -254,6 +277,8 @@ class AskResponse(BaseModel):
     message_id: int | None = Field(
         default=None, description="In a conversation: the answer's message, to rate it with "
                                   "PUT .../messages/{message_id}/feedback.")
+    research: list[SearchStepResponse] | None = Field(
+        default=None, description="In research mode: the searches made, in order; null otherwise.")
 
 
 class ProjectResponse(BaseModel):
@@ -462,7 +487,7 @@ class JobListResponse(BaseModel):
 
 WebhookIdPath = Annotated[UUID, Path(description="The webhook's id.")]
 WebhookEvent = Literal["file.uploaded", "file.deleted", "job.succeeded", "job.failed",
-                       "source.synced"]
+                       "source.synced", "budget.alert"]
 
 
 class WebhookRequest(BaseModel):
@@ -592,6 +617,38 @@ class TenantUsageResponse(BaseModel):
     input_tokens: int = Field(description="Prompt tokens of this month's answers.")
     output_tokens: int
     cost_usd: float = Field(description="Known cost of this month's answers, in US dollars.")
+    budget_usd: float | None = Field(
+        default=None, description="The monthly budget, in US dollars; null when there is none. "
+                                  "Asking is refused once `cost_usd` reaches it.")
+
+
+class UsageTotalResponse(BaseModel):
+    answers: int = Field(description="Questions asked, streamed or not.")
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float = Field(description="Known cost, in US dollars.")
+
+
+class DayUsageResponse(UsageTotalResponse):
+    day: date = Field(description="The day, in UTC.")
+
+
+class ProjectShareResponse(UsageTotalResponse):
+    project: str
+
+
+class ModelShareResponse(UsageTotalResponse):
+    model: str | None = Field(description="The language model; null for questions that "
+                                          "matched no source, so no model was called.")
+
+
+class UsageHistoryResponse(BaseModel):
+    start: datetime = Field(description="Start of the first day counted (UTC).")
+    days: list[DayUsageResponse] = Field(description="Every day, oldest first; days without "
+                                                     "answers have zeros.")
+    projects: list[ProjectShareResponse] = Field(description="Projects with answers in the "
+                                                             "period, costliest first.")
+    models: list[ModelShareResponse] = Field(description="Likewise, per model.")
 
 
 
@@ -744,9 +801,19 @@ class WidgetAnswer(BaseModel):
 SourceIdPath = Annotated[UUID, Path(description="The source's id.")]
 
 
+SourceKind = Literal["website", "feed", "github"]
+
+
 class SourceRequest(BaseModel):
-    url: AnyHttpUrl = Field(description="Where to start: the site's pages under this URL's "
-                                        "folder are crawled, following their links.",
+    kind: SourceKind = Field(
+        default="website",
+        description="`website`: the site's pages under the URL's folder, found by following "
+                    "their links. `feed`: an RSS or Atom feed's entries. `github`: the "
+                    "documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one "
+                    "folder of it.")
+    url: AnyHttpUrl = Field(description="The website's start page, the feed's address, or the "
+                                        "repository's: `https://github.com/owner/repo`, "
+                                        "optionally with `/tree/<branch>/<folder>`.",
                             examples=["https://docs.example.com/guide/"])
     max_pages: int = Field(default=50, ge=1, le=1000, description="Most pages to keep.")
     sync_interval_hours: int = Field(
@@ -761,10 +828,17 @@ class SourceRequest(BaseModel):
             raise ValueError("the URL is longer than 2000 characters")
         return url
 
+    @model_validator(mode="after")
+    def check_repository(self) -> "SourceRequest":
+        if self.kind == "github" and parse_repository(str(self.url)) is None:
+            raise ValueError("a github source's url must be https://github.com/<owner>/<repo>, "
+                             "optionally with /tree/<branch>/<folder>")
+        return self
+
 
 class SourceResponse(BaseModel):
     id: str
-    kind: Literal["website"]
+    kind: SourceKind
     url: str
     max_pages: int
     sync_interval_hours: int
@@ -794,3 +868,132 @@ class SourcePagesResponse(BaseModel):
     offset: int
     limit: int
     items: list[SourcePageResponse]
+
+
+class StudyRequest(BaseModel):
+    file_id: FileId = Field(description="The document to study; it must be processed.")
+    kind: Literal["summary", "flashcards", "quiz"] = Field(
+        description="`summary`: key points in the document's order. `flashcards`: a question "
+                    "or term on the front, its answer on the back. `quiz`: multiple-choice "
+                    "questions with four choices, the right one and why.")
+    count: int = Field(default=10, ge=1, le=30, description="Most items to write.")
+
+
+class StudySourceResponse(BaseModel):
+    number: int = Field(description="What items cite in their `sources`.")
+    chunk_index: int
+    page: int | None = Field(description="Page number for PDFs, starting at 1; null otherwise.")
+    section: str | None = Field(description="The headings above the passage, when known.")
+    text: str
+
+
+class KeyPointResponse(BaseModel):
+    text: str
+    sources: list[int]
+
+
+class FlashcardResponse(BaseModel):
+    front: str
+    back: str
+    sources: list[int]
+
+
+class QuizQuestionResponse(BaseModel):
+    question: str
+    choices: list[str] = Field(description="Four choices.")
+    answer: int = Field(description="The position of the right choice, from 0.")
+    explanation: str = Field(description="Why it is right, from the document.")
+    sources: list[int]
+
+
+class StudyResponse(BaseModel):
+    kind: Literal["summary", "flashcards", "quiz"]
+    file_id: str
+    original_name: str
+    items: list[KeyPointResponse] | list[FlashcardResponse] | list[QuizQuestionResponse] = Field(
+        description="Of the requested kind; each cites the passages it comes from. Empty when "
+                    "the model wrote nothing usable.")
+    sources: list[StudySourceResponse] = Field(description="The passages the items cite.")
+    prompt_version: str
+    usage: UsageResponse
+    passages: int = Field(description="Chunks given to the model.")
+    chunks: int = Field(description="Chunks of the document: more than `passages` when the "
+                                    "document is longer than the model reads at once, and only "
+                                    "chunks spread over it were used.")
+
+
+DeckIdPath = Annotated[UUID, Path(description="The deck's id.")]
+CardIdPath = Annotated[UUID, Path(description="The card's id.")]
+DeckName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class CardRequest(BaseModel):
+    front: str = Field(min_length=1, max_length=2000, description="The question or term.")
+    back: str = Field(min_length=1, max_length=2000, description="Its answer.")
+    file_id: FileId | None = Field(default=None, description="The document it comes from.")
+    chunk_index: int | None = Field(default=None, ge=0, description="The passage it comes from.")
+    page: int | None = Field(default=None, ge=1)
+    section: str | None = Field(default=None, max_length=500)
+
+
+class DeckRequest(BaseModel):
+    name: DeckName
+    cards: list[CardRequest] = Field(default_factory=list, max_length=500,
+                                     description="Flashcards to start with, e.g. from "
+                                                 "`POST /study` with `kind: flashcards`.")
+
+
+class CardsRequest(BaseModel):
+    cards: list[CardRequest] = Field(min_length=1, max_length=500)
+
+
+class ReviewRequest(BaseModel):
+    grade: ReviewGrade = Field(description="How well the card was remembered: `again` (not at "
+                                           "all), `hard`, `good` or `easy`.")
+
+
+class DeckResponse(BaseModel):
+    id: str
+    name: str
+    cards: int = Field(description="Cards in the deck.")
+    due: int = Field(description="Cards due for review now.")
+    created_at: datetime
+
+
+class CardSourceResponse(BaseModel):
+    file_id: str | None
+    chunk_index: int | None
+    page: int | None
+    section: str | None
+
+
+class CardResponse(BaseModel):
+    id: str
+    front: str
+    back: str
+    source: CardSourceResponse = Field(description="Where it comes from; all null when unknown.")
+    due_at: datetime = Field(description="When it is next due for review.")
+    interval_days: float = Field(description="Days from the last review to `due_at`; 0 for a "
+                                             "card never reviewed.")
+    ease: float = Field(description="How much the interval grows after a good review.")
+    repetitions: int = Field(description="Reviews in a row it was remembered.")
+    lapses: int = Field(description="Times it was forgotten after being learnt.")
+    last_reviewed_at: datetime | None
+    created_at: datetime
+
+
+class CardListResponse(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    items: list[CardResponse]
+
+
+class ReviewCardResponse(CardResponse):
+    intervals: dict[ReviewGrade, float] = Field(
+        description="Days until the card is due again for each grade, to show on the buttons.")
+
+
+class ReviewQueueResponse(BaseModel):
+    deck: DeckResponse
+    cards: list[ReviewCardResponse] = Field(description="Cards due now, the longest due first.")

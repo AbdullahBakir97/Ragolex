@@ -40,9 +40,12 @@ from ragolex.domain.models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Card,
+    CardSource,
     Chunk,
     Conversation,
     ConversationMessage,
+    Deck,
     DeliveryStatus,
     Feedback,
     FeedbackCounts,
@@ -54,6 +57,7 @@ from ragolex.domain.models import (
     RatedAnswer,
     Rating,
     Role,
+    Schedule,
     ScoredChunk,
     SearchFilters,
     Source,
@@ -64,6 +68,8 @@ from ragolex.domain.models import (
     Tenant,
     TenantUsage,
     UnembeddedChunk,
+    UsageHistory,
+    UsageTotal,
     UsageTotals,
     Webhook,
     WebhookDelivery,
@@ -75,6 +81,7 @@ from ragolex.domain.repositories import (
     AuditRepository,
     ChunkRepository,
     ConversationRepository,
+    DeckRepository,
     FileRepository,
     JobRepository,
     ProjectRepository,
@@ -90,9 +97,12 @@ from .tables import (
     AnswerRow,
     ApiKeyRow,
     AuditEventRow,
+    BudgetAlertRow,
+    CardRow,
     ChunkRow,
     ConversationMessageRow,
     ConversationRow,
+    DeckRow,
     FileRow,
     JobRow,
     ProjectRow,
@@ -209,7 +219,8 @@ class SqlProjectRepository:
 def _tenant(row: TenantRow) -> Tenant:
     return Tenant(id=row.id, name=row.name, created_at=row.created_at,
                   requests_per_minute=row.requests_per_minute,
-                  answers_per_month=row.answers_per_month, storage_mb=row.storage_mb)
+                  answers_per_month=row.answers_per_month, storage_mb=row.storage_mb,
+                  budget_usd_per_month=row.budget_usd_per_month)
 
 
 class SqlTenantRepository:
@@ -235,8 +246,15 @@ class SqlTenantRepository:
         rows = await self.session.scalars(select(TenantRow).order_by(TenantRow.name))
         return [_tenant(row) for row in rows]
 
-    async def set_limits(self, tenant_id: int, limits: Mapping[str, int | None]) -> None:
-        allowed = {"requests_per_minute", "answers_per_month", "storage_mb"}
+    async def delete(self, tenant_id: int) -> bool:
+        deleted = await self.session.scalar(
+            delete(TenantRow).where(TenantRow.id == tenant_id).returning(TenantRow.id))
+        return deleted is not None
+
+    async def set_limits(self, tenant_id: int,
+                         limits: Mapping[str, int | float | None]) -> None:
+        allowed = {"requests_per_minute", "answers_per_month", "storage_mb",
+                   "budget_usd_per_month"}
         if unknown := set(limits) - allowed:
             raise ValueError(f"Unknown limits: {sorted(unknown)}")
         if limits:
@@ -247,6 +265,25 @@ class SqlTenantRepository:
 # The start of the current calendar month in UTC, whatever the session's time zone.
 _MONTH_START = literal_column(
     "date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", DateTime(timezone=True))
+# Today's start in UTC, likewise.
+_DAY_START = literal_column(
+    "date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", DateTime(timezone=True))
+
+
+def _usage_totals(key: Any) -> Select:
+    """Answers, tokens and known cost of the answers, by ``key``."""
+    return select(
+        key.label("key"),
+        func.count().label("answers"),
+        func.coalesce(func.sum(AnswerRow.input_tokens), 0).label("input_tokens"),
+        func.coalesce(func.sum(AnswerRow.output_tokens), 0).label("output_tokens"),
+        func.coalesce(func.sum(AnswerRow.cost_usd), 0).label("cost_usd"),
+    ).group_by(key)
+
+
+def _usage_total(row: Any) -> UsageTotal:
+    return UsageTotal(key=row.key, answers=row.answers, input_tokens=row.input_tokens,
+                      output_tokens=row.output_tokens, cost_usd=float(row.cost_usd))
 
 
 class SqlUsageRepository:
@@ -287,6 +324,34 @@ class SqlUsageRepository:
                            input_tokens=answers.input_tokens,
                            output_tokens=answers.output_tokens,
                            cost_usd=float(answers.cost_usd), storage_bytes=storage)
+
+    async def history(self, tenant_id: int, days: int) -> UsageHistory:
+        start: datetime = (await self.session.execute(select(
+            _DAY_START - bindparam("back", timedelta(days=days - 1), type_=Interval)))).scalar_one()
+        mine = and_(ProjectRow.id == AnswerRow.project_id, ProjectRow.tenant_id == tenant_id,
+                    AnswerRow.created_at >= start)
+
+        async def totals(key: Any) -> list[UsageTotal]:
+            rows = await self.session.execute(_usage_totals(key).select_from(AnswerRow).join(
+                ProjectRow, mine).order_by(func.sum(AnswerRow.cost_usd).desc().nulls_last(),
+                                            func.count().desc(), key))
+            return [_usage_total(row) for row in rows]
+
+        by_day = {total.key: total for total in await totals(
+            func.to_char(func.timezone("UTC", AnswerRow.created_at), "YYYY-MM-DD"))}
+        dates = [(start + timedelta(days=offset)).date().isoformat() for offset in range(days)]
+        return UsageHistory(
+            start=start,
+            days=[by_day.get(day, UsageTotal(day, 0, 0, 0, 0.0)) for day in dates],
+            projects=await totals(ProjectRow.name),
+            models=await totals(AnswerRow.model))
+
+    async def add_budget_alert(self, tenant_id: int, threshold: int) -> bool:
+        added = await self.session.scalar(
+            pg_insert(BudgetAlertRow)
+            .values(tenant_id=tenant_id, period_start=_MONTH_START, threshold=threshold)
+            .on_conflict_do_nothing().returning(BudgetAlertRow.threshold))
+        return added is not None
 
 
 def _api_key(row: ApiKeyRow) -> ApiKey:
@@ -961,6 +1026,19 @@ class SqlWebhookRepository:
             .from_select(["id", "webhook_id", "event", "payload"], subscribed))
         return _affected(result)
 
+    async def enqueue_for_tenant(self, tenant_id: int, event: str,
+                                 payload: Mapping[str, Any]) -> int:
+        projects = select(ProjectRow.id).where(ProjectRow.tenant_id == tenant_id)
+        subscribed = select(
+            func.gen_random_uuid(), WebhookRow.id, bindparam("event", event, type_=String),
+            bindparam("payload", dict(payload), type_=JSONB),
+        ).where(WebhookRow.project_id.in_(projects),
+                bindparam("wanted", event, type_=String) == any_(WebhookRow.events))
+        result = await self.session.execute(
+            insert(WebhookDeliveryRow)
+            .from_select(["id", "webhook_id", "event", "payload"], subscribed))
+        return _affected(result)
+
     async def add_delivery(self, webhook_id: str, event: str,
                            payload: Mapping[str, Any]) -> WebhookDelivery:
         row = (await self.session.execute(
@@ -1223,6 +1301,107 @@ class SqlSourceRepository:
         return others > 0
 
 
+def _card(row: CardRow) -> Card:
+    return Card(
+        id=row.id, deck_id=row.deck_id, front=row.front, back=row.back,
+        source=CardSource(file_key=row.file_key, chunk_index=row.chunk_index, page=row.page,
+                          section=row.section),
+        schedule=Schedule(interval_days=row.interval_days, ease=row.ease,
+                          repetitions=row.repetitions, lapses=row.lapses),
+        due_at=row.due_at, created_at=row.created_at, last_reviewed_at=row.last_reviewed_at)
+
+
+class SqlDeckRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    def _select(self) -> Select:
+        cards = (select(func.count()).where(CardRow.deck_id == DeckRow.id)
+                 .correlate(DeckRow).scalar_subquery())
+        due = (select(func.count()).where(CardRow.deck_id == DeckRow.id,
+                                          CardRow.due_at <= func.now())
+               .correlate(DeckRow).scalar_subquery())
+        return select(DeckRow, cards.label("cards"), due.label("due"))
+
+    @staticmethod
+    def _deck(row: Any) -> Deck:
+        deck = row[0]
+        return Deck(id=deck.id, project_id=deck.project_id, name=deck.name,
+                    created_at=deck.created_at, cards=row.cards, due=row.due)
+
+    async def create(self, *, deck_id: str, project_id: int, name: str) -> Deck:
+        await self.session.execute(
+            insert(DeckRow).values(id=deck_id, project_id=project_id, name=name))
+        found = await self.get(project_id, deck_id)
+        assert found is not None
+        return found
+
+    async def get(self, project_id: int, deck_id: str) -> Deck | None:
+        row = (await self.session.execute(self._select().where(
+            DeckRow.id == deck_id, DeckRow.project_id == project_id))).first()
+        return self._deck(row) if row else None
+
+    async def list_for_project(self, project_id: int) -> list[Deck]:
+        rows = await self.session.execute(self._select().where(DeckRow.project_id == project_id)
+                                          .order_by(DeckRow.created_at.desc(), DeckRow.id))
+        return [self._deck(row) for row in rows]
+
+    async def delete(self, project_id: int, deck_id: str) -> bool:
+        result = await self.session.execute(
+            delete(DeckRow).where(DeckRow.id == deck_id, DeckRow.project_id == project_id))
+        return _affected(result) > 0
+
+    async def add_cards(self, deck_id: str,
+                        cards: Sequence[tuple[str, str, CardSource]]) -> list[Card]:
+        # Serializes additions to one deck, so positions stay in order.
+        await self.session.execute(
+            select(DeckRow.id).where(DeckRow.id == deck_id).with_for_update())
+        last = await _number(self.session, select(func.coalesce(func.max(CardRow.position), -1))
+                             .where(CardRow.deck_id == deck_id))
+        if not cards:
+            return []
+        rows = (await self.session.scalars(
+            insert(CardRow).returning(CardRow, sort_by_parameter_order=True), [
+            {"id": str(uuid.uuid4()), "deck_id": deck_id, "position": last + 1 + offset,
+             "front": front, "back": back, "file_key": source.file_key,
+             "chunk_index": source.chunk_index, "page": source.page, "section": source.section}
+            for offset, (front, back, source) in enumerate(cards)])).all()
+        return [_card(row) for row in rows]
+
+    async def list_cards(self, deck_id: str, *, offset: int, limit: int) -> list[Card]:
+        rows = await self.session.scalars(
+            select(CardRow).where(CardRow.deck_id == deck_id).order_by(CardRow.position)
+            .offset(offset).limit(limit))
+        return [_card(row) for row in rows]
+
+    async def count_cards(self, deck_id: str) -> int:
+        return await _number(self.session,
+                             select(func.count()).where(CardRow.deck_id == deck_id))
+
+    async def due_cards(self, deck_id: str, *, limit: int) -> list[Card]:
+        rows = await self.session.scalars(
+            select(CardRow).where(CardRow.deck_id == deck_id, CardRow.due_at <= func.now())
+            .order_by(CardRow.due_at, CardRow.position).limit(limit))
+        return [_card(row) for row in rows]
+
+    async def get_card(self, deck_id: str, card_id: str) -> Card | None:
+        row = await self.session.scalar(
+            select(CardRow).where(CardRow.id == card_id, CardRow.deck_id == deck_id))
+        return _card(row) if row else None
+
+    async def schedule_card(self, deck_id: str, card_id: str, schedule: Schedule) -> Card | None:
+        row = await self.session.scalar(
+            update(CardRow).where(CardRow.id == card_id, CardRow.deck_id == deck_id)
+            .values(interval_days=schedule.interval_days, ease=schedule.ease,
+                    repetitions=schedule.repetitions, lapses=schedule.lapses,
+                    last_reviewed_at=func.now(),
+                    due_at=func.now() + bindparam(
+                        "interval", timedelta(days=schedule.interval_days), type_=Interval))
+            .returning(CardRow))
+        return _card(row) if row else None
+
+
 class SqlUnitOfWork:
 
     def __init__(self, session: AsyncSession, tenant_id: int | None = None):
@@ -1243,6 +1422,7 @@ class SqlUnitOfWork:
         self.tenants: TenantRepository = SqlTenantRepository(session)
         self.api_keys: ApiKeyRepository = SqlApiKeyRepository(session)
         self.usage: UsageRepository = SqlUsageRepository(session)
+        self.decks: DeckRepository = SqlDeckRepository(session)
 
     async def commit(self) -> None:
         await self.session.commit()

@@ -21,15 +21,18 @@ from ragolex.domain.models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Card,
     Chunk,
     Conversation,
     ConversationMessage,
+    Deck,
     Feedback,
     FeedbackCounts,
     FileRecord,
     Job,
     Project,
     RatedAnswer,
+    Schedule,
     ScoredChunk,
     SearchFilters,
     Source,
@@ -38,6 +41,8 @@ from ragolex.domain.models import (
     Tenant,
     TenantUsage,
     UnembeddedChunk,
+    UsageHistory,
+    UsageTotal,
     UsageTotals,
     Webhook,
     WebhookDelivery,
@@ -401,7 +406,8 @@ class FakeJobs:
 
 class FakeWebhooks:
 
-    def __init__(self):
+    def __init__(self, projects: "FakeProjects | None" = None):
+        self.projects = projects
         self.by_id: dict[str, Webhook] = {}
         self.deliveries: dict[str, WebhookDelivery] = {}
 
@@ -436,6 +442,11 @@ class FakeWebhooks:
         for webhook in subscribed:
             await self.add_delivery(webhook.id, event, payload)
         return len(subscribed)
+
+    async def enqueue_for_tenant(self, tenant_id: int, event: str, payload) -> int:
+        projects = self.projects.by_name.values() if self.projects else []
+        return sum([await self.enqueue(project.id, event, payload)
+                    for project in projects if project.tenant_id == tenant_id])
 
     async def add_delivery(self, webhook_id: str, event: str, payload) -> WebhookDelivery:
         now = datetime.now(UTC)
@@ -499,17 +510,23 @@ class FakeTenants:
     async def list_all(self) -> list[Tenant]:
         return [self.by_name[name] for name in sorted(self.by_name)]
 
+    async def delete(self, tenant_id: int) -> bool:
+        tenant = await self.get_by_id(tenant_id)
+        return tenant is not None and self.by_name.pop(tenant.name) is not None
+
     async def set_limits(self, tenant_id: int, limits) -> None:
         tenant = await self.get_by_id(tenant_id)
         self.by_name[tenant.name] = replace(tenant, **limits)
 
 
 class FakeUsage:
-    """Counts requests per minute of the wall clock; usage is set by tests."""
+    """Counts requests per minute of the wall clock; usage and history are set by tests."""
 
     def __init__(self):
         self.counts: dict[tuple[int, datetime], int] = {}
         self.usage: dict[int, TenantUsage] = {}
+        self.histories: dict[int, UsageHistory] = {}
+        self.budget_alerts: set[tuple[int, datetime, int]] = set()
 
     async def count_request(self, tenant_id: int) -> tuple[int, datetime]:
         window = datetime.now(UTC).replace(second=0, microsecond=0)
@@ -521,6 +538,22 @@ class FakeUsage:
         return self.usage.get(tenant_id, TenantUsage(period_start=start, answers=0, input_tokens=0,
                                                       output_tokens=0, cost_usd=0.0,
                                                       storage_bytes=0))
+
+    async def history(self, tenant_id: int, days: int) -> UsageHistory:
+        if tenant_id in self.histories:
+            return self.histories[tenant_id]
+        today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        start = today - timedelta(days=days - 1)
+        return UsageHistory(start=start, projects=[], models=[], days=[
+            UsageTotal((start + timedelta(days=offset)).date().isoformat(), 0, 0, 0, 0.0)
+            for offset in range(days)])
+
+    async def add_budget_alert(self, tenant_id: int, threshold: int) -> bool:
+        alert = (tenant_id, (await self.tenant_usage(tenant_id)).period_start, threshold)
+        if alert in self.budget_alerts:
+            return False
+        self.budget_alerts.add(alert)
+        return True
 
 
 class FakeApiKeys:
@@ -699,6 +732,74 @@ class FakeSources:
                    for sid, rows in self.page_rows.items() for page_url, row in rows.items())
 
 
+class FakeDecks:
+    """Decks in memory; the clock is the wall clock."""
+
+    def __init__(self):
+        self.decks: dict[str, Deck] = {}
+        self.cards: dict[str, list[Card]] = {}
+
+    def _counted(self, deck: Deck) -> Deck:
+        cards = self.cards.get(deck.id, [])
+        now = datetime.now(UTC)
+        return replace(deck, cards=len(cards), due=len([c for c in cards if c.due_at <= now]))
+
+    async def create(self, *, deck_id: str, project_id: int, name: str) -> Deck:
+        self.decks[deck_id] = Deck(id=deck_id, project_id=project_id, name=name,
+                                   created_at=datetime.now(UTC))
+        self.cards[deck_id] = []
+        return self._counted(self.decks[deck_id])
+
+    async def get(self, project_id: int, deck_id: str) -> Deck | None:
+        deck = self.decks.get(deck_id)
+        return self._counted(deck) if deck and deck.project_id == project_id else None
+
+    async def list_for_project(self, project_id: int) -> list[Deck]:
+        mine = [self._counted(d) for d in self.decks.values() if d.project_id == project_id]
+        return sorted(mine, key=lambda deck: deck.created_at, reverse=True)
+
+    async def delete(self, project_id: int, deck_id: str) -> bool:
+        if await self.get(project_id, deck_id) is None:
+            return False
+        del self.decks[deck_id]
+        del self.cards[deck_id]
+        return True
+
+    async def add_cards(self, deck_id: str, cards) -> list[Card]:
+        now = datetime.now(UTC)
+        added = [Card(id=str(uuid.uuid4()), deck_id=deck_id, front=front, back=back,
+                      source=source, schedule=Schedule(), due_at=now, created_at=now)
+                 for front, back, source in cards]
+        self.cards[deck_id].extend(added)
+        return added
+
+    async def list_cards(self, deck_id: str, *, offset: int, limit: int) -> list[Card]:
+        return self.cards.get(deck_id, [])[offset:offset + limit]
+
+    async def count_cards(self, deck_id: str) -> int:
+        return len(self.cards.get(deck_id, []))
+
+    async def due_cards(self, deck_id: str, *, limit: int) -> list[Card]:
+        now = datetime.now(UTC)
+        cards = self.cards.get(deck_id, [])
+        due = [card for card in cards if card.due_at <= now]
+        return sorted(due, key=lambda card: (card.due_at, cards.index(card)))[:limit]
+
+    async def get_card(self, deck_id: str, card_id: str) -> Card | None:
+        return next((c for c in self.cards.get(deck_id, []) if c.id == card_id), None)
+
+    async def schedule_card(self, deck_id: str, card_id: str, schedule: Schedule) -> Card | None:
+        card = await self.get_card(deck_id, card_id)
+        if card is None:
+            return None
+        now = datetime.now(UTC)
+        scheduled = replace(card, schedule=schedule, last_reviewed_at=now,
+                            due_at=now + timedelta(days=schedule.interval_days))
+        cards = self.cards[deck_id]
+        cards[cards.index(card)] = scheduled
+        return scheduled
+
+
 class FakeUnitOfWork:
 
     def __init__(self):
@@ -708,13 +809,14 @@ class FakeUnitOfWork:
         self.answers = FakeAnswers()
         self.conversations = FakeConversations()
         self.jobs = FakeJobs(self.projects, self.files)
-        self.webhooks = FakeWebhooks()
+        self.webhooks = FakeWebhooks(self.projects)
         self.widgets = FakeWidgets(self.projects)
         self.audit = FakeAudit()
         self.sources = FakeSources(self.projects, self.files)
         self.tenants = FakeTenants()
         self.api_keys = FakeApiKeys()
         self.usage = FakeUsage()
+        self.decks = FakeDecks()
         self.commits = 0
         self.fail_commit_with: Exception | None = None
 

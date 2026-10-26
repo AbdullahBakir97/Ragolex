@@ -25,7 +25,7 @@ export type AnswerEvent = { type: "delta"; text: string } | { type: "answer"; an
 export interface RagolexOptions {
   /** Where the API is, e.g. `https://rag.example.com`. */
   baseUrl: string;
-  /** An API key (`mrag_…`); leave it out when the server does not require one. */
+  /** An API key (`ragolex_…`); leave it out when the server does not require one. */
   apiKey?: string;
   /** Another fetch, e.g. for tests or a proxy; the global one by default. */
   fetch?: typeof globalThis.fetch;
@@ -163,6 +163,16 @@ export class Ragolex {
       } else if (event.event === "error") throw new RagolexError(502, String(data.signal ?? "llm_failed"), { body: data });
     }
     throw new RagolexError(502, "llm_failed", { message: "The answer stream ended before the answer was complete." });
+  }
+
+  /**
+   * Everything the tenant has, as a ZIP archive: projects with their files,
+   * conversations, widgets and webhooks, and the tenant's keys (names only)
+   * and audit log. Needs a key with the `admin` scope.
+   */
+  async exportTenant(options: { signal?: AbortSignal } = {}): Promise<Blob> {
+    const response = await this.send("/api/v1/export", { method: "GET", signal: options.signal });
+    return response.blob();
   }
 
   private async send(path: string, init: RequestInit): Promise<Response> {
