@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from mini_rag.api.dependencies import get_llm
-from mini_rag.core.config import get_settings
+from ragolex.api.dependencies import get_llm
+from ragolex.core.config import get_settings
 
 from .fakes import FakeLLM
 

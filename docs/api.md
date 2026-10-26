@@ -17,8 +17,8 @@ Every project belongs to a **tenant**: an organisation or app whose projects, fi
 With `AUTH_ENABLED=false` (the default, for your own computer), no key is needed and every request acts for the tenant `default` with every scope. With `AUTH_ENABLED=true`, every endpoint except `/api/v1/` and `/api/v1/health` needs an API key, sent as `Authorization: Bearer <key>` or `X-API-Key: <key>`:
 
 ```bash
-mini-rag tenants create acme
-mini-rag keys create --tenant acme --name website --scope read --scope ask
+ragolex tenants create acme
+ragolex keys create --tenant acme --name website --scope read --scope ask
 curl -H "Authorization: Bearer mrag_…" http://localhost:8000/api/v1/projects
 ```
 
@@ -48,11 +48,11 @@ curl http://localhost:8000/api/v1/keys -H "Authorization: Bearer mrag_…"
 curl -X DELETE http://localhost:8000/api/v1/keys/<key id> -H "Authorization: Bearer mrag_…"
 ```
 
-The first key of a tenant comes from the command line (`mini-rag keys create`), run where the database is reachable, e.g. `docker compose exec app mini-rag keys create --tenant acme --name admin`. `mini-rag keys list` and `mini-rag keys revoke` work there too, and `mini-rag tenants list` lists tenants. Projects that existed before tenants belong to `default`.
+The first key of a tenant comes from the command line (`ragolex keys create`), run where the database is reachable, e.g. `docker compose exec app ragolex keys create --tenant acme --name admin`. `ragolex keys list` and `ragolex keys revoke` work there too, and `ragolex tenants list` lists tenants. Projects that existed before tenants belong to `default`.
 
 ## Audit log
 
-Administrative actions are recorded in their tenant's audit log, in the same transaction as the action itself, so a recorded action happened and every action that happened is recorded. `GET /api/v1/audit` (`admin` scope) lists them, most recent first; `?action=api_key` or `?action=widget.deleted` keeps the actions that start with it. Operators can read the same log with `mini-rag audit --tenant <name>`.
+Administrative actions are recorded in their tenant's audit log, in the same transaction as the action itself, so a recorded action happened and every action that happened is recorded. `GET /api/v1/audit` (`admin` scope) lists them, most recent first; `?action=api_key` or `?action=widget.deleted` keeps the actions that start with it. Operators can read the same log with `ragolex audit --tenant <name>`.
 
 ```json
 {"id": 12, "action": "api_key.created", "target": "0b5c3e8e-…",
@@ -73,7 +73,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 
 ## Rate limits and quotas
 
-Each tenant can have three limits. The server's settings give the defaults (`RATE_LIMIT_PER_MINUTE`, `ANSWERS_PER_MONTH`, `STORAGE_MB_PER_TENANT`; `0`, the default, is unlimited), and `mini-rag tenants limits <tenant> --requests-per-minute N --answers-per-month N --storage-mb N` gives a tenant its own (a number, `0` for unlimited, or `default`).
+Each tenant can have three limits. The server's settings give the defaults (`RATE_LIMIT_PER_MINUTE`, `ANSWERS_PER_MONTH`, `STORAGE_MB_PER_TENANT`; `0`, the default, is unlimited), and `ragolex tenants limits <tenant> --requests-per-minute N --answers-per-month N --storage-mb N` gives a tenant its own (a number, `0` for unlimited, or `default`).
 
 | Limit | When it is reached | Response |
 |---|---|---|
@@ -327,7 +327,7 @@ A job is `queued`, then `running` (`stage` is `processing`, then `indexing`, whi
 
 - **Retries.** When the embedding provider fails (`embedding_failed`), or something unexpected happens (`job_failed`), the job is queued again after 10 seconds, then 1 minute, then 5 minutes, until `max_attempts` (`JOB_MAX_ATTEMPTS`). Meanwhile it is `queued` with an `error`. A failure caused by the file, such as `file_has_no_text`, fails the job at once. So does `embedding_not_configured`: the chunks are stored, and indexing later finishes the work.
 - **Retrying by hand.** `POST .../jobs/{job_id}/retry` queues a failed job again with all its attempts (`202`). For a job that has not failed, it returns `409` `{"signal": "job_not_failed"}`.
-- **Workers.** The API runs `JOB_WORKERS` jobs at once (default 1). `mini-rag worker` runs more in a process of its own, on any machine with the same database and `FILES_DIR`. Each job runs once, whatever the number of workers: a worker holds a job for 5 minutes and extends that as it goes. If a worker stops, its job is taken up again once that time runs out, which uses up an attempt; a worker that is shut down puts its job back at once. A job whose worker stopped on every attempt fails with `job_abandoned`.
+- **Workers.** The API runs `JOB_WORKERS` jobs at once (default 1). `ragolex worker` runs more in a process of its own, on any machine with the same database and `FILES_DIR`. Each job runs once, whatever the number of workers: a worker holds a job for 5 minutes and extends that as it goes. If a worker stops, its job is taken up again once that time runs out, which uses up an attempt; a worker that is shut down puts its job back at once. A job whose worker stopped on every attempt fails with `job_abandoned`.
 - **Deletion.** Deleting the file or the project deletes its jobs.
 
 | Case | Status | Response |
@@ -354,12 +354,12 @@ curl -X POST http://localhost:8000/api/v1/projects/demo1/sources \
 ```
 
 - **What is crawled.** The pages under the URL's folder (`https://docs.example.com/guide/intro` covers everything under `/guide/`), on the same host and port, found by following links from the URL, breadth first, up to `max_pages` (1–1000, default 50). Queries and fragments are dropped, so `page?x=1` and `page` are one page. HTML, PDF, text and Markdown pages are kept; images and other types are skipped, as are pages larger than `FILE_MAX_SIZE`.
-- **Politely.** `robots.txt` is obeyed, its `Crawl-delay` too, and so are pages' `<meta name="robots">` tags (`noindex`, `nofollow`) and `rel="nofollow"` links. Requests are spaced by `CRAWLER_DELAY_SECONDS` and sent as `mini-rag-crawler/1.0`.
+- **Politely.** `robots.txt` is obeyed, its `Crawl-delay` too, and so are pages' `<meta name="robots">` tags (`noindex`, `nofollow`) and `rel="nofollow"` links. Requests are spaced by `CRAWLER_DELAY_SECONDS` and sent as `ragolex-crawler/1.0`.
 - **Safely.** As for webhooks, only public addresses are crawled (`422` `{"signal": "source_url_not_allowed"}` when adding one on this server's network, and every host and redirect is checked again during a crawl), unless `CRAWLER_ALLOW_PRIVATE_URLS=true`. Redirects are followed only within the crawled folder.
 - **Stored like uploads.** Each page goes through the upload checks (its type against its content, malware scanning, the storage quota, duplicates) and is stored as a file named by its URL (its `original_name` is the URL, so answers cite it), then processed and indexed by a background job. The source's optional `tags` (see [tags](#tags-and-collections)) are given to its pages.
 - **Kept in sync.** The first sync starts at once, then every `sync_interval_hours` (0: only on `POST …/sync`). A new page is added, a changed page replaces its file, and an unchanged one is left alone. A page that is gone (no longer linked, or `404`) has its file deleted. A page that could not be fetched this time (a timeout, a `5xx`) keeps what it had, and when the site cannot be crawled at all, `last_error` says why and every page is kept. Files the project already had are never deleted by a sync.
 
-Syncs run in the API's workers when `JOB_WORKERS` is above 0, and in `mini-rag worker`; a source is held by one worker at a time. Deleting a source deletes the files its syncs created, unless `?keep_files=true`.
+Syncs run in the API's workers when `JOB_WORKERS` is above 0, and in `ragolex worker`; a source is held by one worker at a time. Deleting a source deletes the files its syncs created, unless `?keep_files=true`.
 
 ## Webhooks
 
@@ -368,11 +368,11 @@ A webhook sends a project's events to a URL as they happen, for automation tools
 ```bash
 curl -X POST http://localhost:8000/api/v1/projects/demo1/webhooks \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com/hooks/mini-rag", "events": ["job.succeeded", "job.failed"]}'
+  -d '{"url": "https://example.com/hooks/ragolex", "events": ["job.succeeded", "job.failed"]}'
 ```
 
 ```json
-{"id": "215a3491-5398-4b18-9048-d242b96fa592", "url": "https://example.com/hooks/mini-rag",
+{"id": "215a3491-5398-4b18-9048-d242b96fa592", "url": "https://example.com/hooks/ragolex",
  "events": ["job.failed", "job.succeeded"], "description": null, "created_at": "2026-10-18T05:56:09Z",
  "secret": "whsec_…"}
 ```
@@ -400,9 +400,9 @@ and these headers:
 
 | Header | Value |
 |---|---|
-| `X-Mini-RAG-Event` | The event |
-| `X-Mini-RAG-Delivery` | The delivery's id, also the body's `id`; the same on every attempt, so a receiver can skip a delivery it already handled |
-| `X-Mini-RAG-Signature` | `t=<unix time>,v1=<hex>`: an HMAC-SHA256, with the webhook's secret, of `<t>.<raw body>` |
+| `X-Ragolex-Event` | The event |
+| `X-Ragolex-Delivery` | The delivery's id, also the body's `id`; the same on every attempt, so a receiver can skip a delivery it already handled |
+| `X-Ragolex-Signature` | `t=<unix time>,v1=<hex>`: an HMAC-SHA256, with the webhook's secret, of `<t>.<raw body>` |
 
 To check a delivery, compute the HMAC from the raw body (before parsing it), compare it in constant time, and reject old timestamps:
 
@@ -417,7 +417,7 @@ def verify(secret: str, header: str, body: bytes, tolerance: int = 300) -> bool:
     return fresh and hmac.compare_digest(expected, parts["v1"])
 ```
 
-Events are queued in the same transaction as the change they report, so one is sent exactly when the change is saved. A delivery counts as delivered when the receiver answers `2xx` within `WEBHOOK_TIMEOUT_SECONDS`. Otherwise it is tried again after 10 seconds, 1 minute, 5 and 30 minutes, then 2, 6 and 12 hours: 8 attempts over about 20 hours. After that it is marked failed. Redirects are not followed. `GET .../deliveries` shows each delivery's `status` (`pending`, `delivered` or `failed`), `attempts`, the receiver's last `response_status`, and the last `error` in our words (`HTTP 500`, `timed out`, `could not connect`). Deliveries are sent by the API when `JOB_WORKERS` is above 0, and always by `mini-rag worker`.
+Events are queued in the same transaction as the change they report, so one is sent exactly when the change is saved. A delivery counts as delivered when the receiver answers `2xx` within `WEBHOOK_TIMEOUT_SECONDS`. Otherwise it is tried again after 10 seconds, 1 minute, 5 and 30 minutes, then 2, 6 and 12 hours: 8 attempts over about 20 hours. After that it is marked failed. Redirects are not followed. `GET .../deliveries` shows each delivery's `status` (`pending`, `delivered` or `failed`), `attempts`, the receiver's last `response_status`, and the last `error` in our words (`HTTP 500`, `timed out`, `could not connect`). Deliveries are sent by the API when `JOB_WORKERS` is above 0, and always by `ragolex worker`.
 
 Webhooks reach only public addresses: an address on this server's network (`localhost`, private networks, the cloud metadata service at `169.254.169.254`) is refused, when the webhook is added (`422` `{"signal": "webhook_url_not_allowed"}`) and again whenever a delivery is sent, after resolving the host. For a receiver next to the API, such as n8n in the same compose stack, set `WEBHOOK_ALLOW_PRIVATE_URLS=true`.
 
@@ -478,7 +478,7 @@ Then add one tag to the website's pages, with the address of the web app, which 
 | `data-position` | `left` puts the button in the bottom left corner instead of the right |
 | `data-open` | `true` opens the panel when the page loads |
 
-The page can also call `window.MiniRagWidget.open()` and `.close()`. The widget lives in a shadow root, so the page's styles do not change it and its styles do not leak into the page. It keeps the visitor's conversation in the browser tab's session storage, so it carries on from page to page, and fills the screen on phones.
+The page can also call `window.RagolexWidget.open()` and `.close()`. The widget lives in a shadow root, so the page's styles do not change it and its styles do not leak into the page. It keeps the visitor's conversation in the browser tab's session storage, so it carries on from page to page, and fills the screen on phones.
 
 | Setting | |
 |---|---|
@@ -757,4 +757,4 @@ The response is the message with its new `feedback`; rating again replaces it, a
             "feedback": {"rating": "down", "comment": "It should mention Friday mornings.", "created_at": "..."}}]}
 ```
 
-`mini-rag feedback-export` turns these into evaluation cases; see [Evaluation](evaluation.md#growing-the-test-set-from-feedback).
+`ragolex feedback-export` turns these into evaluation cases; see [Evaluation](evaluation.md#growing-the-test-set-from-feedback).

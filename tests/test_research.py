@@ -4,16 +4,16 @@ import hashlib
 
 import pytest
 
-from mini_rag.domain.llm import TokenUsage
-from mini_rag.domain.models import Chunk, ScoredChunk
-from mini_rag.prompts.research import RESEARCH_PROMPT, RESEARCH_PROMPT_V1
-from mini_rag.services.answer_service import (
+from ragolex.domain.llm import TokenUsage
+from ragolex.domain.models import Chunk, ScoredChunk
+from ragolex.prompts.research import RESEARCH_PROMPT, RESEARCH_PROMPT_V1
+from ragolex.services.answer_service import (
     MAX_QUERIES_PER_STEP,
     AnswerService,
     SearchStep,
 )
-from mini_rag.services.indexing_service import IndexingService
-from mini_rag.services.search_service import SearchService
+from ragolex.services.indexing_service import IndexingService
+from ragolex.services.search_service import SearchService
 
 from .fakes import FAKE_USAGE, FakeEmbedder, FakeLLM, FakeUnitOfWork
 
