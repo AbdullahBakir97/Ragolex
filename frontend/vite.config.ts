@@ -3,6 +3,7 @@ import { fileURLToPath, URL } from "node:url";
 
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 
 // In development the API runs separately (uvicorn or docker compose); these
 // paths are forwarded to it, so the app always calls its own origin.
@@ -21,5 +22,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // e2e/ holds the browser tests, run by Playwright (npm run e2e).
+    exclude: [...configDefaults.exclude, "e2e/**"],
   },
 });

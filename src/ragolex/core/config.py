@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     METRICS_TOKEN: str | None = None
     # "json" writes one JSON object per line, for log collectors.
     LOG_FORMAT: Literal["text", "json"] = "text"
+    # Spans to the OTLP collector named by the OTEL_* variables (see core/tracing).
+    TRACING_ENABLED: bool = False
 
     DATABASE_URL: str = Field(
         default=LOCAL_DATABASE_URL,
@@ -104,6 +106,10 @@ class Settings(BaseSettings):
         default=0, ge=0, description="Answers per calendar month per tenant; 0 is unlimited")
     STORAGE_MB_PER_TENANT: int = Field(
         default=0, ge=0, description="Megabytes of uploaded files per tenant; 0 is unlimited")
+    STUDY_MAX_CHARACTERS: int = Field(
+        default=32_000, ge=1_000, le=1_000_000,
+        description="Characters of a document given to the model for study material; a longer "
+                    "document is given in chunks spread over it")
     JOB_WORKERS: int = Field(
         default=1, ge=0, le=32,
         description="Background jobs the app runs at once; 0 leaves them to `ragolex worker`")

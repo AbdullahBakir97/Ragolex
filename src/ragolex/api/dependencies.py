@@ -61,7 +61,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 # Both appear in the OpenAPI schema, so /docs and generated clients know how to send a key.
-bearer = HTTPBearer(auto_error=False, description="An API key: `Authorization: Bearer mrag_…`")
+bearer = HTTPBearer(auto_error=False, description="An API key: `Authorization: Bearer ragolex_…`")
 key_header = APIKeyHeader(name="X-API-Key", auto_error=False,
                           description="An API key, for clients that cannot set Authorization")
 

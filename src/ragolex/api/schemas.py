@@ -12,12 +12,13 @@ from pydantic import (
     AnyHttpUrl,
     BaseModel,
     Field,
+    StringConstraints,
     field_validator,
     model_validator,
 )
 
 from ragolex.core.errors import AppError
-from ragolex.domain.models import SearchFilters
+from ragolex.domain.models import ReviewGrade, SearchFilters
 from ragolex.domain.signals import ResponseSignal
 from ragolex.domain.tags import MAX_TAGS_PER_FILE, normalize_tags
 
@@ -815,3 +816,132 @@ class SourcePagesResponse(BaseModel):
     offset: int
     limit: int
     items: list[SourcePageResponse]
+
+
+class StudyRequest(BaseModel):
+    file_id: FileId = Field(description="The document to study; it must be processed.")
+    kind: Literal["summary", "flashcards", "quiz"] = Field(
+        description="`summary`: key points in the document's order. `flashcards`: a question "
+                    "or term on the front, its answer on the back. `quiz`: multiple-choice "
+                    "questions with four choices, the right one and why.")
+    count: int = Field(default=10, ge=1, le=30, description="Most items to write.")
+
+
+class StudySourceResponse(BaseModel):
+    number: int = Field(description="What items cite in their `sources`.")
+    chunk_index: int
+    page: int | None = Field(description="Page number for PDFs, starting at 1; null otherwise.")
+    section: str | None = Field(description="The headings above the passage, when known.")
+    text: str
+
+
+class KeyPointResponse(BaseModel):
+    text: str
+    sources: list[int]
+
+
+class FlashcardResponse(BaseModel):
+    front: str
+    back: str
+    sources: list[int]
+
+
+class QuizQuestionResponse(BaseModel):
+    question: str
+    choices: list[str] = Field(description="Four choices.")
+    answer: int = Field(description="The position of the right choice, from 0.")
+    explanation: str = Field(description="Why it is right, from the document.")
+    sources: list[int]
+
+
+class StudyResponse(BaseModel):
+    kind: Literal["summary", "flashcards", "quiz"]
+    file_id: str
+    original_name: str
+    items: list[KeyPointResponse] | list[FlashcardResponse] | list[QuizQuestionResponse] = Field(
+        description="Of the requested kind; each cites the passages it comes from. Empty when "
+                    "the model wrote nothing usable.")
+    sources: list[StudySourceResponse] = Field(description="The passages the items cite.")
+    prompt_version: str
+    usage: UsageResponse
+    passages: int = Field(description="Chunks given to the model.")
+    chunks: int = Field(description="Chunks of the document: more than `passages` when the "
+                                    "document is longer than the model reads at once, and only "
+                                    "chunks spread over it were used.")
+
+
+DeckIdPath = Annotated[UUID, Path(description="The deck's id.")]
+CardIdPath = Annotated[UUID, Path(description="The card's id.")]
+DeckName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class CardRequest(BaseModel):
+    front: str = Field(min_length=1, max_length=2000, description="The question or term.")
+    back: str = Field(min_length=1, max_length=2000, description="Its answer.")
+    file_id: FileId | None = Field(default=None, description="The document it comes from.")
+    chunk_index: int | None = Field(default=None, ge=0, description="The passage it comes from.")
+    page: int | None = Field(default=None, ge=1)
+    section: str | None = Field(default=None, max_length=500)
+
+
+class DeckRequest(BaseModel):
+    name: DeckName
+    cards: list[CardRequest] = Field(default_factory=list, max_length=500,
+                                     description="Flashcards to start with, e.g. from "
+                                                 "`POST /study` with `kind: flashcards`.")
+
+
+class CardsRequest(BaseModel):
+    cards: list[CardRequest] = Field(min_length=1, max_length=500)
+
+
+class ReviewRequest(BaseModel):
+    grade: ReviewGrade = Field(description="How well the card was remembered: `again` (not at "
+                                           "all), `hard`, `good` or `easy`.")
+
+
+class DeckResponse(BaseModel):
+    id: str
+    name: str
+    cards: int = Field(description="Cards in the deck.")
+    due: int = Field(description="Cards due for review now.")
+    created_at: datetime
+
+
+class CardSourceResponse(BaseModel):
+    file_id: str | None
+    chunk_index: int | None
+    page: int | None
+    section: str | None
+
+
+class CardResponse(BaseModel):
+    id: str
+    front: str
+    back: str
+    source: CardSourceResponse = Field(description="Where it comes from; all null when unknown.")
+    due_at: datetime = Field(description="When it is next due for review.")
+    interval_days: float = Field(description="Days from the last review to `due_at`; 0 for a "
+                                             "card never reviewed.")
+    ease: float = Field(description="How much the interval grows after a good review.")
+    repetitions: int = Field(description="Reviews in a row it was remembered.")
+    lapses: int = Field(description="Times it was forgotten after being learnt.")
+    last_reviewed_at: datetime | None
+    created_at: datetime
+
+
+class CardListResponse(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    items: list[CardResponse]
+
+
+class ReviewCardResponse(CardResponse):
+    intervals: dict[ReviewGrade, float] = Field(
+        description="Days until the card is due again for each grade, to show on the buttons.")
+
+
+class ReviewQueueResponse(BaseModel):
+    deck: DeckResponse
+    cards: list[ReviewCardResponse] = Field(description="Cards due now, the longest due first.")
