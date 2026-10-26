@@ -77,7 +77,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 `GET /api/v1/export` (`admin` scope) returns everything the tenant has as one ZIP archive, for a backup, a move to another server, or a data request:
 
 ```bash
-curl -H "Authorization: Bearer mrag_…" -o acme.zip http://localhost:8000/api/v1/export
+curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/api/v1/export
 ```
 
 | In the archive | What it holds |

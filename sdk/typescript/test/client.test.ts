@@ -140,7 +140,7 @@ describe("Ragolex", () => {
 
     expect(new Uint8Array(await archive.arrayBuffer())).toEqual(zip);
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/export");
-    expect(requests[0]!.headers.get("Authorization")).toBe("Bearer mrag_test");
+    expect(requests[0]!.headers.get("Authorization")).toBe("Bearer ragolex_test");
   });
 
   it("searches and asks with options", async () => {
