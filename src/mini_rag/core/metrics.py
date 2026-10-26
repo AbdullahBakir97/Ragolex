@@ -34,3 +34,7 @@ BUDGET_ALERTS = Counter("mini_rag_budget_alerts_total",
 SOURCE_SYNCS = Counter("mini_rag_source_syncs_total", "Website syncs, by outcome.", ["outcome"])
 SOURCE_PAGES = Counter("mini_rag_source_pages_total",
                        "Pages website syncs added, updated and removed.", ["change"])
+DEPRECATED_REQUESTS = Counter(
+    "mini_rag_deprecated_requests_total",
+    "Requests to deprecated routes, to see who still uses them before their sunset.",
+    ["method", "route"])
