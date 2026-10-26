@@ -12,6 +12,7 @@ from ragolex.core.config import Settings
 from ragolex.core.errors import AppError, CrawlFailed, FileNotFound
 from ragolex.core.log_context import log_context
 from ragolex.core.metrics import SOURCE_PAGES, SOURCE_SYNCS
+from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
 from ragolex.domain.crawler import Crawler, UnreachablePage
 from ragolex.domain.malware_scanner import MalwareScanner
 from ragolex.domain.models import Limits, Source, SourcePage
@@ -27,8 +28,6 @@ logger = logging.getLogger(__name__)
 
 EXTENSIONS = {"text/html": ".html", "application/xhtml+xml": ".html", "application/pdf": ".pdf",
               "text/plain": ".txt", "text/markdown": ".md"}
-# How pages are split, as for a file queued with the defaults.
-CHUNK_SIZE, OVERLAP_SIZE = 1000, 200
 
 
 def page_file_name(url: str, content_type: str) -> str:
@@ -190,7 +189,7 @@ class SourceSyncer:
             await self._delete_file(uow, source, old)
         if not upload.duplicate:
             await JobService(uow, self.max_attempts).enqueue(
-                source.project_name, upload.file_id, CHUNK_SIZE, OVERLAP_SIZE)
+                source.project_name, upload.file_id, DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE)
         if old is None:
             result.added += 1
         else:

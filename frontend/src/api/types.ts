@@ -80,6 +80,9 @@ export interface ProcessOptions {
   overlap_size: number;
 }
 
+/** How files are split unless chosen otherwise: the API's defaults (see sdk/openapi.json). */
+export const DEFAULT_PROCESS_OPTIONS: ProcessOptions = { chunk_size: 1000, overlap_size: 200 };
+
 export interface ProcessResult {
   signal: string;
   file_id: string;

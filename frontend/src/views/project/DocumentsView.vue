@@ -17,7 +17,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import { ApiError, api } from "@/api/client";
-import type { FileInfo, ProcessOptions } from "@/api/types";
+import { DEFAULT_PROCESS_OPTIONS, type FileInfo, type ProcessOptions } from "@/api/types";
 import ChunkDrawer from "@/components/ChunkDrawer.vue";
 import FileDropzone from "@/components/FileDropzone.vue";
 import PagerControls from "@/components/PagerControls.vue";
@@ -51,7 +51,7 @@ const uploadTags = ref<string[]>([]);
 const uploadTagInput = ref<InstanceType<typeof TagInput> | null>(null);
 
 const showOptions = ref(false);
-const options = ref<ProcessOptions>({ chunk_size: 1000, overlap_size: 200 });
+const options = ref<ProcessOptions>({ ...DEFAULT_PROCESS_OPTIONS });
 const optionsProblem = computed(() => {
   const { chunk_size, overlap_size } = options.value;
   if (!Number.isInteger(chunk_size) || chunk_size < 1 || chunk_size > 100_000) return "Chunk size must be 1–100,000.";
