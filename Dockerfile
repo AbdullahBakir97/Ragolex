@@ -1,4 +1,4 @@
-# Mini RAG API image. Build: docker build -t mini-rag .
+# Ragolex API image. Build: docker build -t ragolex .
 # Run the whole stack (database, migrations, API) with: docker compose up
 
 # Build stage: install the app and its dependencies into a virtual
@@ -33,7 +33,7 @@ COPY --from=build /opt/venv /opt/venv
 WORKDIR /app
 # Alembic reads its settings from pyproject.toml in the working directory.
 COPY pyproject.toml ./
-# The evaluation datasets, for `mini-rag eval evals/handbook/v1`.
+# The evaluation datasets, for `ragolex eval evals/handbook/v1`.
 COPY evals ./evals
 
 USER app
@@ -44,6 +44,6 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
 
 # Settings come from the environment (see .env.example); DATABASE_URL must
 # point at PostgreSQL with pgvector. Apply migrations first with:
-#   docker run --rm --env-file .env mini-rag alembic upgrade head
+#   docker run --rm --env-file .env ragolex alembic upgrade head
 # The API logs each request itself, with its id, so uvicorn's access log is off.
-CMD ["uvicorn", "mini_rag.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+CMD ["uvicorn", "ragolex.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

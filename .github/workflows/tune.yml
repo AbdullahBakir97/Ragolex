@@ -3,7 +3,7 @@ name: Tune
 # Compares chunk sizes and overlaps on the handbook dataset with the same
 # embedding model as the eval job (nomic-embed-text in Ollama). Run it by
 # hand, or it runs when the datasets or the tuning change; the table in its
-# log is what the defaults in src/mini_rag/domain/chunking.py are chosen from.
+# log is what the defaults in src/ragolex/domain/chunking.py are chosen from.
 on:
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ on:
     paths:
       - .github/workflows/tune.yml
       - evals/**
-      - src/mini_rag/evaluation/tuning.py
+      - src/ragolex/evaluation/tuning.py
 
 permissions:
   contents: read
@@ -30,19 +30,19 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_USER: mini_rag
+          POSTGRES_USER: ragolex
           # A throwaway database for one job: no password needed.
           POSTGRES_HOST_AUTH_METHOD: trust
-          POSTGRES_DB: mini_rag_tune
+          POSTGRES_DB: ragolex_tune
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U mini_rag -d mini_rag_tune"
+          --health-cmd "pg_isready -U ragolex -d ragolex_tune"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql+asyncpg://mini_rag@localhost:5432/mini_rag_tune
+      DATABASE_URL: postgresql+asyncpg://ragolex@localhost:5432/ragolex_tune
       EMBEDDING_BASE_URL: http://localhost:11434/v1
       EMBEDDING_MODEL: nomic-embed-text:v1.5
       EMBEDDING_DIMENSIONS: '768'
@@ -71,7 +71,7 @@ jobs:
       - name: Migrate the database
         run: alembic upgrade head
       - name: Compare chunk sizes and overlaps
-        run: mini-rag tune evals/handbook/v1 --chunk-sizes "$CHUNK_SIZES" --overlaps "$OVERLAPS" --output tune.json
+        run: ragolex tune evals/handbook/v1 --chunk-sizes "$CHUNK_SIZES" --overlaps "$OVERLAPS" --output tune.json
       - name: Show the results as JSON
         # Every trial's metrics, e.g. to write a baseline from.
         if: always()

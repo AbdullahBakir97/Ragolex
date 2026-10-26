@@ -3,9 +3,9 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mini-rag-client"
+name = "ragolex-client"
 version = "0.1.0"
-description = "Python client for the Mini RAG API, generated from its OpenAPI schema."
+description = "Python client for the Ragolex API, generated from its OpenAPI schema."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -21,7 +21,7 @@ test = ["pytest>=8"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-mini_rag_client = ["py.typed"]
+ragolex_client = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

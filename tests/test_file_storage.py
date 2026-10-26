@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from mini_rag.core.errors import FileNotFound
-from mini_rag.storage.file_storage import FileStorage
+from ragolex.core.errors import FileNotFound
+from ragolex.storage.file_storage import FileStorage
 
 
 @pytest.fixture

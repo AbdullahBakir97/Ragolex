@@ -41,7 +41,7 @@ An endpoint, parameter or field that should go away is deprecated first, and kee
    Link: </api/v1/new>; rel="successor-version"
    ```
 
-3. **Its calls are counted** in the `mini_rag_deprecated_requests_total` metric, by route, so operators can see who still uses it before the sunset.
+3. **Its calls are counted** in the `ragolex_deprecated_requests_total` metric, by route, so operators can see who still uses it before the sunset.
 4. **It is listed** in the release notes when it is deprecated and again when it is removed.
 
 In code, a route is deprecated with `**deprecated(since=…, sunset=…, successor=…)` from `api/deprecation.py`, which refuses a sunset less than six months away. Removal still has to pass the CI check: it is a breaking change, made in a pull request labelled `api-breaking`, only after the sunset date.
@@ -52,4 +52,4 @@ Changes that cannot be made by adding, such as a different resource model, go in
 
 ## What this does not cover
 
-The web app and the chat widget are clients like any other, released with the server, so their internals may change at any time; the widget's embed snippet (`<script src=".../widget.js" data-widget="…">`) and its `window.MiniRagWidget` methods are stable like the API. The Prometheus metrics, log lines and the command line are operator interfaces: they follow the same spirit, and changes to them are noted in the release notes.
+The web app and the chat widget are clients like any other, released with the server, so their internals may change at any time; the widget's embed snippet (`<script src=".../widget.js" data-widget="…">`) and its `window.RagolexWidget` methods are stable like the API. The Prometheus metrics, log lines and the command line are operator interfaces: they follow the same spirit, and changes to them are noted in the release notes.

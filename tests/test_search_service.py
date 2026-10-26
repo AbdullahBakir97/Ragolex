@@ -1,9 +1,9 @@
 import pytest
 
-from mini_rag.core.errors import EmbeddingFailed, ProjectNotFound
-from mini_rag.domain.models import Chunk
-from mini_rag.services.indexing_service import IndexingService
-from mini_rag.services.search_service import SearchService
+from ragolex.core.errors import EmbeddingFailed, ProjectNotFound
+from ragolex.domain.models import Chunk
+from ragolex.services.indexing_service import IndexingService
+from ragolex.services.search_service import SearchService
 
 from .fakes import FakeEmbedder, FakeUnitOfWork
 
@@ -78,7 +78,7 @@ class FakeReranker:
         self.calls: list[list[str]] = []
 
     async def rerank(self, query, texts):
-        from mini_rag.core.errors import RerankFailed
+        from ragolex.core.errors import RerankFailed
 
         self.calls.append(list(texts))
         if self.fail:

@@ -1,6 +1,6 @@
 # Evaluation
 
-An answer can only be as good as the passages it is given. `mini-rag eval` measures that first step, retrieval: for each question of a dataset, does search find the passages that answer it, how high does it rank them, and does the minimum score keep them while turning away questions the documents cannot answer? With `--answers` it also answers every question and grades the answers.
+An answer can only be as good as the passages it is given. `ragolex eval` measures that first step, retrieval: for each question of a dataset, does search find the passages that answer it, how high does it rank them, and does the minimum score keep them while turning away questions the documents cannot answer? With `--answers` it also answers every question and grades the answers.
 
 It runs the same steps as the API (upload, split, embed, store, search) with the configured embedding model and database, so it measures a real setup. CI runs it on every push and pull request, and fails when a metric drops below the committed baseline.
 
@@ -9,13 +9,13 @@ It runs the same steps as the API (upload, split, embed, store, search) with the
 With the API's settings in the environment (or `.env`):
 
 ```bash
-mini-rag eval evals/handbook/v1
+ragolex eval evals/handbook/v1
 ```
 
 With Docker, the image includes the datasets:
 
 ```bash
-docker compose run --rm app mini-rag eval evals/handbook/v1
+docker compose run --rm app ragolex eval evals/handbook/v1
 ```
 
 The documents go into a temporary project, `eval.handbook.v1`, which is deleted afterwards, also when the run fails. No API project can have that name, since project names cannot contain dots. The handbook embeds 27 chunks and 53 questions, a fraction of a cent with OpenAI and free with Ollama.
@@ -80,7 +80,7 @@ The run above shows why this matters. With `nomic-embed-text`, even questions th
 ## Answer metrics
 
 ```bash
-mini-rag eval evals/handbook/v1 --answers
+ragolex eval evals/handbook/v1 --answers
 ```
 
 Every question is then also answered the way `POST /api/v1/ask` answers it, with the configured language model, the current answer prompt and the minimum score. A second call, the judge, grades each answer against the question's reference answer and the sources it cites. The judge uses the versioned prompt `judge-v1` at temperature 0 and replies with a verdict of yes, partly or no for each question.
@@ -124,13 +124,13 @@ A released version never changes, so its results stay comparable over time: `tes
 
 ## Tuning chunk size and overlap
 
-`mini-rag tune` runs the retrieval evaluation once per chunk size and overlap, and ranks the runs: by hit rate, then MRR, then recall, and fewer chunks between equals, since those cost less to embed and store.
+`ragolex tune` runs the retrieval evaluation once per chunk size and overlap, and ranks the runs: by hit rate, then MRR, then recall, and fewer chunks between equals, since those cost less to embed and store.
 
 ```bash
-mini-rag tune evals/handbook/v1 --chunk-sizes 500,1000,2000 --overlaps 0,200 --output tune.json
+ragolex tune evals/handbook/v1 --chunk-sizes 500,1000,2000 --overlaps 0,200 --output tune.json
 ```
 
-Each run embeds the documents again, so a sweep costs as many evaluations as it has runs. The `--search-mode`, `--top-k` and `--min-score` options are those of `mini-rag eval`; the `min score` column of the table is the lowest minimum score that would keep every answerable question while turning away the others, where one does. The [Tune workflow](../.github/workflows/tune.yml) runs the default sweep in CI with the eval job's model; start it from the Actions tab with other sizes, and read the table, or every run as JSON, in its log.
+Each run embeds the documents again, so a sweep costs as many evaluations as it has runs. The `--search-mode`, `--top-k` and `--min-score` options are those of `ragolex eval`; the `min score` column of the table is the lowest minimum score that would keep every answerable question while turning away the others, where one does. The [Tune workflow](../.github/workflows/tune.yml) runs the default sweep in CI with the eval job's model; start it from the Actions tab with other sizes, and read the table, or every run as JSON, in its log.
 
 ### What the handbook measured
 
@@ -164,14 +164,14 @@ The default, 1000 characters with 200 overlap (in bold), stays, although it rank
 - 2000-character chunks come first because they hold nearly whole documents here (13 chunks for 8 documents). That does not carry over to long documents, and it doubles what each source adds to the answer prompt.
 - Very small chunks are clearly worse: 300 characters lose up to 4 questions and need 3 to 9 times as many chunks.
 
-To choose for your own documents, measure them: export a dataset with `mini-rag feedback-export` (below) and run `mini-rag tune` on it. The defaults live in `src/mini_rag/domain/chunking.py`, and any upload can choose its own with `chunk_size` and `overlap_size`.
+To choose for your own documents, measure them: export a dataset with `ragolex feedback-export` (below) and run `ragolex tune` on it. The defaults live in `src/ragolex/domain/chunking.py`, and any upload can choose its own with `chunk_size` and `overlap_size`.
 
 ## Growing the test set from feedback
 
 People rate answers with the thumbs on the Ask page (or [the API](api.md#feedback)). Those ratings become a dataset with:
 
 ```bash
-mini-rag feedback-export my-project evals/my-project/v1
+ragolex feedback-export my-project evals/my-project/v1
 ```
 
 The new folder has the project's documents, `dataset.json` (named `my-project-feedback`, so it is never mistaken for another dataset) and two files of cases:
@@ -179,20 +179,20 @@ The new folder has the project's documents, `dataset.json` (named `my-project-fe
 - `cases.jsonl`: one case per answer rated thumbs up, with the question, the passages the answer cited as expected sources (their evidence is the start of the sentence closest to the answer), and the answer, without its markers, as reference answer.
 - `cases-to-review.jsonl`: the answers rated thumbs down, and those that cited nothing, with the comment and the passages they cited. Write the right reference answer and expected sources for each, then move it into `cases.jsonl`.
 
-Check the cases, then `mini-rag eval evals/my-project/v1` measures the project on the questions its users actually asked. Once it is right, treat it like any released version: freeze it, and give changes a new version.
+Check the cases, then `ragolex eval evals/my-project/v1` measures the project on the questions its users actually asked. Once it is right, treat it like any released version: freeze it, and give changes a new version.
 
 ## Baselines and CI
 
 `evals/baselines/handbook-v1.json` holds the parameters and metrics of the last accepted run with `nomic-embed-text:v1.5`, the model of the [Ollama setup](configuration.md#model-providers). The `eval` job in CI starts Ollama with that model next to PostgreSQL and runs:
 
 ```bash
-mini-rag eval evals/handbook/v1 --baseline evals/baselines/handbook-v1.json --output eval-report.json
+ragolex eval evals/handbook/v1 --baseline evals/baselines/handbook-v1.json --output eval-report.json
 ```
 
 A change that lowers a metric by more than the tolerance fails CI; the report is kept as the job's `eval-report` artifact. A change that raises one passes and says so: update the baseline in the same pull request, so the improvement is kept. The job prints the run's baseline at the end, ready to copy, or run:
 
 ```bash
-mini-rag eval evals/handbook/v1 --save-baseline evals/baselines/handbook-v1.json
+ragolex eval evals/handbook/v1 --save-baseline evals/baselines/handbook-v1.json
 ```
 
-A baseline is only compared with a run of the same dataset, embedding model, vector size, search mode, reranker, top k, chunking and minimum score; anything else exits with `2` before embedding anything. With `RERANK_BASE_URL` set, `mini-rag eval` measures search with the reranker, so a reranker is judged by the same numbers.
+A baseline is only compared with a run of the same dataset, embedding model, vector size, search mode, reranker, top k, chunking and minimum score; anything else exits with `2` before embedding anything. With `RERANK_BASE_URL` set, `ragolex eval` measures search with the reranker, so a reranker is judged by the same numbers.

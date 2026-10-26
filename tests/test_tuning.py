@@ -1,12 +1,12 @@
-"""`mini-rag tune`: the retrieval evaluation with each chunk size and overlap, ranked."""
+"""`ragolex tune`: the retrieval evaluation with each chunk size and overlap, ranked."""
 
 import json
 
 import pytest
 
-from mini_rag import cli
-from mini_rag.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
-from mini_rag.evaluation.tuning import Trial, grid, rank
+from ragolex import cli
+from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
+from ragolex.evaluation.tuning import Trial, grid, rank
 
 from .test_eval_command import (  # noqa: F401 - embedder is a fixture
     HANDBOOK,

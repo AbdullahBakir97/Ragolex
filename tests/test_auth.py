@@ -4,11 +4,11 @@ import asyncio
 
 import pytest
 
-from mini_rag import cli
-from mini_rag.core.config import get_settings
-from mini_rag.persistence.database import create_engine, create_session_factory
-from mini_rag.persistence.repositories import SqlUnitOfWork
-from mini_rag.services.auth_service import AuthService, hash_key
+from ragolex import cli
+from ragolex.core.config import get_settings
+from ragolex.persistence.database import create_engine, create_session_factory
+from ragolex.persistence.repositories import SqlUnitOfWork
+from ragolex.services.auth_service import AuthService, hash_key
 
 from .fakes import FakeEmbedder
 
@@ -175,7 +175,7 @@ def test_jobs_run_for_their_tenant(client, db, auth_on, run_jobs):
 
 def test_the_cli_manages_tenants_and_keys(db, capsys):
     assert cli.main(["keys", "create", "--tenant", "acme", "--name", "ci"]) == 1
-    assert "mini-rag tenants create acme" in capsys.readouterr().err
+    assert "ragolex tenants create acme" in capsys.readouterr().err
 
     assert cli.main(["tenants", "create", "acme"]) == 0
     assert "Tenant acme" in capsys.readouterr().out
