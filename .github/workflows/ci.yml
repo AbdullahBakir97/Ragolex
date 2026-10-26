@@ -79,7 +79,9 @@ jobs:
     # The web app in a real browser against the API and its database, with
     # tools/fake_models.py standing in for the models: the main flows, and axe
     # accessibility checks of every page in both themes and at phone width.
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04: Playwright 1.56 cannot install its browser on 26.04, which
+    # ubuntu-latest became.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
