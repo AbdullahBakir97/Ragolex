@@ -3373,7 +3373,7 @@
             }
           },
           "429": {
-            "description": "Signal: `rate_limited`, `answer_quota_exceeded`",
+            "description": "Signal: `rate_limited`, `answer_quota_exceeded`, `budget_exceeded`",
             "content": {
               "application/json": {
                 "examples": {
@@ -3385,6 +3385,11 @@
                   "answer_quota_exceeded": {
                     "value": {
                       "signal": "answer_quota_exceeded"
+                    }
+                  },
+                  "budget_exceeded": {
+                    "value": {
+                      "signal": "budget_exceeded"
                     }
                   }
                 },
@@ -3791,6 +3796,60 @@
             "APIKeyHeader": []
           }
         ]
+      }
+    },
+    "/api/v1/usage/history": {
+      "get": {
+        "tags": [
+          "keys"
+        ],
+        "summary": "The tenant's answers and their cost per day, project and model",
+        "description": "Over the last `days` days (UTC), today included: for a cost dashboard. Costs are those known, as in `/usage`.",
+        "operationId": "usage_history",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 366,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/audit": {
@@ -7136,6 +7195,43 @@
         ],
         "title": "ConversationResponse"
       },
+      "DayUsageResponse": {
+        "properties": {
+          "answers": {
+            "type": "integer",
+            "title": "Answers",
+            "description": "Questions asked, streamed or not."
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "description": "Known cost, in US dollars."
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day",
+            "description": "The day, in UTC."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "day"
+        ],
+        "title": "DayUsageResponse"
+      },
       "DeckRequest": {
         "properties": {
           "name": {
@@ -8033,6 +8129,49 @@
         ],
         "title": "Meter"
       },
+      "ModelShareResponse": {
+        "properties": {
+          "answers": {
+            "type": "integer",
+            "title": "Answers",
+            "description": "Questions asked, streamed or not."
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "description": "Known cost, in US dollars."
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "The language model; null for questions that matched no source, so no model was called."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "model"
+        ],
+        "title": "ModelShareResponse"
+      },
       "ProcessRequest": {
         "properties": {
           "file_id": {
@@ -8179,6 +8318,41 @@
           "embedded_chunks_count"
         ],
         "title": "ProjectResponse"
+      },
+      "ProjectShareResponse": {
+        "properties": {
+          "answers": {
+            "type": "integer",
+            "title": "Answers",
+            "description": "Questions asked, streamed or not."
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "description": "Known cost, in US dollars."
+          },
+          "project": {
+            "type": "string",
+            "title": "Project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "project"
+        ],
+        "title": "ProjectShareResponse"
       },
       "ProjectUsageResponse": {
         "properties": {
@@ -8361,6 +8535,7 @@
           "api_key_not_found",
           "rate_limited",
           "answer_quota_exceeded",
+          "budget_exceeded",
           "storage_quota_exceeded",
           "internal_error",
           "file_content_mismatch",
@@ -9255,6 +9430,18 @@
             "type": "number",
             "title": "Cost Usd",
             "description": "Known cost of this month's answers, in US dollars."
+          },
+          "budget_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Usd",
+            "description": "The monthly budget, in US dollars; null when there is none. Asking is refused once `cost_usd` reaches it."
           }
         },
         "type": "object",
@@ -9292,6 +9479,48 @@
           "file_id"
         ],
         "title": "UploadResponse"
+      },
+      "UsageHistoryResponse": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start",
+            "description": "Start of the first day counted (UTC)."
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayUsageResponse"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "Every day, oldest first; days without answers have zeros."
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectShareResponse"
+            },
+            "type": "array",
+            "title": "Projects",
+            "description": "Projects with answers in the period, costliest first."
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelShareResponse"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "Likewise, per model."
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "days",
+          "projects",
+          "models"
+        ],
+        "title": "UsageHistoryResponse"
       },
       "UsageResponse": {
         "properties": {
@@ -9481,7 +9710,8 @@
                 "file.deleted",
                 "job.succeeded",
                 "job.failed",
-                "source.synced"
+                "source.synced",
+                "budget.alert"
               ]
             },
             "type": "array",

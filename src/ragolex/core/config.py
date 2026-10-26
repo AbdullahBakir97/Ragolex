@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from ragolex.domain.file_types import CODE_TYPES
 from ragolex.domain.llm import TokenPrices
+from ragolex.domain.models import Limits
 
 BYTES_PER_MB = 1024 * 1024
 
@@ -108,6 +109,9 @@ class Settings(BaseSettings):
         default=0, ge=0, description="Answers per calendar month per tenant; 0 is unlimited")
     STORAGE_MB_PER_TENANT: int = Field(
         default=0, ge=0, description="Megabytes of uploaded files per tenant; 0 is unlimited")
+    BUDGET_USD_PER_MONTH: float = Field(
+        default=0, ge=0, le=1_000_000_000,
+        description="US dollars of answers per calendar month per tenant; 0 is unlimited")
     STUDY_MAX_CHARACTERS: int = Field(
         default=32_000, ge=1_000, le=1_000_000,
         description="Characters of a document given to the model for study material; a longer "
@@ -181,6 +185,14 @@ class Settings(BaseSettings):
             return None
         return TokenPrices(input_per_million=self.LLM_INPUT_PRICE_PER_MILLION,
                            output_per_million=self.LLM_OUTPUT_PRICE_PER_MILLION)
+
+    @property
+    def default_limits(self) -> Limits:
+        """What a tenant may use when its own limits do not say otherwise."""
+        return Limits(requests_per_minute=self.RATE_LIMIT_PER_MINUTE,
+                      answers_per_month=self.ANSWERS_PER_MONTH,
+                      storage_mb=self.STORAGE_MB_PER_TENANT,
+                      budget_usd_per_month=self.BUDGET_USD_PER_MONTH)
 
     @property
     def max_upload_bytes(self) -> int:

@@ -103,7 +103,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] Structured logs (text or JSON) with a request id on every line and response, and the tenant.
 - [x] Prometheus metrics: traffic by route, answers, tokens and cost, uploads, jobs and webhook deliveries ([Operations](operations.md#metrics)).
 - [x] OpenTelemetry tracing of requests, database queries, searches, answers and jobs ([Operations](operations.md#tracing)).
-- [ ] Cost dashboards and budget alerts.
+- [x] Cost dashboards and budget alerts ([Operations](operations.md#budgets-and-cost)).
 - [x] Backups with tested restores.
 - [x] Type checking (`mypy`) and a coverage threshold (95% of lines and branches) in CI.
 

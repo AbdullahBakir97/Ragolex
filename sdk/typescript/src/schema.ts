@@ -644,6 +644,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tenant's answers and their cost per day, project and model
+         * @description Over the last `days` days (UTC), today included: for a cost dashboard. Costs are those known, as in `/usage`.
+         */
+        get: operations["usage_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -1475,6 +1495,29 @@ export interface components {
              */
             widget_id?: string | null;
         };
+        /** DayUsageResponse */
+        DayUsageResponse: {
+            /**
+             * Answers
+             * @description Questions asked, streamed or not.
+             */
+            answers: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /**
+             * Cost Usd
+             * @description Known cost, in US dollars.
+             */
+            cost_usd: number;
+            /**
+             * Day
+             * Format: date
+             * @description The day, in UTC.
+             */
+            day: string;
+        };
         /** DeckRequest */
         DeckRequest: {
             /** Name */
@@ -1862,6 +1905,28 @@ export interface components {
              */
             limit: number | null;
         };
+        /** ModelShareResponse */
+        ModelShareResponse: {
+            /**
+             * Answers
+             * @description Questions asked, streamed or not.
+             */
+            answers: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /**
+             * Cost Usd
+             * @description Known cost, in US dollars.
+             */
+            cost_usd: number;
+            /**
+             * Model
+             * @description The language model; null for questions that matched no source, so no model was called.
+             */
+            model: string | null;
+        };
         /** ProcessRequest */
         ProcessRequest: {
             /**
@@ -1934,6 +1999,25 @@ export interface components {
              * @description Chunks that are indexed for search; equals chunks_count when the index is complete.
              */
             embedded_chunks_count: number;
+        };
+        /** ProjectShareResponse */
+        ProjectShareResponse: {
+            /**
+             * Answers
+             * @description Questions asked, streamed or not.
+             */
+            answers: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /**
+             * Cost Usd
+             * @description Known cost, in US dollars.
+             */
+            cost_usd: number;
+            /** Project */
+            project: string;
         };
         /** ProjectUsageResponse */
         ProjectUsageResponse: {
@@ -2014,7 +2098,7 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
         /** ReviewCardResponse */
         ReviewCardResponse: {
             /** Id */
@@ -2436,6 +2520,11 @@ export interface components {
              * @description Known cost of this month's answers, in US dollars.
              */
             cost_usd: number;
+            /**
+             * Budget Usd
+             * @description The monthly budget, in US dollars; null when there is none. Asking is refused once `cost_usd` reaches it.
+             */
+            budget_usd?: number | null;
         };
         /** UploadResponse */
         UploadResponse: {
@@ -2446,6 +2535,30 @@ export interface components {
              * @example a16q20nzrtvj_notes.txt
              */
             file_id: string;
+        };
+        /** UsageHistoryResponse */
+        UsageHistoryResponse: {
+            /**
+             * Start
+             * Format: date-time
+             * @description Start of the first day counted (UTC).
+             */
+            start: string;
+            /**
+             * Days
+             * @description Every day, oldest first; days without answers have zeros.
+             */
+            days: components["schemas"]["DayUsageResponse"][];
+            /**
+             * Projects
+             * @description Projects with answers in the period, costliest first.
+             */
+            projects: components["schemas"]["ProjectShareResponse"][];
+            /**
+             * Models
+             * @description Likewise, per model.
+             */
+            models: components["schemas"]["ModelShareResponse"][];
         };
         /** UsageResponse */
         UsageResponse: {
@@ -2523,7 +2636,7 @@ export interface components {
              * Events
              * @description The events to send.
              */
-            events: ("file.uploaded" | "file.deleted" | "job.succeeded" | "job.failed" | "source.synced")[];
+            events: ("file.uploaded" | "file.deleted" | "job.succeeded" | "job.failed" | "source.synced" | "budget.alert")[];
             /** Description */
             description?: string | null;
         };
@@ -4439,7 +4552,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Signal: `rate_limited`, `answer_quota_exceeded` */
+            /** @description Signal: `rate_limited`, `answer_quota_exceeded`, `budget_exceeded` */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4663,6 +4776,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TenantUsageResponse"];
+                };
+            };
+        };
+    };
+    usage_history: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

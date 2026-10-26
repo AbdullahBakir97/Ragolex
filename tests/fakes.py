@@ -41,6 +41,8 @@ from ragolex.domain.models import (
     Tenant,
     TenantUsage,
     UnembeddedChunk,
+    UsageHistory,
+    UsageTotal,
     UsageTotals,
     Webhook,
     WebhookDelivery,
@@ -404,7 +406,8 @@ class FakeJobs:
 
 class FakeWebhooks:
 
-    def __init__(self):
+    def __init__(self, projects: "FakeProjects | None" = None):
+        self.projects = projects
         self.by_id: dict[str, Webhook] = {}
         self.deliveries: dict[str, WebhookDelivery] = {}
 
@@ -439,6 +442,11 @@ class FakeWebhooks:
         for webhook in subscribed:
             await self.add_delivery(webhook.id, event, payload)
         return len(subscribed)
+
+    async def enqueue_for_tenant(self, tenant_id: int, event: str, payload) -> int:
+        projects = self.projects.by_name.values() if self.projects else []
+        return sum([await self.enqueue(project.id, event, payload)
+                    for project in projects if project.tenant_id == tenant_id])
 
     async def add_delivery(self, webhook_id: str, event: str, payload) -> WebhookDelivery:
         now = datetime.now(UTC)
@@ -512,11 +520,13 @@ class FakeTenants:
 
 
 class FakeUsage:
-    """Counts requests per minute of the wall clock; usage is set by tests."""
+    """Counts requests per minute of the wall clock; usage and history are set by tests."""
 
     def __init__(self):
         self.counts: dict[tuple[int, datetime], int] = {}
         self.usage: dict[int, TenantUsage] = {}
+        self.histories: dict[int, UsageHistory] = {}
+        self.budget_alerts: set[tuple[int, datetime, int]] = set()
 
     async def count_request(self, tenant_id: int) -> tuple[int, datetime]:
         window = datetime.now(UTC).replace(second=0, microsecond=0)
@@ -528,6 +538,22 @@ class FakeUsage:
         return self.usage.get(tenant_id, TenantUsage(period_start=start, answers=0, input_tokens=0,
                                                       output_tokens=0, cost_usd=0.0,
                                                       storage_bytes=0))
+
+    async def history(self, tenant_id: int, days: int) -> UsageHistory:
+        if tenant_id in self.histories:
+            return self.histories[tenant_id]
+        today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        start = today - timedelta(days=days - 1)
+        return UsageHistory(start=start, projects=[], models=[], days=[
+            UsageTotal((start + timedelta(days=offset)).date().isoformat(), 0, 0, 0, 0.0)
+            for offset in range(days)])
+
+    async def add_budget_alert(self, tenant_id: int, threshold: int) -> bool:
+        alert = (tenant_id, (await self.tenant_usage(tenant_id)).period_start, threshold)
+        if alert in self.budget_alerts:
+            return False
+        self.budget_alerts.add(alert)
+        return True
 
 
 class FakeApiKeys:
@@ -783,7 +809,7 @@ class FakeUnitOfWork:
         self.answers = FakeAnswers()
         self.conversations = FakeConversations()
         self.jobs = FakeJobs(self.projects, self.files)
-        self.webhooks = FakeWebhooks()
+        self.webhooks = FakeWebhooks(self.projects)
         self.widgets = FakeWidgets(self.projects)
         self.audit = FakeAudit()
         self.sources = FakeSources(self.projects, self.files)

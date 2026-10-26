@@ -40,6 +40,7 @@ import type {
   StudyKind,
   StudyMaterial,
   TenantUsage,
+  UsageHistory,
   UploadResult,
   Webhook,
   WebhookDelivery,
@@ -247,6 +248,7 @@ export const api = {
   study: (name: string, fileId: string, kind: StudyKind, count: number) =>
     post<StudyMaterial>(`/study/${project(name)}`, { file_id: fileId, kind, count }),
   tenantUsage: () => get<TenantUsage>("/usage"),
+  usageHistory: (days = 30) => get<UsageHistory>("/usage/history", { days }),
   webhooks: (name: string, page: PageParams = {}) =>
     get<Page<Webhook>>(`/projects/${project(name)}/webhooks`, { offset: page.offset ?? 0, limit: page.limit ?? 100 }),
   createWebhook: (name: string, body: { url: string; events: WebhookEvent[]; description?: string | null }) =>

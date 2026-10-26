@@ -27,6 +27,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `RATE_LIMIT_PER_MINUTE` | `0` | Requests per minute per tenant (`429` beyond it); `0` is unlimited. `ragolex tenants limits` sets a tenant's own |
 | `ANSWERS_PER_MONTH` | `0` | Answers per calendar month (UTC) per tenant; `0` is unlimited |
 | `STORAGE_MB_PER_TENANT` | `0` | Megabytes of uploaded files per tenant; `0` is unlimited |
+| `BUDGET_USD_PER_MONTH` | `0` | US dollars that each tenant's answers may cost per calendar month (UTC); `0` is unlimited. Alerts at 80% and 100%, then refuses answers; needs the model's prices. `ragolex tenants limits <tenant> --budget-usd` overrides it per tenant. See [API › Budgets](api.md#budgets-and-their-alerts) |
 | `JOB_WORKERS` | `1` | Background jobs the API runs at once (0–32); above 0, the API also sends webhook deliveries. `0` leaves both to `ragolex worker` processes, for an API that only queues them |
 | `JOB_MAX_ATTEMPTS` | `3` | Tries per job (1–10) when the embedding provider fails, before the job fails |
 | `WEBHOOK_ALLOW_PRIVATE_URLS` | `false` | Let webhooks reach `localhost` and private networks, e.g. n8n next to the API. Off, they reach only public addresses |

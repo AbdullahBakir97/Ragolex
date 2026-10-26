@@ -72,6 +72,20 @@ class TenantRow(Base):
     requests_per_minute: Mapped[int | None] = mapped_column(Integer)
     answers_per_month: Mapped[int | None] = mapped_column(Integer)
     storage_mb: Mapped[int | None] = mapped_column(Integer)
+    budget_usd_per_month: Mapped[float | None] = mapped_column(Numeric(12, 2, asdecimal=False))
+
+
+class BudgetAlertRow(Base):
+    """A budget threshold a tenant reached in a month: each is announced once."""
+
+    __tablename__ = "budget_alerts"
+
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    # Percent of the budget: 80 or 100.
+    threshold: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = _created_at()
 
 
 class RequestCountRow(Base):
@@ -251,6 +265,8 @@ class AnswerRow(Base):
     # US dollars; NULL when the tokens or the model's prices are unknown.
     cost_usd: Mapped[float | None] = mapped_column(Numeric(14, 8, asdecimal=False))
     created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (Index("ix_answers_project_id_created_at", "project_id", "created_at"),)
 
 
 class WidgetRow(Base):

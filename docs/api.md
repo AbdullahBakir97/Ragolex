@@ -106,13 +106,14 @@ Deleting a tenant deletes each of its projects as `DELETE /api/v1/projects/{proj
 
 ## Rate limits and quotas
 
-Each tenant can have three limits. The server's settings give the defaults (`RATE_LIMIT_PER_MINUTE`, `ANSWERS_PER_MONTH`, `STORAGE_MB_PER_TENANT`; `0`, the default, is unlimited), and `ragolex tenants limits <tenant> --requests-per-minute N --answers-per-month N --storage-mb N` gives a tenant its own (a number, `0` for unlimited, or `default`).
+Each tenant can have four limits. The server's settings give the defaults (`RATE_LIMIT_PER_MINUTE`, `ANSWERS_PER_MONTH`, `STORAGE_MB_PER_TENANT`, `BUDGET_USD_PER_MONTH`; `0`, the default, is unlimited), and `ragolex tenants limits <tenant> --requests-per-minute N --answers-per-month N --storage-mb N --budget-usd USD` gives a tenant its own (a number, `0` for unlimited, or `default`).
 
 | Limit | When it is reached | Response |
 |---|---|---|
 | Requests per minute | Counted per minute of the clock, across every API process; health checks are not counted | `429` `{"signal": "rate_limited"}` with `Retry-After` (seconds) |
 | Answers per calendar month (UTC) | Asking (`/ask` and `/ask/.../stream`) is refused; search still works | `429` `{"signal": "answer_quota_exceeded"}` |
 | Megabytes of stored files | An upload that would not fit is refused and removed; content already stored costs nothing | `413` `{"signal": "storage_quota_exceeded"}` |
+| US dollars of answers per calendar month (UTC) | Once this month's answers cost the budget, asking is refused; search still works | `429` `{"signal": "budget_exceeded"}` |
 
 Questions asked through a [chat widget](#chat-widget) count against the limits of the widget's tenant, like any other.
 
@@ -121,10 +122,36 @@ With a rate limit, every response carries `X-RateLimit-Limit`, `X-RateLimit-Rema
 ```json
 {"tenant": "acme", "period_start": "2026-10-01T00:00:00Z", "requests_per_minute": 600,
  "answers": {"used": 5, "limit": 50}, "storage_bytes": {"used": 1997, "limit": 10485760},
- "input_tokens": 4500, "output_tokens": 150, "cost_usd": 0.00204}
+ "input_tokens": 4500, "output_tokens": 150, "cost_usd": 0.00204, "budget_usd": 25.0}
 ```
 
-A `limit` of `null` is unlimited.
+A `limit` or `budget_usd` of `null` is unlimited.
+
+### Budgets and their alerts
+
+A budget counts what answers cost, so it needs the model's prices (`LLM_INPUT_PRICE_PER_MILLION` and `LLM_OUTPUT_PRICE_PER_MILLION`); answers of unknown cost are not counted. An answer is allowed while this month's cost is under the budget, so the last one can take it a little over.
+
+When the month's cost reaches 80% and then 100% of the budget, the tenant is alerted once each per month:
+
+- a [`budget.alert`](#webhooks) event to every webhook of the tenant's projects that subscribes to it;
+- a `budget.alert` event in the [audit log](#audit-log);
+- a warning in the API's log;
+- the `ragolex_budget_alerts_total` metric (see [Operations](operations.md#budgets-and-cost)).
+
+### Cost history
+
+`GET /api/v1/usage/history?days=30` (1 to 366 days, today included) gives the tenant's answers per day (UTC, days without answers included, oldest first), per project and per model (costliest first), for a cost dashboard. The web app's Usage page charts it.
+
+```json
+{"start": "2026-09-19T00:00:00Z",
+ "days": [{"day": "2026-09-19", "answers": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}, …,
+          {"day": "2026-10-18", "answers": 12, "input_tokens": 14160, "output_tokens": 492, "cost_usd": 0.0064512}],
+ "projects": [{"project": "handbook", "answers": 12, "input_tokens": 14160, "output_tokens": 492, "cost_usd": 0.0064512}],
+ "models": [{"model": "gpt-4o-mini", "answers": 9, "input_tokens": 14160, "output_tokens": 492, "cost_usd": 0.0064512},
+            {"model": null, "answers": 3, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}]}
+```
+
+A `model` of `null` counts the questions that matched no source, for which no model was called.
 
 ## Endpoints
 
@@ -135,6 +162,7 @@ A `limit` of `null` is unlimited.
 | `GET` | `/api/v1/health` | `200` `{"status": "ok", "database": "ok"}`, or `503` when the database is unreachable |
 | `GET` | `/api/v1/me` | The tenant and scopes of the API key used |
 | `GET` | `/api/v1/usage` | The tenant's usage this month, against its limits |
+| `GET` | `/api/v1/usage/history` | The tenant's answers and their cost per day, project and model |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |
 | `GET` | `/api/v1/export` | Everything the tenant has as a ZIP archive (`admin`); see [Export](#export-and-delete-a-tenants-data) |
 | `POST` | `/api/v1/mcp` | Model Context Protocol server: the tools below, for agents |
@@ -455,6 +483,7 @@ The `secret` is returned only by this call; keep it to check signatures. Adding 
 | `job.succeeded` | A background job processed and indexed its file | `job_id`, `file_id`, `status`, `chunks_count`, `error`, `attempts` |
 | `job.failed` | A background job failed, after its last attempt | The same, with the failure's signal in `error` |
 | `source.synced` | A website source was synced | `source_id`, `url`, `added`, `updated`, `removed`, `unchanged`, and `error` when the site could not be crawled |
+| `budget.alert` | The tenant's answers this month cost 80%, then 100%, of its [budget](#budgets-and-their-alerts); sent to every webhook of the tenant that subscribes to it, with the project of the answer that reached it | `threshold_percent`, `budget_usd`, `cost_usd`, `period_start` |
 | `ping` | Sent by `POST .../ping`, whatever the webhook's events | `webhook_id` |
 
 Each delivery is a `POST` with a JSON body:

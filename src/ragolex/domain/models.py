@@ -89,6 +89,7 @@ class Tenant:
     requests_per_minute: int | None = None
     answers_per_month: int | None = None
     storage_mb: int | None = None
+    budget_usd_per_month: float | None = None
 
 
 @dataclass(frozen=True)
@@ -98,6 +99,7 @@ class Limits:
     requests_per_minute: int = 0
     answers_per_month: int = 0
     storage_mb: int = 0
+    budget_usd_per_month: float = 0
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,31 @@ class TenantUsage:
     output_tokens: int
     cost_usd: float
     storage_bytes: int
+
+
+@dataclass(frozen=True)
+class UsageTotal:
+    """Answers, tokens and known cost of a day, a project or a model."""
+
+    key: str | None
+    answers: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+
+
+@dataclass(frozen=True)
+class UsageHistory:
+    """A tenant's answers since ``start`` (UTC): per day, oldest first, and per project and model.
+
+    Days without answers are included, with zeros; ``key`` is the day as
+    YYYY-MM-DD, the project's name, or the model's (None when it was not called).
+    """
+
+    start: datetime
+    days: list[UsageTotal]
+    projects: list[UsageTotal]
+    models: list[UsageTotal]
 
 
 @dataclass(frozen=True)
@@ -322,7 +349,7 @@ class Job:
 
 # What webhooks can subscribe to; "ping" is sent on request, to any webhook.
 WEBHOOK_EVENTS = ("file.uploaded", "file.deleted", "job.succeeded", "job.failed",
-                  "source.synced")
+                  "source.synced", "budget.alert")
 
 
 @dataclass(frozen=True)

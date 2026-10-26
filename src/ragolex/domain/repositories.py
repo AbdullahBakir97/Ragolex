@@ -35,6 +35,7 @@ from .models import (
     Tenant,
     TenantUsage,
     UnembeddedChunk,
+    UsageHistory,
     UsageTotals,
     Webhook,
     WebhookDelivery,
@@ -58,7 +59,8 @@ class TenantRepository(Protocol):
         """Delete the tenant with what is left of it (keys, audit log); False if there was none."""
         ...
 
-    async def set_limits(self, tenant_id: int, limits: Mapping[str, int | None]) -> None:
+    async def set_limits(self, tenant_id: int,
+                         limits: Mapping[str, int | float | None]) -> None:
         """Change the limits named in ``limits``; None returns one to the server's default."""
         ...
 
@@ -71,6 +73,17 @@ class UsageRepository(Protocol):
 
     async def tenant_usage(self, tenant_id: int) -> TenantUsage:
         """Answers and tokens this calendar month (UTC), and the bytes of files stored."""
+        ...
+
+    async def history(self, tenant_id: int, days: int) -> UsageHistory:
+        """The tenant's answers of the last ``days`` days (UTC), today included."""
+        ...
+
+    async def add_budget_alert(self, tenant_id: int, threshold: int) -> bool:
+        """Note that the tenant reached ``threshold`` percent of this month's budget.
+
+        False when that was noted before this month: each alert is sent once.
+        """
         ...
 
 
@@ -329,6 +342,11 @@ class WebhookRepository(Protocol):
         Returns how many were queued. Called in the transaction that makes
         the change, so an event is sent exactly when the change is saved.
         """
+        ...
+
+    async def enqueue_for_tenant(self, tenant_id: int, event: str,
+                                 payload: Mapping[str, Any]) -> int:
+        """Like ``enqueue``, to the webhooks of all the tenant's projects: for its own events."""
         ...
 
     async def add_delivery(self, webhook_id: str, event: str,

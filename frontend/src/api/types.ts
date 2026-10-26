@@ -103,6 +103,26 @@ export interface TenantUsage {
   input_tokens: number;
   output_tokens: number;
   cost_usd: number;
+  /** The monthly budget in US dollars; null when there is none. */
+  budget_usd: number | null;
+}
+
+/** Answers, tokens and known cost of a day, a project or a model. */
+export interface UsageTotal {
+  answers: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
+export interface UsageHistory {
+  start: string;
+  /** Every day (UTC), oldest first. */
+  days: (UsageTotal & { day: string })[];
+  /** Costliest first. */
+  projects: (UsageTotal & { project: string })[];
+  /** `model` is null for questions that matched no source. */
+  models: (UsageTotal & { model: string | null })[];
 }
 
 export interface Me {
@@ -264,7 +284,14 @@ export interface ConversationDetail extends Conversation {
   messages: ConversationMessage[];
 }
 
-export const WEBHOOK_EVENTS = ["file.uploaded", "file.deleted", "job.succeeded", "job.failed", "source.synced"] as const;
+export const WEBHOOK_EVENTS = [
+  "file.uploaded",
+  "file.deleted",
+  "job.succeeded",
+  "job.failed",
+  "source.synced",
+  "budget.alert",
+] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
 export interface Webhook {

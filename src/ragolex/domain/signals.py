@@ -46,6 +46,7 @@ class ResponseSignal(Enum):
     API_KEY_NOT_FOUND = "api_key_not_found"
     RATE_LIMITED = "rate_limited"
     ANSWER_QUOTA_EXCEEDED = "answer_quota_exceeded"
+    BUDGET_EXCEEDED = "budget_exceeded"
     STORAGE_QUOTA_EXCEEDED = "storage_quota_exceeded"
     INTERNAL_ERROR = "internal_error"
     FILE_CONTENT_MISMATCH = "file_content_mismatch"

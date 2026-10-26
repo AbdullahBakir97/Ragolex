@@ -101,9 +101,7 @@ class SourceSyncer:
                    allowed_types=settings.FILE_ALLOWED_TYPES,
                    max_bytes=settings.max_upload_bytes, read_size=settings.FILE_DEFAULT_CHUNK_SIZE,
                    max_attempts=settings.JOB_MAX_ATTEMPTS, scanner=scanner,
-                   limits=Limits(requests_per_minute=settings.RATE_LIMIT_PER_MINUTE,
-                                 answers_per_month=settings.ANSWERS_PER_MONTH,
-                                 storage_mb=settings.STORAGE_MB_PER_TENANT))
+                   limits=settings.default_limits)
 
     async def run(self) -> None:
         """Sync sources as they fall due, until cancelled."""

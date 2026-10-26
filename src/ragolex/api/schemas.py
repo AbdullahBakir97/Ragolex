@@ -1,7 +1,7 @@
 """Request and response models, and the shared ID types used by routes."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -487,7 +487,7 @@ class JobListResponse(BaseModel):
 
 WebhookIdPath = Annotated[UUID, Path(description="The webhook's id.")]
 WebhookEvent = Literal["file.uploaded", "file.deleted", "job.succeeded", "job.failed",
-                       "source.synced"]
+                       "source.synced", "budget.alert"]
 
 
 class WebhookRequest(BaseModel):
@@ -617,6 +617,38 @@ class TenantUsageResponse(BaseModel):
     input_tokens: int = Field(description="Prompt tokens of this month's answers.")
     output_tokens: int
     cost_usd: float = Field(description="Known cost of this month's answers, in US dollars.")
+    budget_usd: float | None = Field(
+        default=None, description="The monthly budget, in US dollars; null when there is none. "
+                                  "Asking is refused once `cost_usd` reaches it.")
+
+
+class UsageTotalResponse(BaseModel):
+    answers: int = Field(description="Questions asked, streamed or not.")
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float = Field(description="Known cost, in US dollars.")
+
+
+class DayUsageResponse(UsageTotalResponse):
+    day: date = Field(description="The day, in UTC.")
+
+
+class ProjectShareResponse(UsageTotalResponse):
+    project: str
+
+
+class ModelShareResponse(UsageTotalResponse):
+    model: str | None = Field(description="The language model; null for questions that "
+                                          "matched no source, so no model was called.")
+
+
+class UsageHistoryResponse(BaseModel):
+    start: datetime = Field(description="Start of the first day counted (UTC).")
+    days: list[DayUsageResponse] = Field(description="Every day, oldest first; days without "
+                                                     "answers have zeros.")
+    projects: list[ProjectShareResponse] = Field(description="Projects with answers in the "
+                                                             "period, costliest first.")
+    models: list[ModelShareResponse] = Field(description="Likewise, per model.")
 
 
 

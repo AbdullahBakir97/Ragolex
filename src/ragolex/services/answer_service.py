@@ -18,6 +18,7 @@ from ragolex.domain.repositories import UnitOfWork
 from ragolex.prompts.answer import ANSWER_PROMPT, NO_ANSWER, AnswerPrompt
 from ragolex.prompts.condense import CONDENSE_PROMPT, CondensePrompt
 from ragolex.prompts.research import RESEARCH_PROMPT, ResearchPrompt
+from ragolex.services.limit_service import LimitService
 from ragolex.services.search_service import SearchService
 
 # The usage of an answer for which the model was not called.
@@ -110,7 +111,8 @@ class AnswerService:
     def __init__(self, search: SearchService, llm: LLM, uow: UnitOfWork, min_score: float,
                  prices: TokenPrices | None = None, prompt: AnswerPrompt = ANSWER_PROMPT,
                  condense_prompt: CondensePrompt = CONDENSE_PROMPT,
-                 research_prompt: ResearchPrompt = RESEARCH_PROMPT, max_research_steps: int = 3):
+                 research_prompt: ResearchPrompt = RESEARCH_PROMPT, max_research_steps: int = 3,
+                 limits: LimitService | None = None):
         self.search = search
         self.llm = llm
         self.uow = uow
@@ -120,6 +122,8 @@ class AnswerService:
         self.condense_prompt = condense_prompt
         self.research_prompt = research_prompt
         self.max_research_steps = max_research_steps
+        # Sends the tenant's budget alerts as answers cost money.
+        self.limits = limits
 
     async def ask(self, project_name: str, question: str, top_k: int,
                   min_score: float | None = None, conversation_id: str | None = None,
@@ -322,6 +326,8 @@ class AnswerService:
                     search_question=answer.search_question),
             ], title=None if conversation.title else _title(prepared.question))
             answer = replace(answer, message_id=message_id)
+        if self.limits is not None and answer.cost_usd:
+            await self.limits.note_spending(prepared.project)
         await self.uow.commit()
         ANSWERS.labels(answered=str(answer.text is not None).lower()).inc()
         if model_called and answer.usage:
