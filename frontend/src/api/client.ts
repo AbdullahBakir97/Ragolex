@@ -32,6 +32,11 @@ import type {
   SearchOptions,
   SearchResult,
   TagCount,
+  ApiKeyInfo,
+  AuditEvent,
+  CreatedApiKey,
+  EvaluationRun,
+  Scope,
   Card,
   Deck,
   NewCard,
@@ -248,6 +253,17 @@ export const api = {
   study: (name: string, fileId: string, kind: StudyKind, count: number) =>
     post<StudyMaterial>(`/study/${project(name)}`, { file_id: fileId, kind, count }),
   tenantUsage: () => get<TenantUsage>("/usage"),
+  keys: () => get<ApiKeyInfo[]>("/keys"),
+  createKey: (name: string, scopes: Scope[]) => post<CreatedApiKey>("/keys", { name, scopes }),
+  revokeKey: (keyId: string) => remove(`/keys/${encodeURIComponent(keyId)}`),
+  audit: (page: PageParams = {}, action?: string) =>
+    get<Page<AuditEvent>>("/audit", {
+      offset: page.offset ?? 0,
+      limit: page.limit ?? 20,
+      ...(action ? { action } : {}),
+    }),
+  evaluations: (page: PageParams = {}) =>
+    get<Page<EvaluationRun>>("/evaluations", { offset: page.offset ?? 0, limit: page.limit ?? 50 }),
   usageHistory: (days = 30) => get<UsageHistory>("/usage/history", { days }),
   webhooks: (name: string, page: PageParams = {}) =>
     get<Page<Webhook>>(`/projects/${project(name)}/webhooks`, { offset: page.offset ?? 0, limit: page.limit ?? 100 }),

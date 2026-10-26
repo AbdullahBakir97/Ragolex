@@ -380,6 +380,49 @@ export interface SourcePage {
   synced_at: string;
 }
 
+export type Scope = "read" | "write" | "ask" | "admin";
+export const SCOPES: Scope[] = ["read", "write", "ask", "admin"];
+
+export interface ApiKeyInfo {
+  id: string;
+  name: string;
+  /** The start of the key, to recognise it. */
+  prefix: string;
+  scopes: Scope[];
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+/** A new key: `key` is returned only this once. */
+export interface CreatedApiKey extends ApiKeyInfo {
+  key: string;
+}
+
+export interface AuditEvent {
+  id: number;
+  action: string;
+  target: string | null;
+  details: Record<string, unknown>;
+  /** The key that did it; null for the server's operators. */
+  actor: { key_id: string; name: string | null } | null;
+  request_id: string | null;
+  created_at: string;
+}
+
+export interface EvaluationRun {
+  id: string;
+  dataset: string;
+  dataset_version: string | null;
+  cases: number;
+  parameters: Record<string, string | number | null>;
+  /** Retrieval: hit_rate, recall, mrr, above_min_score, rejected (0 to 1, or null). */
+  metrics: Record<string, number | null>;
+  /** Answers, when the run answered: answered, abstained, citation_precision, grounded, correct. */
+  answer_metrics: Record<string, number | null> | null;
+  version: string;
+  created_at: string;
+}
 export type StudyKind = "summary" | "flashcards" | "quiz";
 
 /** Items cite their passages by number, in `sources`. */

@@ -18,6 +18,7 @@ from .models import (
     Conversation,
     ConversationMessage,
     Deck,
+    EvaluationRun,
     Feedback,
     FeedbackCounts,
     FileRecord,
@@ -493,6 +494,20 @@ class DeckRepository(Protocol):
         ...
 
 
+class EvaluationRunRepository(Protocol):
+
+    async def add(self, *, tenant_id: int, dataset: str, dataset_version: str | None,
+                  cases: int, parameters: Mapping[str, Any], metrics: Mapping[str, Any],
+                  answer_metrics: Mapping[str, Any] | None, version: str) -> EvaluationRun: ...
+
+    async def list_for_tenant(self, tenant_id: int, *, dataset: str | None, offset: int,
+                              limit: int) -> list[EvaluationRun]:
+        """Newest first; only runs of ``dataset`` when it is given."""
+        ...
+
+    async def count_for_tenant(self, tenant_id: int, *, dataset: str | None) -> int: ...
+
+
 class UnitOfWork(Protocol):
     """Repositories that share one transaction.
 
@@ -512,6 +527,7 @@ class UnitOfWork(Protocol):
     tenants: TenantRepository
     api_keys: ApiKeyRepository
     usage: UsageRepository
+    evaluations: EvaluationRunRepository
     decks: DeckRepository
 
     async def commit(self) -> None: ...

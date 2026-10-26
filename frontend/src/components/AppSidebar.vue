@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpen, FolderOpen, KeyRound, LayoutGrid, LogOut, Plus, Search, X } from "@lucide/vue";
+import { BookOpen, FolderOpen, KeyRound, LayoutGrid, LogOut, Plus, Search, ShieldCheck, X } from "@lucide/vue";
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
@@ -50,6 +50,9 @@ onMounted(async () => {
     <nav class="nav">
       <RouterLink to="/" class="nav-item" exact-active-class="active">
         <LayoutGrid :size="16" /> All projects
+      </RouterLink>
+      <RouterLink to="/admin" class="nav-item" active-class="active">
+        <ShieldCheck :size="16" /> Admin
       </RouterLink>
     </nav>
 

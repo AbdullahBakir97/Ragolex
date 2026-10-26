@@ -72,6 +72,20 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 
 `actor` is the API key that did it, with its name; it is `null` for the server's operators: the command line, or requests while authentication is off. `request_id` matches the request's `X-Request-ID` and its log lines. Events are kept as long as the tenant; a revoked key still shows by name.
 
+## Evaluation runs
+
+Every `ragolex eval` run is recorded for a tenant (the default tenant, or `--tenant <name>`): its dataset, parameters and metrics. `GET /api/v1/evaluations` (`admin` scope) lists them, most recent first, `?dataset=handbook` for one dataset, to follow retrieval and answer quality as documents, models and settings change. See [Evaluation](evaluation.md).
+
+```json
+{"id": "7c1e…", "dataset": "handbook", "dataset_version": "v1", "cases": 53,
+ "parameters": {"dataset": "handbook/v1", "embedding_model": "nomic-embed-text:v1.5", "search_mode": "hybrid",
+                "reranker": null, "top_k": 5, "chunk_size": 1000, "overlap_size": 200, "min_score": 0.3, "…": "…"},
+ "metrics": {"hit_rate": 0.957, "recall": 0.957, "mrr": 0.902, "above_min_score": 0.957, "rejected": 0.714, "…": "…"},
+ "answer_metrics": null, "version": "0.1.0", "created_at": "2026-10-19T09:12:44Z"}
+```
+
+`answer_metrics` holds the answers' metrics (`answered`, `abstained`, `citation_precision`, `grounded`, `correct`) when the run answered the questions (`--answers`). Metrics compare only between runs with the same `parameters`.
+
 ## Export and delete a tenant's data
 
 `GET /api/v1/export` (`admin` scope) returns everything the tenant has as one ZIP archive, for a backup, a move to another server, or a data request:
@@ -165,6 +179,7 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/api/v1/usage/history` | The tenant's answers and their cost per day, project and model |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |
 | `GET` | `/api/v1/export` | Everything the tenant has as a ZIP archive (`admin`); see [Export](#export-and-delete-a-tenants-data) |
+| `GET` | `/api/v1/evaluations` | The tenant's evaluation runs with their metrics, most recent first (paged; `?dataset=` filters; `admin`) |
 | `POST` | `/api/v1/mcp` | Model Context Protocol server: the tools below, for agents |
 | `GET` | `/api/v1/tools` | The same tools as function-calling schemas |
 | `GET` | `/api/v1/keys` | The tenant's API keys (`admin`) |

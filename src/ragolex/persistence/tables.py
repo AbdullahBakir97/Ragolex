@@ -414,6 +414,26 @@ class WebhookDeliveryRow(Base):
 
 
 
+class EvaluationRunRow(Base):
+    """A `ragolex eval` run's parameters and metrics, for the admin dashboard."""
+
+    __tablename__ = "evaluation_runs"
+    __table_args__ = (
+        Index("ix_evaluation_runs_tenant_id_created_at", "tenant_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    dataset: Mapped[str] = mapped_column(String(255))
+    dataset_version: Mapped[str | None] = mapped_column(String(64))
+    cases: Mapped[int] = mapped_column(Integer)
+    parameters: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    answer_metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    version: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = _created_at()
+
+
 class DeckRow(Base):
     """Flashcards to learn by spaced repetition, from a project's documents."""
 

@@ -47,6 +47,7 @@ from ragolex.domain.models import (
     ConversationMessage,
     Deck,
     DeliveryStatus,
+    EvaluationRun,
     Feedback,
     FeedbackCounts,
     FileRecord,
@@ -82,6 +83,7 @@ from ragolex.domain.repositories import (
     ChunkRepository,
     ConversationRepository,
     DeckRepository,
+    EvaluationRunRepository,
     FileRepository,
     JobRepository,
     ProjectRepository,
@@ -103,6 +105,7 @@ from .tables import (
     ConversationMessageRow,
     ConversationRow,
     DeckRow,
+    EvaluationRunRow,
     FileRow,
     JobRow,
     ProjectRow,
@@ -1402,6 +1405,49 @@ class SqlDeckRepository:
         return _card(row) if row else None
 
 
+def _evaluation_run(row: EvaluationRunRow) -> EvaluationRun:
+    return EvaluationRun(id=row.id, tenant_id=row.tenant_id, dataset=row.dataset,
+                         dataset_version=row.dataset_version, cases=row.cases,
+                         parameters=row.parameters, metrics=row.metrics,
+                         answer_metrics=row.answer_metrics, version=row.version,
+                         created_at=row.created_at)
+
+
+class SqlEvaluationRunRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def add(self, *, tenant_id: int, dataset: str, dataset_version: str | None,
+                  cases: int, parameters: Mapping[str, Any], metrics: Mapping[str, Any],
+                  answer_metrics: Mapping[str, Any] | None, version: str) -> EvaluationRun:
+        row = (await self.session.execute(insert(EvaluationRunRow).values(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, dataset=dataset,
+            dataset_version=dataset_version, cases=cases, parameters=dict(parameters),
+            metrics=dict(metrics),
+            answer_metrics=dict(answer_metrics) if answer_metrics is not None else None,
+            version=version).returning(EvaluationRunRow))).scalar_one()
+        return _evaluation_run(row)
+
+    def _mine(self, tenant_id: int, dataset: str | None) -> list[Any]:
+        conditions = [EvaluationRunRow.tenant_id == tenant_id]
+        if dataset is not None:
+            conditions.append(EvaluationRunRow.dataset == dataset)
+        return conditions
+
+    async def list_for_tenant(self, tenant_id: int, *, dataset: str | None, offset: int,
+                              limit: int) -> list[EvaluationRun]:
+        rows = await self.session.scalars(
+            select(EvaluationRunRow).where(*self._mine(tenant_id, dataset))
+            .order_by(EvaluationRunRow.created_at.desc(), EvaluationRunRow.id)
+            .offset(offset).limit(limit))
+        return [_evaluation_run(row) for row in rows]
+
+    async def count_for_tenant(self, tenant_id: int, *, dataset: str | None) -> int:
+        return await _number(self.session, select(func.count())
+                             .where(*self._mine(tenant_id, dataset)))
+
+
 class SqlUnitOfWork:
 
     def __init__(self, session: AsyncSession, tenant_id: int | None = None):
@@ -1422,6 +1468,7 @@ class SqlUnitOfWork:
         self.tenants: TenantRepository = SqlTenantRepository(session)
         self.api_keys: ApiKeyRepository = SqlApiKeyRepository(session)
         self.usage: UsageRepository = SqlUsageRepository(session)
+        self.evaluations: EvaluationRunRepository = SqlEvaluationRunRepository(session)
         self.decks: DeckRepository = SqlDeckRepository(session)
 
     async def commit(self) -> None:

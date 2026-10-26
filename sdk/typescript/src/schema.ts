@@ -684,6 +684,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tenant's evaluation runs, most recent first
+         * @description Each `ragolex eval` run records its dataset, parameters and metrics for the tenant it names (`--tenant`, the default tenant otherwise), to follow retrieval and answer quality over time.
+         */
+        get: operations["list_evaluation_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/export": {
         parameters: {
             query?: never;
@@ -1607,6 +1627,65 @@ export interface components {
         /** ErrorResponse */
         ErrorResponse: {
             signal: components["schemas"]["ResponseSignal"];
+        };
+        /** EvaluationRunListResponse */
+        EvaluationRunListResponse: {
+            /** Total */
+            total: number;
+            /** Offset */
+            offset: number;
+            /** Limit */
+            limit: number;
+            /** Items */
+            items: components["schemas"]["EvaluationRunResponse"][];
+        };
+        /** EvaluationRunResponse */
+        EvaluationRunResponse: {
+            /** Id */
+            id: string;
+            /**
+             * Dataset
+             * @description The dataset's name, e.g. `handbook`.
+             */
+            dataset: string;
+            /** Dataset Version */
+            dataset_version: string | null;
+            /**
+             * Cases
+             * @description Questions in the dataset.
+             */
+            cases: number;
+            /**
+             * Parameters
+             * @description What the run measured: embedding model, search mode, reranker, top_k, chunk and overlap sizes, minimum score. Runs compare only with the same.
+             */
+            parameters: {
+                [key: string]: unknown;
+            };
+            /**
+             * Metrics
+             * @description Retrieval: `hit_rate`, `recall`, `mrr`, `above_min_score`, `rejected` (0 to 1, null when not measurable), and the counts of cases.
+             */
+            metrics: {
+                [key: string]: unknown;
+            };
+            /**
+             * Answer Metrics
+             * @description When the run answered the questions (`--answers`): `answered`, `abstained`, `citation_precision`, `grounded`, `correct`.
+             */
+            answer_metrics: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Version
+             * @description The version of Ragolex that ran it.
+             */
+            version: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** FeedbackListResponse */
         FeedbackListResponse: {
@@ -4834,6 +4913,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_evaluation_runs: {
+        parameters: {
+            query?: {
+                /** @description Only runs of this dataset. */
+                dataset?: string | null;
+                /** @description Items to skip. */
+                offset?: number;
+                /** @description Items to return (1-100). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunListResponse"];
                 };
             };
             /** @description Validation Error */

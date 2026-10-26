@@ -6,6 +6,7 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: "/", name: "home", component: HomeView, meta: { title: "Projects" } },
+    { path: "/admin", name: "admin", component: () => import("@/views/AdminView.vue"), meta: { title: "Admin" } },
     {
       path: "/projects/:project([A-Za-z0-9_-]{1,64})",
       component: () => import("@/views/ProjectView.vue"),

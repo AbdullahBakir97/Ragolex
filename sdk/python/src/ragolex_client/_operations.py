@@ -28,6 +28,7 @@ from .models import (
     DeckResponse,
     DeliveryListResponse,
     DeliveryResponse,
+    EvaluationRunListResponse,
     FeedbackListResponse,
     FeedbackRequest,
     FileListResponse,
@@ -560,6 +561,19 @@ class Operations:
         Administrative actions: API keys created and revoked, webhooks and chat widgets added, changed and removed, files and projects deleted, and limits changed, each with the key that did it and its request id. Kept as long as the tenant.
         """
         return self._request('GET', '/api/v1/audit', query={'action': action, 'offset': offset, 'limit': limit}, json=None, response=AuditListResponse.model_validate)
+
+    def list_evaluation_runs(
+        self,
+        *,
+        dataset: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> EvaluationRunListResponse:
+        """The tenant's evaluation runs, most recent first
+
+        Each `ragolex eval` run records its dataset, parameters and metrics for the tenant it names (`--tenant`, the default tenant otherwise), to follow retrieval and answer quality over time.
+        """
+        return self._request('GET', '/api/v1/evaluations', query={'dataset': dataset, 'offset': offset, 'limit': limit}, json=None, response=EvaluationRunListResponse.model_validate)
 
     def export_tenant(
         self,
@@ -1292,6 +1306,19 @@ class AsyncOperations:
         Administrative actions: API keys created and revoked, webhooks and chat widgets added, changed and removed, files and projects deleted, and limits changed, each with the key that did it and its request id. Kept as long as the tenant.
         """
         return await self._request('GET', '/api/v1/audit', query={'action': action, 'offset': offset, 'limit': limit}, json=None, response=AuditListResponse.model_validate)
+
+    async def list_evaluation_runs(
+        self,
+        *,
+        dataset: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> EvaluationRunListResponse:
+        """The tenant's evaluation runs, most recent first
+
+        Each `ragolex eval` run records its dataset, parameters and metrics for the tenant it names (`--tenant`, the default tenant otherwise), to follow retrieval and answer quality over time.
+        """
+        return await self._request('GET', '/api/v1/evaluations', query={'dataset': dataset, 'offset': offset, 'limit': limit}, json=None, response=EvaluationRunListResponse.model_validate)
 
     async def export_tenant(
         self,

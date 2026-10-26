@@ -474,6 +474,25 @@ class WebhookDelivery:
 
 
 
+@dataclass(frozen=True)
+class EvaluationRun:
+    """The summary of one `ragolex eval` run: its parameters and metrics.
+
+    ``metrics`` are the retrieval metrics (hit rate, recall, MRR, ...);
+    ``answer_metrics`` those of the answers and their grades, when the run
+    answered the questions.
+    """
+
+    id: str
+    tenant_id: int
+    dataset: str
+    dataset_version: str | None
+    cases: int
+    parameters: dict[str, Any]
+    metrics: dict[str, Any]
+    answer_metrics: dict[str, Any] | None
+    version: str
+    created_at: datetime
 # Study material from a document: key points, flashcards or quiz questions,
 # each citing the numbers of the passages it comes from.
 StudyKind = Literal["summary", "flashcards", "quiz"]

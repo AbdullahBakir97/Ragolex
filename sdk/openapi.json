@@ -3940,6 +3940,94 @@
         }
       }
     },
+    "/api/v1/evaluations": {
+      "get": {
+        "tags": [
+          "evaluations"
+        ],
+        "summary": "The tenant's evaluation runs, most recent first",
+        "description": "Each `ragolex eval` run records its dataset, parameters and metrics for the tenant it names (`--tenant`, the default tenant otherwise), to follow retrieval and answer quality over time.",
+        "operationId": "list_evaluation_runs",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dataset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only runs of this dataset.",
+              "title": "Dataset"
+            },
+            "description": "Only runs of this dataset."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Items to skip.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Items to skip."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items to return (1-100).",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Items to return (1-100)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationRunListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/export": {
       "get": {
         "tags": [
@@ -7433,6 +7521,114 @@
           "signal"
         ],
         "title": "ErrorResponse"
+      },
+      "EvaluationRunListResponse": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationRunResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "offset",
+          "limit",
+          "items"
+        ],
+        "title": "EvaluationRunListResponse"
+      },
+      "EvaluationRunResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "dataset": {
+            "type": "string",
+            "title": "Dataset",
+            "description": "The dataset's name, e.g. `handbook`."
+          },
+          "dataset_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Version"
+          },
+          "cases": {
+            "type": "integer",
+            "title": "Cases",
+            "description": "Questions in the dataset."
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parameters",
+            "description": "What the run measured: embedding model, search mode, reranker, top_k, chunk and overlap sizes, minimum score. Runs compare only with the same."
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics",
+            "description": "Retrieval: `hit_rate`, `recall`, `mrr`, `above_min_score`, `rejected` (0 to 1, null when not measurable), and the counts of cases."
+          },
+          "answer_metrics": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Metrics",
+            "description": "When the run answered the questions (`--answers`): `answered`, `abstained`, `citation_precision`, `grounded`, `correct`."
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "The version of Ragolex that ran it."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "dataset",
+          "dataset_version",
+          "cases",
+          "parameters",
+          "metrics",
+          "answer_metrics",
+          "version",
+          "created_at"
+        ],
+        "title": "EvaluationRunResponse"
       },
       "FeedbackListResponse": {
         "properties": {
