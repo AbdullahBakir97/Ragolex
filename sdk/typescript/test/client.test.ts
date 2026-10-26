@@ -5,7 +5,7 @@ import { Ragolex, RagolexError } from "../src/index.js";
 type Handler = (request: Request) => Response | Promise<Response>;
 
 /** A client whose requests go to `handler`; `requests` keeps them. */
-function clientWith(handler: Handler, apiKey: string | null = "mrag_test") {
+function clientWith(handler: Handler, apiKey: string | null = "ragolex_test") {
   const requests: Request[] = [];
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(input, init);
@@ -42,7 +42,7 @@ describe("Ragolex", () => {
 
     expect(data?.items).toEqual([]);
     expect(requests[0]!.url).toBe("https://rag.example.com/api/v1/projects/hand%20book/files?limit=5&tag=hr");
-    expect(requests[0]!.headers.get("Authorization")).toBe("Bearer mrag_test");
+    expect(requests[0]!.headers.get("Authorization")).toBe("Bearer ragolex_test");
   });
 
   it("sends no key when it has none", async () => {
@@ -93,7 +93,7 @@ describe("Ragolex", () => {
     expect(requests[0]!.url).toBe("https://rag.example.com/api/v1/data/upload/docs");
     expect((form.get("file") as File).name).toBe("cats.txt");
     expect(form.get("tags")).toBe("pets,v2");
-    expect(requests[0]!.headers.get("Authorization")).toBe("Bearer mrag_test");
+    expect(requests[0]!.headers.get("Authorization")).toBe("Bearer ragolex_test");
   });
 
   it("adds a document: upload, process, and wait for its job", async () => {

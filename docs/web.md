@@ -42,7 +42,7 @@ It follows the system's light or dark theme, or the one chosen in the sidebar, a
 | Build | Vite; `vue-tsc` type-checks every build |
 | API client | `src/api/client.ts`: typed calls for every endpoint; errors become an `ApiError` with the API's signal and a readable message. Uploads use `XMLHttpRequest` for progress, streamed answers read Server-Sent Events from a `fetch` response (`src/api/sse.ts`), since `EventSource` cannot send a `POST` |
 | State | Small composables in `src/composables/`: the project list, the current project, the upload pipeline, the questions on the Ask page |
-| Tests | Vitest: the event-stream reader, the API client, citation parsing, formatting, the answer component and the chat widget |
+| Tests | Vitest: the event-stream reader, the API client, citation parsing, formatting, the answer component and the chat widget. Playwright (`e2e/`): the main flows in a browser against the real API, and axe accessibility checks of every page in both themes and at phone width; see [End-to-end tests](development.md#end-to-end-tests) |
 | Chat widget | `src/widget/`: the script websites embed, without Vue, built by `vite.widget.config.ts` into a single `dist/widget.js` (about 8 kB compressed). It draws itself in a shadow root and builds answers from the same Markdown reader as the app; the Widget page imports it for its preview |
 | Serving | nginx (unprivileged) serves the built files, sends every page path to `index.html`, caches hashed assets for a year, and forwards `/api`, `/docs` and `/openapi.json` to the API without buffering, so streamed answers arrive event by event |
 
@@ -58,6 +58,8 @@ frontend/
 │   ├── views/          # Projects, project pages (Ask, Documents, Search, Usage, Widget), not found
 │   ├── widget/         # The embeddable chat widget (built into dist/widget.js)
 │   └── __tests__/      # Vitest unit tests
+├── e2e/                # Playwright end-to-end and accessibility tests
+├── playwright.config.ts # Starts the stand-in models, the API and the app for them
 ├── vite.widget.config.ts # Builds the chat widget
 ├── Dockerfile          # Node build, then nginx
 └── nginx.conf.template # API address and DNS resolver come from the environment
