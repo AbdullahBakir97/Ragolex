@@ -393,3 +393,41 @@ class WebhookDeliveryRow(Base):
     created_at: Mapped[datetime] = _created_at()
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+
+
+class DeckRow(Base):
+    """Flashcards to learn by spaced repetition, from a project's documents."""
+
+    __tablename__ = "decks"
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _created_at()
+
+
+class CardRow(Base):
+    """A flashcard and when it is next due."""
+
+    __tablename__ = "cards"
+    __table_args__ = (Index("ix_cards_deck_id_due_at", "deck_id", "due_at"),)
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    deck_id: Mapped[str] = mapped_column(ForeignKey("decks.id", ondelete="CASCADE"))
+    # The order cards were added in.
+    position: Mapped[int] = mapped_column(Integer)
+    front: Mapped[str] = mapped_column(Text)
+    back: Mapped[str] = mapped_column(Text)
+    # Where the card comes from; kept when the file is deleted, as a reference.
+    file_key: Mapped[str | None] = mapped_column(String(255))
+    chunk_index: Mapped[int | None] = mapped_column(Integer)
+    page: Mapped[int | None] = mapped_column(Integer)
+    section: Mapped[str | None] = mapped_column(Text)
+    interval_days: Mapped[float] = mapped_column(Float, server_default=text("0"))
+    ease: Mapped[float] = mapped_column(Float, server_default=text("2.5"))
+    repetitions: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    lapses: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created_at()

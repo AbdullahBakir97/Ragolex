@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { BookOpenText, Check, GraduationCap, LoaderCircle, RotateCcw, X } from "@lucide/vue";
+import { BookOpenText, Check, GraduationCap, Layers, LoaderCircle, RotateCcw, X } from "@lucide/vue";
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 
 import { ApiError, api } from "@/api/client";
-import type { StudyKind, StudyMaterial, StudySource } from "@/api/types";
+import type { Deck, NewCard, StudyKind, StudyMaterial, StudySource } from "@/api/types";
 import ChunkDrawer from "@/components/ChunkDrawer.vue";
+import StudyDecks from "@/components/StudyDecks.vue";
 import { useProject } from "@/composables/useProject";
+import { useToasts } from "@/composables/useToasts";
 import { formatCost, formatNumber } from "@/lib/format";
 
 const { name, files } = useProject();
+const toasts = useToasts();
 
 const KINDS: { kind: StudyKind; label: string; help: string }[] = [
   { kind: "summary", label: "Summary", help: "Key points, in the document's order" },
@@ -44,6 +47,8 @@ async function generate() {
     material.value = await api.study(name.value, fileId.value, kind.value, count.value);
     flipped.value = new Set();
     chosen.value = {};
+    savedTo.value = null;
+    if (material.value.kind === "flashcards") await loadDecks();
   } catch (caught) {
     notProcessed.value = caught instanceof ApiError && caught.signal === "file_not_processed";
     error.value = caught instanceof ApiError ? caught.message : "The study material could not be written.";
@@ -78,6 +83,49 @@ function flip(index: number) {
 const allFlipped = computed(() => material.value?.kind === "flashcards" && flipped.value.size === material.value.items.length);
 function flipAll() {
   flipped.value = allFlipped.value ? new Set() : new Set(material.value?.items.map((_, index) => index));
+}
+
+// Saving flashcards to a deck, a new one ("") or one of the project's.
+const decksPanel = ref<InstanceType<typeof StudyDecks> | null>(null);
+const decks = ref<Deck[]>([]);
+const target = ref("");
+const deckName = ref("");
+const saving = ref(false);
+const savedTo = ref<string | null>(null);
+
+async function loadDecks() {
+  decks.value = await api.decks(name.value).catch(() => []);
+  target.value = "";
+  deckName.value = `${material.value?.original_name ?? "Document"} flashcards`;
+}
+
+async function saveDeck() {
+  if (material.value?.kind !== "flashcards" || saving.value) return;
+  const study = material.value;
+  const cards: NewCard[] = study.items.map((card) => {
+    const source = cited(card.sources)[0];
+    return {
+      front: card.front,
+      back: card.back,
+      file_id: study.file_id,
+      chunk_index: source?.chunk_index ?? null,
+      page: source?.page ?? null,
+      section: source?.section ?? null,
+    };
+  });
+  saving.value = true;
+  try {
+    const deck = target.value
+      ? await api.addCards(name.value, target.value, cards)
+      : await api.createDeck(name.value, deckName.value.trim() || "Flashcards", cards);
+    savedTo.value = deck.name;
+    toasts.success("Flashcards saved", `${cards.length} cards in “${deck.name}”, due for review now.`);
+    await decksPanel.value?.refresh();
+  } catch (caught) {
+    toasts.error("The flashcards could not be saved", caught instanceof ApiError ? caught.message : undefined);
+  } finally {
+    saving.value = false;
+  }
 }
 
 // The choice made for each quiz question, by its position.
@@ -197,7 +245,25 @@ function choose(question: number, choice: number) {
         </li>
       </ul>
 
-      <ol v-else class="quiz">
+      <form v-if="material.kind === 'flashcards' && material.items.length" class="save card" @submit.prevent="saveDeck">
+        <Layers :size="18" class="subtle" />
+        <label class="field">
+          <span>Save to</span>
+          <select v-model="target" class="select">
+            <option value="">A new deck</option>
+            <option v-for="deck in decks" :key="deck.id" :value="deck.id">{{ deck.name }} ({{ deck.cards }} cards)</option>
+          </select>
+        </label>
+        <label v-if="!target" class="field deck-name">
+          <span>Name</span>
+          <input v-model="deckName" class="input" maxlength="100" required />
+        </label>
+        <button type="submit" class="btn" :disabled="saving || savedTo !== null">
+          {{ savedTo ? `Saved to “${savedTo}”` : saving ? "Saving…" : "Save for review" }}
+        </button>
+      </form>
+
+      <ol v-else-if="material.kind === 'quiz'" class="quiz">
         <li v-for="(question, index) in material.items" :key="index" class="question card">
           <fieldset>
             <legend>{{ question.question }}</legend>
@@ -232,6 +298,8 @@ function choose(question: number, choice: number) {
         </li>
       </ol>
     </article>
+
+    <StudyDecks ref="decksPanel" :project="name" class="decks-section" />
 
     <ChunkDrawer
       :project="name"
@@ -536,6 +604,26 @@ function choose(question: number, choice: number) {
 
 .wrong .mark {
   color: var(--danger);
+}
+
+.save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+  padding: 12px 14px;
+}
+
+.save > svg {
+  align-self: center;
+}
+
+.deck-name {
+  flex: 1 1 200px;
+}
+
+.decks-section {
+  margin-top: 10px;
 }
 
 .explanation {

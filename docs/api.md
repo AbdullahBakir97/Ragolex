@@ -139,6 +139,12 @@ A `limit` of `null` is unlimited.
 | `POST` | `/api/v1/ask/{project_id}` | Answer a question from the project's documents, with citations |
 | `POST` | `/api/v1/ask/{project_id}/stream` | The same answer, streamed as it is written (Server-Sent Events) |
 | `POST` | `/api/v1/study/{project_id}` | A summary, flashcards or a quiz from a document, each item linked to its source |
+| `GET`, `POST` | `/api/v1/projects/{project_id}/decks` | List the project's decks of flashcards, or create one |
+| `GET`, `DELETE` | `/api/v1/projects/{project_id}/decks/{deck_id}` | A deck with its counts of cards and of cards due, or delete it |
+| `GET`, `POST` | `/api/v1/projects/{project_id}/decks/{deck_id}/cards` | A deck's cards in order, or add some |
+| `GET` | `/api/v1/projects/{project_id}/decks/{deck_id}/review` | The cards due for review now |
+| `POST` | `/api/v1/projects/{project_id}/decks/{deck_id}/cards/{card_id}/review` | Grade a review and schedule the card's next one |
+| `GET` | `/api/v1/projects/{project_id}/decks/{deck_id}/anki` | The deck as a text file to import in Anki |
 | `GET` | `/api/v1/projects` | List projects in name order (paged) |
 | `GET` | `/api/v1/projects/{project_id}` | Project details with file, chunk and index counts |
 | `GET` | `/api/v1/projects/{project_id}/usage` | Token usage and cost of the project's answers |
@@ -757,3 +763,32 @@ curl -X POST http://localhost:8000/api/v1/study/demo1 \
 - **Long documents.** Up to `STUDY_MAX_CHARACTERS` of the document goes to the model at once. A longer document is given in chunks spread evenly over it: `passages` says how many of its `chunks` were used.
 - **Costs an answer.** It needs the `ask` scope, makes one model call and is recorded like an answer: in the project's usage, the tenant's answer quota and its costs. The material itself is not stored.
 - **Errors.** A document that is not processed yet answers `409` `{"signal": "file_not_processed"}`; an unknown project or file `404`; a failing model `502` `{"signal": "llm_failed"}`.
+
+### Decks and spaced repetition
+
+Flashcards worth keeping go into a deck, to learn by spaced repetition: each card comes back for review just before it would be forgotten, less and less often as it is remembered.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/projects/demo1/decks \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Onboarding", "cards": [{"front": "How many vacation days does an employee get?",
+        "back": "25 days a year.", "file_id": "9jaqw1s4jucs_onboarding.pdf", "chunk_index": 7, "page": 2}]}'
+```
+
+```json
+{"id": "5b0f6c3e-…", "name": "Onboarding", "cards": 1, "due": 1, "created_at": "2026-10-18T21:40:02Z"}
+```
+
+- **Cards.** Each has a `front` and a `back` (up to 2,000 characters), and optionally where it comes from: `file_id`, `chunk_index`, `page`, `section`, as `POST /study` gives them. `POST .../decks/{deck_id}/cards` adds more; a deck holds up to 2,000 cards (`409` `{"signal": "deck_full"}` beyond). A new card is due at once. Creating a deck in a project that has no files yet creates the project.
+- **Reviewing.** `GET .../review?limit=20` gives the cards due now, the longest due first, each with the `intervals` (in days) each grade would give it. `POST .../cards/{card_id}/review` with `{"grade": "again" | "hard" | "good" | "easy"}` schedules the next review, as Anki does:
+
+  | Grade | A new card | A card being learnt |
+  |---|---|---|
+  | `again` | In 10 minutes | In 10 minutes, starting over; a lapse |
+  | `hard` | In 1 day | 1.2 × the last interval; the ease drops by 0.15 |
+  | `good` | In 1 day, then 3 | The last interval × the ease (2.5 at first) |
+  | `easy` | In 4 days | 1.3 × what `good` would give; the ease rises by 0.15 |
+
+  Every card answered `hard` or better comes back at least a day later than last time, and within three years.
+- **Anki.** `GET .../anki` downloads the deck as a text file for Anki's File > Import: one Basic note per card, in a deck of the same name, tagged `ragolex` and the project's name, with the document and page under each answer.
+- **Scopes.** Reading decks and their cards needs `read`; creating, adding, reviewing and deleting need `write`. An unknown deck is `404` `{"signal": "deck_not_found"}`, a card of another deck `404` `{"signal": "card_not_found"}`.

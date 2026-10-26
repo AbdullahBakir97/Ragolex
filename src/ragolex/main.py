@@ -18,6 +18,7 @@ from ragolex.api.routes import (
     base,
     conversations,
     data,
+    decks,
     index,
     jobs,
     keys,
@@ -159,6 +160,7 @@ def create_app() -> FastAPI:
     app.include_router(ask.router)
     app.include_router(conversations.router)
     app.include_router(study.router)
+    app.include_router(decks.router)
     register_error_handlers(app)
     app.add_middleware(WidgetCors)
     # Outermost, so it sees every response, the widget routes' included.
