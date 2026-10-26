@@ -255,6 +255,27 @@ jobs:
           tar -xzf "$archive" gitleaks
           ./gitleaks git . --redact --no-banner
 
+  workflows:
+    # The GitHub workflows (actionlint, which runs shellcheck on their scripts)
+    # and the shell scripts the servers run.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint the workflows
+        env:
+          ACTIONLINT_VERSION: 1.7.7
+          ACTIONLINT_SHA256: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --output "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "$archive" actionlint
+          ./actionlint -color
+      - name: Lint the shell scripts
+        run: shellcheck --shell=sh tools/*.sh
+
   eval:
     # Retrieval quality on the handbook dataset with a real embedding model,
     # nomic-embed-text in Ollama: a metric that drops below the baseline fails.
@@ -295,7 +316,7 @@ jobs:
         # Started here rather than as a service, so its log does not flood the job's.
         run: |
           docker run --detach --name ollama --publish 11434:11434 ollama/ollama:0.35.1
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --fail --silent http://localhost:11434/api/version; then break; fi
             sleep 2
           done
@@ -328,7 +349,7 @@ jobs:
           docker compose up --build --detach
       - name: Wait for the stack to be healthy
         run: |
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --fail --silent http://localhost:3000/api/v1/health; then exit 0; fi
             sleep 2
           done
