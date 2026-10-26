@@ -2,7 +2,7 @@
 
 The web app in `frontend/` is the interface for people: create projects, upload documents, ask questions and check usage, without writing a request by hand. It uses only the public API, so it shows what any other client can do.
 
-![The Ask page: the project's conversations beside a question and a follow-up, each answered with numbered citations and its cited sources; the follow-up shows the standalone question it was searched with](media/web-ask.png)
+![The Ask page in research mode: the project's conversations beside a question with several parts, the four searches the model planned for it, and an answer with numbered citations above its cited sources](media/web-ask.png)
 
 ## Pages
 
@@ -20,9 +20,23 @@ The web app in `frontend/` is the interface for people: create projects, upload 
 | **Webhooks** | Add a URL that gets the project's events (uploads, deletions, finished jobs), shown its signing secret once with a button to copy it; send a ping; and see each webhook's recent deliveries: delivered, waiting to try again (and when), or failed, with the receiver's answer. How to check a signature is explained on the page. |
 | **Usage** | The tenant's limits, when it has any: answers this month, storage and cost against their quotas and monthly budget. Its spending over the last 7, 30 or 90 days: a chart of cost or answers per day, and what each project and model cost. Questions asked, how many were answered, tokens and cost for the project, and the rated answers: how many were good and bad, each with its question, the note on it and a link to its conversation. |
 
-![The Websites card: a form to add a website with its page limit and schedule, and two websites with their pages, schedules and last syncs](media/web-sources.png)
+![The Sources card: a form to add a website, feed or GitHub repository with its page limit, schedule and tags, then a website opened to list its pages and a feed, each with when it was synced and is next due](media/web-sources.png)
 
-![The Widget page: the settings of a new widget, the project's widget with its allowed websites and script tag, and a live preview answering a question](media/web-widget.png)
+![The Search page: a query with its filters (results, minimum score, documents, tags, pages, one per document) and the matching passages, best first, with their scores and the query's words highlighted](media/web-search.png)
+
+![The Study page: a quiz written from a document, with a right and a wrong choice marked and each explained with a link to its passage](media/web-study.png)
+
+![Reviewing a deck: one flashcard turned over, with the four grades and when each brings the card back](media/web-review.png)
+
+![The Assistant page: the assistant's name and its instructions on tone and style, with examples to start from](media/web-assistant.png)
+
+![The Widget page: the settings of a new widget and a live preview answering a visitor's question with its source](media/web-widget.png)
+
+![The Webhooks page: a form to add a URL with the events it gets, and a webhook with its events, a ping button and its deliveries](media/web-webhooks.png)
+
+![The Usage page: questions, answer rate, tokens and cost for the project, the tenant's limits and monthly budget, and a chart of spending per day with the cost per project and model](media/web-usage.png)
+
+![The Admin page: usage this month, the tenant's API keys with their scopes and a form to create one, the evaluation scores of the latest run and every run, and the audit log](media/web-admin.png)
 
 When the server requires API keys (`AUTH_ENABLED=true`), the app asks for one, keeps it in the browser, and shows the tenant it signed in to, with a button to sign out. A refused key brings the question back.
 
@@ -30,11 +44,11 @@ When chunks are not indexed yet, for example because no embedding model was conf
 
 The first question on the Ask page starts a conversation, which the server keeps: its address (`/projects/<name>/ask/<conversation id>`) can be reloaded or shared with anyone using the same server, and the Ask tab returns to the conversation last open.
 
-![Documents page: a drop zone, uploads with their state, and the list of files with sizes and chunk counts](media/web-documents.png)
+![The Documents page: a drop zone, tags for new uploads and the tags to filter by, and the project's files with their tags, sizes and chunk counts](media/web-documents.png)
 
 It follows the system's light or dark theme, or the one chosen in the sidebar, and works on phones.
 
-![The Ask page in the dark theme](media/web-ask-dark.png)
+![The Ask page in the dark theme: a question and a follow-up, each answered with a citation and its source; the follow-up shows the standalone question it was searched with](media/web-ask-dark.png)
 
 ## How it is built
 
@@ -57,7 +71,7 @@ frontend/
 │   ├── components/     # Sidebar, drop zone, source card, chunk panel, answer text, ...
 │   ├── composables/    # Shared state and the upload pipeline
 │   ├── lib/            # Formatting, citation parsing, error messages
-│   ├── views/          # Projects, project pages (Ask, Documents, Search, Study, Usage, Widget), not found
+│   ├── views/          # Projects, Admin, project pages (Ask, Documents, Search, Study, Usage, Assistant, Widget, Webhooks), not found
 │   ├── widget/         # The embeddable chat widget (built into dist/widget.js)
 │   └── __tests__/      # Vitest unit tests
 ├── e2e/                # Playwright end-to-end and accessibility tests
