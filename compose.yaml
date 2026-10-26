@@ -5,6 +5,7 @@
 # With malware scanning of uploads: docker compose --profile scan up --build,
 #   and CLAMAV_URL=tcp://clamav:3310 in .env
 # Settings are read from .env (copy .env.example first).
+# On a server, tools/deploy.sh runs published images: see docs/deployment.md.
 services:
   db:
     # PostgreSQL 16 with the pgvector extension (0.8 or newer) for vector search.
@@ -25,7 +26,8 @@ services:
 
   app:
     build: .
-    image: ragolex
+    # A deployment runs a published image instead (tools/deploy.sh sets it).
+    image: ${RAGOLEX_IMAGE:-ragolex}
     env_file: .env
     environment:
       # Inside the stack the database is reached by its service name.
@@ -60,7 +62,7 @@ services:
   web:
     # The web interface; it forwards /api to the app service.
     build: ./frontend
-    image: ragolex-web
+    image: ${RAGOLEX_WEB_IMAGE:-ragolex-web}
     ports:
       - "${WEB_PORT:-3000}:8080"
     depends_on:

@@ -19,7 +19,7 @@ With `AUTH_ENABLED=false` (the default, for your own computer), no key is needed
 ```bash
 ragolex tenants create acme
 ragolex keys create --tenant acme --name website --scope read --scope ask
-curl -H "Authorization: Bearer mrag_…" http://localhost:8000/api/v1/projects
+curl -H "Authorization: Bearer ragolex_…" http://localhost:8000/api/v1/projects
 ```
 
 A key belongs to one tenant and has one or more **scopes**:
@@ -42,10 +42,10 @@ A key is shown once, when it is created; the server keeps only its SHA-256, and 
 `GET /api/v1/me` shows the tenant and scopes of the key used. With an `admin` key, a tenant manages its own keys:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/keys -H "Authorization: Bearer mrag_…" \
+curl -X POST http://localhost:8000/api/v1/keys -H "Authorization: Bearer ragolex_…" \
   -H "Content-Type: application/json" -d '{"name": "ci", "scopes": ["read"]}'
-curl http://localhost:8000/api/v1/keys -H "Authorization: Bearer mrag_…"
-curl -X DELETE http://localhost:8000/api/v1/keys/<key id> -H "Authorization: Bearer mrag_…"
+curl http://localhost:8000/api/v1/keys -H "Authorization: Bearer ragolex_…"
+curl -X DELETE http://localhost:8000/api/v1/keys/<key id> -H "Authorization: Bearer ragolex_…"
 ```
 
 The first key of a tenant comes from the command line (`ragolex keys create`), run where the database is reachable, e.g. `docker compose exec app ragolex keys create --tenant acme --name admin`. `ragolex keys list` and `ragolex keys revoke` work there too, and `ragolex tenants list` lists tenants. Projects that existed before tenants belong to `default`.
@@ -56,7 +56,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 
 ```json
 {"id": 12, "action": "api_key.created", "target": "0b5c3e8e-…",
- "details": {"name": "ci", "prefix": "mrag_Xq2v…", "scopes": ["read"]},
+ "details": {"name": "ci", "prefix": "ragolex_Xq2v…", "scopes": ["read"]},
  "actor": {"key_id": "8d1f…", "name": "ops laptop"}, "request_id": "3f2a…", "created_at": "2026-10-18T12:30:02Z"}
 ```
 
@@ -430,7 +430,7 @@ Webhooks reach only public addresses: an address on this server's network (`loca
 
 ## Tools for agents (MCP)
 
-`POST /api/v1/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server, so agents and assistants that speak MCP can use a tenant's projects as tools. It uses the Streamable HTTP transport without sessions: each POST carries one JSON-RPC message (`Content-Type: application/json`) and gets a JSON answer. Point an MCP client at `https://<your server>/api/v1/mcp`, with the API key in its headers (`Authorization: Bearer mrag_…`) when authentication is on.
+`POST /api/v1/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server, so agents and assistants that speak MCP can use a tenant's projects as tools. It uses the Streamable HTTP transport without sessions: each POST carries one JSON-RPC message (`Content-Type: application/json`) and gets a JSON answer. Point an MCP client at `https://<your server>/api/v1/mcp`, with the API key in its headers (`Authorization: Bearer ragolex_…`) when authentication is on.
 
 | Tool | Scope | Does |
 |---|---|---|

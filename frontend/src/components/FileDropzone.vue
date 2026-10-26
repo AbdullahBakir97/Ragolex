@@ -36,24 +36,27 @@ function picked() {
 </script>
 
 <template>
-  <div
-    class="dropzone"
-    :class="{ over, large, disabled }"
-    role="button"
-    tabindex="0"
-    aria-label="Upload files: drop them here or press Enter to choose"
-    @click="!disabled && input?.click()"
-    @keydown.enter.prevent="!disabled && input?.click()"
-    @keydown.space.prevent="!disabled && input?.click()"
-    @dragenter.prevent="enter"
-    @dragover.prevent
-    @dragleave.prevent="leave"
-    @drop.prevent="drop"
-  >
-    <span class="icon"><UploadCloud :size="large ? 28 : 20" /></span>
-    <div>
-      <p class="title"><strong>Drop files here</strong> or <span class="link">browse</span></p>
-      <p class="subtle small">{{ SUPPORTED_LABEL }}</p>
+  <!-- The file input sits beside the drop zone, not in it: a button holds no other controls. -->
+  <div class="dropzone-wrap">
+    <div
+      class="dropzone"
+      :class="{ over, large, disabled }"
+      role="button"
+      tabindex="0"
+      aria-label="Upload files: drop them here or press Enter to choose"
+      @click="!disabled && input?.click()"
+      @keydown.enter.prevent="!disabled && input?.click()"
+      @keydown.space.prevent="!disabled && input?.click()"
+      @dragenter.prevent="enter"
+      @dragover.prevent
+      @dragleave.prevent="leave"
+      @drop.prevent="drop"
+    >
+      <span class="icon"><UploadCloud :size="large ? 28 : 20" /></span>
+      <div>
+        <p class="title"><strong>Drop files here</strong> or <span class="link">browse</span></p>
+        <p class="subtle small">{{ SUPPORTED_LABEL }}</p>
+      </div>
     </div>
     <input
       ref="input"
@@ -62,6 +65,7 @@ function picked() {
       :accept="ACCEPT"
       multiple
       tabindex="-1"
+      aria-label="Choose files to upload"
       @change="picked"
     />
   </div>
