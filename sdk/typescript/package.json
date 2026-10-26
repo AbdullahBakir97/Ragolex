@@ -1,7 +1,7 @@
 {
-  "name": "@mini-rag/client",
+  "name": "@ragolex/client",
   "version": "0.1.0",
-  "description": "TypeScript client for the Mini RAG API, generated from its OpenAPI schema.",
+  "description": "TypeScript client for the Ragolex API, generated from its OpenAPI schema.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-PACKAGE = Path(__file__).resolve().parents[1] / "src" / "mini_rag"
+PACKAGE = Path(__file__).resolve().parents[1] / "src" / "ragolex"
 
-# Which mini_rag layers each layer may import. Web frameworks are only
+# Which ragolex layers each layer may import. Web frameworks are only
 # allowed in the API layer, so everything below it works without HTTP, and
 # only persistence (and the API, which wires it up) may use SQLAlchemy.
 # Only embeddings, llm and ocr may use a model provider's SDK.
@@ -71,7 +71,7 @@ def test_layer_imports_follow_the_rules(layer):
                 violations.append(f"{path.name} imports {module}")
             if top in PROVIDER_SDKS and layer not in {"embeddings", "llm", "ocr"}:
                 violations.append(f"{path.name} imports {module}")
-            if top == "mini_rag":
+            if top == "ragolex":
                 target = rest.partition(".")[0]
                 if target != layer and target not in ALLOWED_LAYERS[layer]:
                     violations.append(f"{path.name} imports {module}")

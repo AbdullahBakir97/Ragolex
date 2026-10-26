@@ -20,7 +20,7 @@ describe("API keys", () => {
 
     expect(fetch.mock.calls[0]![1].headers).toEqual({});
     expect(fetch.mock.calls[1]![1].headers).toEqual({ Authorization: "Bearer mrag_secret" });
-    expect(localStorage.getItem("mini-rag.api-key")).toBe("mrag_secret");
+    expect(localStorage.getItem("ragolex.api-key")).toBe("mrag_secret");
   });
 
   it("are asked for when the server refuses a request", async () => {

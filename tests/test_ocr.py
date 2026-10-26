@@ -10,12 +10,12 @@ import pytest
 from PIL import Image, ImageDraw
 from pypdf import PdfReader, PdfWriter
 
-from mini_rag.core.config import Settings
-from mini_rag.core.errors import OcrFailed
-from mini_rag.loaders.pdf_loader import PdfLoader
-from mini_rag.ocr.factory import create_ocr
-from mini_rag.ocr.tesseract import TesseractOcr
-from mini_rag.ocr.vision import VisionOcr
+from ragolex.core.config import Settings
+from ragolex.core.errors import OcrFailed
+from ragolex.loaders.pdf_loader import PdfLoader
+from ragolex.ocr.factory import create_ocr
+from ragolex.ocr.tesseract import TesseractOcr
+from ragolex.ocr.vision import VisionOcr
 
 from .conftest import build_pdf
 
@@ -163,8 +163,8 @@ def scanned_pdf() -> bytes:
 
 
 def process_with(client, ocr):
-    from mini_rag.api.dependencies import get_loader_registry
-    from mini_rag.loaders.registry import default_loader_registry
+    from ragolex.api.dependencies import get_loader_registry
+    from ragolex.loaders.registry import default_loader_registry
 
     client.app.dependency_overrides[get_loader_registry] = lambda: default_loader_registry(ocr)
     file_id = client.post("/api/v1/data/upload/demo",
