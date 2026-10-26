@@ -172,7 +172,7 @@ describe("ChatWidget", () => {
     expect(url).toBe("https://rag.example/api/v1/widgets/wgt_1/conversations/c-1/messages/7/feedback");
     expect([init.method, JSON.parse(init.body)]).toEqual(["PUT", { rating: "up" }]);
     expect(reply.querySelector('.feedback button[aria-label="Helpful"]')?.getAttribute("aria-pressed")).toBe("true");
-    const saved = JSON.parse(storage.getItem("mini-rag-widget:wgt_1")!);
+    const saved = JSON.parse(storage.getItem("ragolex-widget:wgt_1")!);
     expect(saved.conversationId).toBe("c-1");
     expect(saved.messages[1].rating).toBe("up");
   });
@@ -211,6 +211,6 @@ describe("ChatWidget", () => {
     fetch.mockReset().mockResolvedValueOnce(Response.json({ signal: "origin_not_allowed" }, { status: 403 }));
 
     await expect(mount()).rejects.toMatchObject({ signal: "origin_not_allowed" });
-    expect(document.querySelector("[data-mini-rag-widget]")).toBeNull();
+    expect(document.querySelector("[data-ragolex-widget]")).toBeNull();
   });
 });

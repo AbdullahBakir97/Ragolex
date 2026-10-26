@@ -1,15 +1,15 @@
 import pytest
 
-from mini_rag.core.errors import (
+from ragolex.core.errors import (
     FileNotFound,
     NoTextExtracted,
     ProcessingFailed,
     UnsupportedFileType,
 )
-from mini_rag.domain.models import Document
-from mini_rag.loaders.registry import LoaderRegistry
-from mini_rag.services.processing_service import ProcessingService
-from mini_rag.storage.file_storage import FileStorage
+from ragolex.domain.models import Document
+from ragolex.loaders.registry import LoaderRegistry
+from ragolex.services.processing_service import ProcessingService
+from ragolex.storage.file_storage import FileStorage
 
 from .fakes import FakeUnitOfWork
 

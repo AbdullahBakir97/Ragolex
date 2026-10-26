@@ -1,4 +1,4 @@
-# Mini RAG web interface. Build: docker build -t mini-rag-web frontend
+# Ragolex web interface. Build: docker build -t ragolex-web frontend
 # Serves the built app with nginx and forwards /api, /docs and /openapi.json
 # to the API, so the browser only ever talks to one origin.
 

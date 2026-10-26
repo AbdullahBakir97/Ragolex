@@ -1,7 +1,7 @@
 import pytest
 
-from mini_rag.evaluation.answers import AnswerResult, CitedSource, answer_metrics
-from mini_rag.evaluation.dataset import Case, ExpectedSource
+from ragolex.evaluation.answers import AnswerResult, CitedSource, answer_metrics
+from ragolex.evaluation.dataset import Case, ExpectedSource
 
 
 def case(case_id, answerable=True):

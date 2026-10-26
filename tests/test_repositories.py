@@ -2,10 +2,10 @@ import pytest
 from sqlalchemy import delete, text
 from sqlalchemy.exc import IntegrityError
 
-from mini_rag.domain.models import AnswerRecord, Chunk, UsageTotals
-from mini_rag.persistence.database import create_engine, create_session_factory
-from mini_rag.persistence.repositories import SqlTenantRepository, SqlUnitOfWork
-from mini_rag.persistence.tables import EMBEDDING_DIMENSIONS, ProjectRow
+from ragolex.domain.models import AnswerRecord, Chunk, UsageTotals
+from ragolex.persistence.database import create_engine, create_session_factory
+from ragolex.persistence.repositories import SqlTenantRepository, SqlUnitOfWork
+from ragolex.persistence.tables import EMBEDDING_DIMENSIONS, ProjectRow
 
 pytestmark = pytest.mark.anyio
 
@@ -324,7 +324,7 @@ async def test_deleting_a_project_deletes_its_answer_records(uow):
 
 
 async def test_conversations_keep_their_messages_in_order(uow):
-    from mini_rag.domain.models import ConversationMessage, StoredCitation
+    from ragolex.domain.models import ConversationMessage, StoredCitation
 
     project = await uow.projects.get_or_create("demo")
     conversation = await uow.conversations.create(project.id, None)
@@ -386,7 +386,7 @@ async def test_conversations_are_listed_by_last_update(uow, session_factory):
 
 
 async def test_deleting_a_conversation_deletes_its_messages(uow):
-    from mini_rag.domain.models import ConversationMessage
+    from ragolex.domain.models import ConversationMessage
 
     project = await uow.projects.get_or_create("demo")
     conversation = await uow.conversations.create(project.id, None)
@@ -399,7 +399,7 @@ async def test_deleting_a_conversation_deletes_its_messages(uow):
 
 
 async def test_answers_keep_their_feedback_and_are_listed_by_rating(uow):
-    from mini_rag.domain.models import ConversationMessage, Feedback, FeedbackCounts
+    from ragolex.domain.models import ConversationMessage, Feedback, FeedbackCounts
 
     project = await uow.projects.get_or_create("demo")
     other = await uow.projects.get_or_create("other")
@@ -441,7 +441,7 @@ async def test_answers_keep_their_feedback_and_are_listed_by_rating(uow):
 
 
 async def test_a_rating_must_be_up_or_down(uow):
-    from mini_rag.domain.models import ConversationMessage, Feedback
+    from ragolex.domain.models import ConversationMessage, Feedback
 
     project = await uow.projects.get_or_create("demo")
     conversation = await uow.conversations.create(project.id, None)
@@ -524,7 +524,7 @@ async def filtered_project(uow):
 
 @pytest.mark.parametrize("query", [None, "release"], ids=["vector", "hybrid"])
 async def test_search_filters_narrow_the_chunks_searched(uow, query):
-    from mini_rag.domain.models import SearchFilters
+    from ragolex.domain.models import SearchFilters
 
     project = await filtered_project(uow)
 
@@ -549,7 +549,7 @@ async def test_search_filters_narrow_the_chunks_searched(uow, query):
 async def test_search_filters_by_upload_date(uow):
     from datetime import UTC, datetime, timedelta
 
-    from mini_rag.domain.models import SearchFilters
+    from ragolex.domain.models import SearchFilters
 
     project = await filtered_project(uow)
     await uow.commit()
@@ -566,7 +566,7 @@ async def test_search_filters_by_upload_date(uow):
 
 
 async def test_max_per_file_keeps_the_best_of_each_file_up_to_top_k(uow):
-    from mini_rag.domain.models import SearchFilters
+    from ragolex.domain.models import SearchFilters
 
     project = await filtered_project(uow)
 

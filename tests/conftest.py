@@ -12,13 +12,13 @@ from sqlalchemy import make_url
 from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from mini_rag.api.dependencies import get_embedder, get_llm
-from mini_rag.core.config import get_settings
-from mini_rag.loaders.registry import default_loader_registry
-from mini_rag.persistence.database import create_engine, create_session_factory
-from mini_rag.persistence.repositories import unit_of_work_factory
-from mini_rag.services.job_runner import JobRunner
-from mini_rag.storage.file_storage import FileStorage
+from ragolex.api.dependencies import get_embedder, get_llm
+from ragolex.core.config import get_settings
+from ragolex.loaders.registry import default_loader_registry
+from ragolex.persistence.database import create_engine, create_session_factory
+from ragolex.persistence.repositories import unit_of_work_factory
+from ragolex.services.job_runner import JobRunner
+from ragolex.storage.file_storage import FileStorage
 
 from .fakes import FakeEmbedder, FakeLLM
 
@@ -28,11 +28,11 @@ ROOT = Path(__file__).resolve().parents[1]
 # compose.yaml database, created on first use; CI sets TEST_DATABASE_URL.
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://mini_rag:mini_rag@localhost:5432/mini_rag_test",
+    "postgresql+asyncpg://ragolex:ragolex@localhost:5432/ragolex_test",
 )
 
 TEST_ENV = {
-    "APP_NAME": "mini-RAG-test",
+    "APP_NAME": "Ragolex-test",
     "APP_VERSION": "0.0.1",
     "OPENAI_API_KEY": "test-key",
     "FILE_ALLOWED_TYPES": '["text/plain", "text/markdown", "text/html", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]',
@@ -204,7 +204,7 @@ def query(db):
 
 @pytest.fixture
 def client(db):
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     with TestClient(create_app()) as test_client:
         yield test_client

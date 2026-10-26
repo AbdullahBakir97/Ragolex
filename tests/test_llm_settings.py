@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from mini_rag.core.config import Settings
-from mini_rag.domain.llm import TokenPrices, TokenUsage
+from ragolex.core.config import Settings
+from ragolex.domain.llm import TokenPrices, TokenUsage
 
 
 def test_defaults_use_openai():

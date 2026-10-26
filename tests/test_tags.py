@@ -2,7 +2,7 @@
 
 import pytest
 
-from mini_rag.domain.tags import InvalidTag, normalize_tag, normalize_tags
+from ragolex.domain.tags import InvalidTag, normalize_tag, normalize_tags
 
 from .test_ask_api import ask, upload_process_and_index
 

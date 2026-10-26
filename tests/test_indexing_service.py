@@ -1,8 +1,8 @@
 import pytest
 
-from mini_rag.core.errors import EmbeddingFailed, FileNotFound, ProjectNotFound
-from mini_rag.domain.models import Chunk
-from mini_rag.services.indexing_service import IndexingService
+from ragolex.core.errors import EmbeddingFailed, FileNotFound, ProjectNotFound
+from ragolex.domain.models import Chunk
+from ragolex.services.indexing_service import IndexingService
 
 from .fakes import FakeEmbedder, FakeUnitOfWork
 
