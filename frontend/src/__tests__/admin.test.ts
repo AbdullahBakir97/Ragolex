@@ -54,7 +54,7 @@ describe("AdminKeys", () => {
       "GET /keys": () => Response.json(created ? [KEY] : []),
       "POST /keys": (init) => {
         created = JSON.parse(String(init!.body));
-        return Response.json({ ...KEY, key: "ragolex_3fA9secretsecret" }, { status: 201 });
+        return Response.json({ ...KEY, key: "ragolex_3fA9xxxxxxxxxxxx" }, { status: 201 });
       },
     });
     const wrapper = mount(AdminKeys, { props: { currentKeyId: null } });
@@ -67,7 +67,7 @@ describe("AdminKeys", () => {
 
     expect(created).toEqual({ name: "Support bot", scopes: ["read", "ask", "admin"] });
     expect(wrapper.emitted("changed")).toHaveLength(1);
-    expect(wrapper.find('[data-testid="new-key"]').text()).toBe("ragolex_3fA9secretsecret");
+    expect(wrapper.find('[data-testid="new-key"]').text()).toBe("ragolex_3fA9xxxxxxxxxxxx");
     await wrapper.findAll(".created button").at(-1)!.trigger("click");
     expect(wrapper.find('[data-testid="new-key"]').exists()).toBe(false);
   });
