@@ -8,6 +8,7 @@ from http import HTTPStatus
 from ragolex.core.errors import AppError, EmbeddingNotConfigured
 from ragolex.core.log_context import log_context
 from ragolex.core.metrics import JOBS
+from ragolex.core.tracing import annotate, span
 from ragolex.domain.embedder import Embedder
 from ragolex.domain.models import Job, Project
 from ragolex.domain.repositories import UnitOfWork
@@ -70,7 +71,8 @@ class JobRunner:
         if job is None:
             return False
         try:
-            with log_context(f"job:{job.id}"):
+            with log_context(f"job:{job.id}"), span("job", job_id=job.id,
+                                                      attempt=job.attempts):
                 logger.info("Job %s: processing %s (attempt %d of %d)", job.id, job.file_key,
                             job.attempts, job.max_attempts)
                 await self._run(job)
@@ -84,8 +86,10 @@ class JobRunner:
         # Acting for the job's tenant, its project is found by name among that tenant's.
         async with self.unit_of_work(job.tenant_id) as uow:
             try:
-                chunks = await ProcessingService(self.storage, self.loaders, uow).process(
-                    job.project_name, job.file_key, job.chunk_size, job.overlap_size)
+                with span("job.process", file=job.file_key, chunk_size=job.chunk_size) as current:
+                    chunks = await ProcessingService(self.storage, self.loaders, uow).process(
+                        job.project_name, job.file_key, job.chunk_size, job.overlap_size)
+                    annotate(current, chunks=chunks)
                 if self.embedder is None:
                     raise EmbeddingNotConfigured()
                 await self._progress(uow, job, 0.0)
@@ -93,8 +97,9 @@ class JobRunner:
                 async def on_batch(embedded: int) -> None:
                     await self._progress(uow, job, embedded / chunks)
 
-                await IndexingService(uow, self.embedder, self.batch_size).index(
-                    job.project_name, job.file_key, on_batch=on_batch)
+                with span("job.index", model=self.embedder.model, chunks=chunks):
+                    await IndexingService(uow, self.embedder, self.batch_size).index(
+                        job.project_name, job.file_key, on_batch=on_batch)
                 await uow.jobs.succeed(job.id, chunks)
                 await self._emit(uow, job, "job.succeeded", chunks_count=chunks, error=None)
                 await uow.commit()

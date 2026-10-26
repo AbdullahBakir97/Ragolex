@@ -15,11 +15,17 @@ from .models import (
     AssistantResponse,
     AssistantUpdateRequest,
     AuditListResponse,
+    CardListResponse,
+    CardRequest,
+    CardResponse,
+    CardsRequest,
     ChunkListResponse,
     ConversationCreateRequest,
     ConversationDetailResponse,
     ConversationListResponse,
     ConversationResponse,
+    DeckRequest,
+    DeckResponse,
     DeliveryListResponse,
     DeliveryResponse,
     FeedbackListResponse,
@@ -40,6 +46,8 @@ from .models import (
     ProjectListResponse,
     ProjectResponse,
     ProjectUsageResponse,
+    ReviewQueueResponse,
+    ReviewRequest,
     SearchFiltersRequest,
     SearchRequest,
     SearchResponse,
@@ -47,6 +55,8 @@ from .models import (
     SourcePagesResponse,
     SourceRequest,
     SourceResponse,
+    StudyRequest,
+    StudyResponse,
     TagListResponse,
     TenantUsageResponse,
     WebhookCreatedResponse,
@@ -657,6 +667,122 @@ class Operations:
         """
         return self._request('GET', f'/api/v1/projects/{_path(project_id)}/feedback', query={'rating': rating, 'offset': offset, 'limit': limit}, json=None, response=FeedbackListResponse.model_validate)
 
+    def study(
+        self,
+        project_id: str,
+        *,
+        file_id: str,
+        kind: Literal['summary', 'flashcards', 'quiz'] | str,
+        count: int | Unset = UNSET,
+    ) -> StudyResponse:
+        """Write a summary, flashcards or a quiz from a document
+
+        Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.
+        """
+        return self._request('POST', f'/api/v1/study/{_path(project_id)}', query={}, json=_body(StudyRequest, {'file_id': file_id, 'kind': kind, 'count': count}, optional=False), response=StudyResponse.model_validate)
+
+    def list_decks(
+        self,
+        project_id: str,
+    ) -> list[DeckResponse]:
+        """List the project's decks, newest first
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks', query={}, json=None, response=_list(DeckResponse))
+
+    def create_deck(
+        self,
+        project_id: str,
+        *,
+        name: str,
+        cards: list[CardRequest | dict[str, Any]] | Unset = UNSET,
+    ) -> DeckResponse:
+        """Create a deck of flashcards
+
+        Usually with the flashcards of `POST /study`; every card is new and due at once.
+        """
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks', query={}, json=_body(DeckRequest, {'name': name, 'cards': cards}, optional=False), response=DeckResponse.model_validate)
+
+    def get_deck(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> DeckResponse:
+        """A deck, with how many cards are due
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}', query={}, json=None, response=DeckResponse.model_validate)
+
+    def delete_deck(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> None:
+        """Delete a deck and its cards
+        """
+        return self._request('DELETE', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}', query={}, json=None, response=_none)
+
+    def list_cards(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> CardListResponse:
+        """A deck's cards, in order
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards', query={'offset': offset, 'limit': limit}, json=None, response=CardListResponse.model_validate)
+
+    def add_cards(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        cards: list[CardRequest | dict[str, Any]],
+    ) -> DeckResponse:
+        """Add cards to a deck
+
+        After its other cards, new and due at once. A deck holds up to 2,000 cards.
+        """
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards', query={}, json=_body(CardsRequest, {'cards': cards}, optional=False), response=DeckResponse.model_validate)
+
+    def review_queue(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        limit: int | None = None,
+    ) -> ReviewQueueResponse:
+        """The cards due for review now
+
+        The longest due first, each with the interval every grade would give it. Review them one at a time with `POST .../review`.
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/review', query={'limit': limit}, json=None, response=ReviewQueueResponse.model_validate)
+
+    def review_card(
+        self,
+        project_id: str,
+        deck_id: str,
+        card_id: str,
+        *,
+        grade: Literal['again', 'hard', 'good', 'easy'] | str,
+    ) -> CardResponse:
+        """Grade a review of a card, and schedule its next one
+
+        Spaced repetition as in Anki: `again` brings the card back in ten minutes, the other grades in days that grow with each good review.
+        """
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards/{_path(card_id)}/review', query={}, json=_body(ReviewRequest, {'grade': grade}, optional=False), response=CardResponse.model_validate)
+
+    def export_anki(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> None:
+        """Export a deck for Anki
+
+        A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_none)
+
 
 class AsyncOperations:
     """Every operation of the API, as an async method named after its operationId."""
@@ -1250,6 +1376,122 @@ class AsyncOperations:
         """Rated answers, most recently rated first
         """
         return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/feedback', query={'rating': rating, 'offset': offset, 'limit': limit}, json=None, response=FeedbackListResponse.model_validate)
+
+    async def study(
+        self,
+        project_id: str,
+        *,
+        file_id: str,
+        kind: Literal['summary', 'flashcards', 'quiz'] | str,
+        count: int | Unset = UNSET,
+    ) -> StudyResponse:
+        """Write a summary, flashcards or a quiz from a document
+
+        Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.
+        """
+        return await self._request('POST', f'/api/v1/study/{_path(project_id)}', query={}, json=_body(StudyRequest, {'file_id': file_id, 'kind': kind, 'count': count}, optional=False), response=StudyResponse.model_validate)
+
+    async def list_decks(
+        self,
+        project_id: str,
+    ) -> list[DeckResponse]:
+        """List the project's decks, newest first
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks', query={}, json=None, response=_list(DeckResponse))
+
+    async def create_deck(
+        self,
+        project_id: str,
+        *,
+        name: str,
+        cards: list[CardRequest | dict[str, Any]] | Unset = UNSET,
+    ) -> DeckResponse:
+        """Create a deck of flashcards
+
+        Usually with the flashcards of `POST /study`; every card is new and due at once.
+        """
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks', query={}, json=_body(DeckRequest, {'name': name, 'cards': cards}, optional=False), response=DeckResponse.model_validate)
+
+    async def get_deck(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> DeckResponse:
+        """A deck, with how many cards are due
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}', query={}, json=None, response=DeckResponse.model_validate)
+
+    async def delete_deck(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> None:
+        """Delete a deck and its cards
+        """
+        return await self._request('DELETE', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}', query={}, json=None, response=_none)
+
+    async def list_cards(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> CardListResponse:
+        """A deck's cards, in order
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards', query={'offset': offset, 'limit': limit}, json=None, response=CardListResponse.model_validate)
+
+    async def add_cards(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        cards: list[CardRequest | dict[str, Any]],
+    ) -> DeckResponse:
+        """Add cards to a deck
+
+        After its other cards, new and due at once. A deck holds up to 2,000 cards.
+        """
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards', query={}, json=_body(CardsRequest, {'cards': cards}, optional=False), response=DeckResponse.model_validate)
+
+    async def review_queue(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        limit: int | None = None,
+    ) -> ReviewQueueResponse:
+        """The cards due for review now
+
+        The longest due first, each with the interval every grade would give it. Review them one at a time with `POST .../review`.
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/review', query={'limit': limit}, json=None, response=ReviewQueueResponse.model_validate)
+
+    async def review_card(
+        self,
+        project_id: str,
+        deck_id: str,
+        card_id: str,
+        *,
+        grade: Literal['again', 'hard', 'good', 'easy'] | str,
+    ) -> CardResponse:
+        """Grade a review of a card, and schedule its next one
+
+        Spaced repetition as in Anki: `again` brings the card back in ten minutes, the other grades in days that grow with each good review.
+        """
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards/{_path(card_id)}/review', query={}, json=_body(ReviewRequest, {'grade': grade}, optional=False), response=CardResponse.model_validate)
+
+    async def export_anki(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> None:
+        """Export a deck for Anki
+
+        A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_none)
 
 
 __all__ = ['AsyncOperations', 'Operations']

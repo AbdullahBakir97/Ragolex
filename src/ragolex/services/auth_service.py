@@ -7,7 +7,7 @@ from ragolex.domain.models import DEFAULT_TENANT, SCOPES, ApiKey, Principal, Ten
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.services.audit import record
 
-KEY_PREFIX = "mrag_"
+KEY_PREFIX = "ragolex_"
 # Enough of the key to tell keys apart in a list, far too little to guess the rest.
 SHOWN_LENGTH = 12
 
