@@ -45,10 +45,10 @@ See [Web app](web.md) for what it does and how it is built.
 - searching, and adding a chat widget whose live preview answers;
 - accessibility: [axe](https://github.com/dequelabs/axe-core) finds no WCAG 2.1 A or AA violation on any page, in the light and dark themes, at desktop and phone width (the tests tagged `@phone` run on a phone too), and no page is wider than the screen.
 
-They need PostgreSQL with pgvector and a database for them, by default `mini_rag_e2e` on `localhost` (set `E2E_DATABASE_URL` for another), and a browser:
+They need PostgreSQL with pgvector and a database for them, by default `ragolex_e2e` on `localhost` (set `E2E_DATABASE_URL` for another), and a browser:
 
 ```bash
-createdb -U mini_rag mini_rag_e2e    # once, or: docker compose exec db createdb -U mini_rag mini_rag_e2e
+createdb -U ragolex ragolex_e2e    # once, or: docker compose exec db createdb -U ragolex ragolex_e2e
 cd frontend
 npx playwright install chromium      # once
 npm run e2e                          # --ui to watch them, --headed to see the browser

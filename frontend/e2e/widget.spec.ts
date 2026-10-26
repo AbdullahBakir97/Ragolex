@@ -13,7 +13,7 @@ test("a chat widget is added, and its live preview answers", async ({ page, requ
   await expect(page.getByText("Widget added")).toBeVisible();
 
   // The preview is the real widget, in its own shadow DOM, asking this project.
-  const widget = page.locator(".preview-host [data-mini-rag-widget]");
+  const widget = page.locator(".preview-host [data-ragolex-widget]");
   const input = widget.locator("textarea");
   await input.fill("How many days of paid leave do employees get?");
   await input.press("Enter");

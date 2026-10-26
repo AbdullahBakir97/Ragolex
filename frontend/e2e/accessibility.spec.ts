@@ -42,7 +42,7 @@ test("the chat widget is accessible too", async ({ page }) => {
   await page.getByRole("textbox", { name: "Name" }).fill("Help desk");
   await page.getByRole("textbox", { name: "Allowed websites" }).fill("https://shop.example.com");
   await page.getByRole("button", { name: "Add widget" }).click();
-  await expect(page.locator(".preview-host [data-mini-rag-widget]")).toBeVisible();
+  await expect(page.locator(".preview-host [data-ragolex-widget]")).toBeVisible();
 
   const results = await new AxeBuilder({ page })
     .include(".preview-host")

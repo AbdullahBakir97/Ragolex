@@ -11,13 +11,13 @@ const python = process.env.PYTHON ?? "python";
 const ci = !!process.env.CI;
 
 const api = {
-  DATABASE_URL: process.env.E2E_DATABASE_URL ?? "postgresql+asyncpg://mini_rag:mini_rag@localhost:5432/mini_rag_e2e",
+  DATABASE_URL: process.env.E2E_DATABASE_URL ?? "postgresql+asyncpg://ragolex:ragolex@localhost:5432/ragolex_e2e",
   EMBEDDING_BASE_URL: "http://127.0.0.1:9999/v1",
   LLM_BASE_URL: "http://127.0.0.1:9999/v1",
   OPENAI_API_KEY: "unused",
   // The stand-in's vectors score lower than a real model's.
   ANSWER_MIN_SCORE: "0.05",
-  FILES_DIR: join(tmpdir(), "mini-rag-e2e-files"),
+  FILES_DIR: join(tmpdir(), "ragolex-e2e-files"),
   PATH: process.env.PATH ?? "",
 };
 
@@ -46,7 +46,7 @@ export default defineConfig({
       reuseExistingServer: !ci,
     },
     {
-      command: `${python} -m alembic upgrade head && ${python} -m uvicorn mini_rag.main:app --port 8000`,
+      command: `${python} -m alembic upgrade head && ${python} -m uvicorn ragolex.main:app --port 8000`,
       cwd: root,
       env: api,
       url: "http://127.0.0.1:8000/api/v1/health",

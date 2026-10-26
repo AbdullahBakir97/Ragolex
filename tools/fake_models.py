@@ -1,11 +1,11 @@
 """A stand-in model server for end-to-end tests and demos: no account, no network.
 
-It speaks the OpenAI-compatible API Mini RAG uses, so pointing
+It speaks the OpenAI-compatible API Ragolex uses, so pointing
 EMBEDDING_BASE_URL and LLM_BASE_URL at it runs the whole app offline:
 
     python tools/fake_models.py --port 9999
     EMBEDDING_BASE_URL=http://127.0.0.1:9999/v1 LLM_BASE_URL=http://127.0.0.1:9999/v1 \\
-        OPENAI_API_KEY=unused ANSWER_MIN_SCORE=0.05 uvicorn mini_rag.main:app
+        OPENAI_API_KEY=unused ANSWER_MIN_SCORE=0.05 uvicorn ragolex.main:app
 
 - POST /v1/embeddings: a vector of the text's words, so texts sharing words
   are close; deterministic.

@@ -85,19 +85,19 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_USER: mini_rag
+          POSTGRES_USER: ragolex
           # A throwaway database for one job: no password needed.
           POSTGRES_HOST_AUTH_METHOD: trust
-          POSTGRES_DB: mini_rag_e2e
+          POSTGRES_DB: ragolex_e2e
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U mini_rag -d mini_rag_e2e"
+          --health-cmd "pg_isready -U ragolex -d ragolex_e2e"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
     env:
-      E2E_DATABASE_URL: postgresql+asyncpg://mini_rag@localhost:5432/mini_rag_e2e
+      E2E_DATABASE_URL: postgresql+asyncpg://ragolex@localhost:5432/ragolex_e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
