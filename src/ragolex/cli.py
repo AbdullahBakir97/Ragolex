@@ -33,6 +33,7 @@ from ragolex.evaluation.report import (
 from ragolex.evaluation.tuning import Trial, grid, rank
 from ragolex.llm.factory import create_llm
 from ragolex.loaders.registry import default_loader_registry
+from ragolex.ocr.factory import create_ocr
 from ragolex.persistence.database import (
     EmbeddingDimensionsMismatch,
     create_engine,
@@ -675,7 +676,8 @@ async def _work(workers: int) -> int:
     sender = create_webhook_sender(settings)
     unit_of_work = unit_of_work_factory(create_session_factory(engine))
     runner = JobRunner(unit_of_work, FileStorage.from_settings(settings),
-                       default_loader_registry(), embedder, settings.EMBEDDING_BATCH_SIZE)
+                       default_loader_registry(create_ocr(settings)), embedder,
+                       settings.EMBEDDING_BATCH_SIZE)
     dispatcher = WebhookDispatcher(unit_of_work, sender)
     crawlers = create_crawlers(settings)
     scanner = create_scanner(settings)

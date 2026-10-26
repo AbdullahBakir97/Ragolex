@@ -136,6 +136,12 @@ class Settings(BaseSettings):
     # GitHub sources: a token reads private repositories and raises the
     # API's rate limit (60 requests an hour without one, 5000 with).
     GITHUB_TOKEN: str | None = None
+    # OCR reads PDF pages that are pictures of text (scans): with "tesseract",
+    # the tesseract program; with "vision", LLM_BASE_URL's model or OCR_MODEL.
+    OCR_ENGINE: Literal["", "tesseract", "vision"] = ""
+    OCR_LANGUAGES: str = Field(default="eng", pattern=r"^[A-Za-z_]+(\+[A-Za-z_]+)*$")
+    OCR_MODEL: str | None = None
+    OCR_TIMEOUT_SECONDS: float = Field(default=120, gt=0, le=600)
     WEBHOOK_TIMEOUT_SECONDS: float = Field(
         default=10, gt=0, le=60, description="How long a webhook's receiver has to answer")
     ENCRYPTION_KEYS: str = Field(

@@ -60,7 +60,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] Background jobs for processing and indexing, with status, retries and progress.
 - [x] Deleting files and projects everywhere at once; duplicate detection by content hash.
 - [x] More formats: DOCX, Markdown and HTML, split by section.
-- [ ] OCR for scanned PDFs.
+- [x] OCR for scanned PDFs, with Tesseract or a vision model.
 - [x] A website connector: crawled within its site and folder, obeying robots.txt, synced on a schedule, adding, replacing and removing pages.
 - [x] RSS and Atom feeds, and GitHub repositories' documents, as sources synced like websites.
 - [ ] Connectors that need each user's sign-in (OAuth): Notion, Google Drive.

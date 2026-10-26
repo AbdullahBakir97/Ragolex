@@ -29,7 +29,11 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
+      # Languages to read scans in with OCR_ENGINE=tesseract, e.g. "eng deu".
+      args:
+        TESSERACT_LANGUAGES: ${TESSERACT_LANGUAGES:-}
     # A deployment runs a published image instead (tools/deploy.sh sets it).
     image: ${RAGOLEX_IMAGE:-ragolex}
     env_file: .env

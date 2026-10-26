@@ -16,6 +16,7 @@ from ragolex.domain.llm import LLM
 from ragolex.domain.models import Principal, Scope
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
+from ragolex.ocr.factory import create_ocr
 from ragolex.persistence.repositories import SqlUnitOfWork
 from ragolex.services.answer_service import AnswerService
 from ragolex.services.assistant_service import AssistantService
@@ -169,7 +170,7 @@ UploadServiceDep = Annotated[UploadService, Depends(get_upload_service)]
 
 @lru_cache
 def get_loader_registry() -> LoaderRegistry:
-    return default_loader_registry()
+    return default_loader_registry(create_ocr(get_settings()))
 
 
 LoaderRegistryDep = Annotated[LoaderRegistry, Depends(get_loader_registry)]

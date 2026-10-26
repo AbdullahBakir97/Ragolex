@@ -2,7 +2,12 @@ from pathlib import Path
 
 import anyio.to_thread
 
-from ragolex.core.errors import FileNotFound, NoTextExtracted, ProcessingFailed
+from ragolex.core.errors import (
+    AppError,
+    FileNotFound,
+    NoTextExtracted,
+    ProcessingFailed,
+)
 from ragolex.domain.models import Chunk, Document
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.loaders.base import DocumentLoader
@@ -49,6 +54,8 @@ class ProcessingService:
         try:
             with storage.plaintext(path) as plain:
                 documents = loader.load(plain, source=source)
+        except AppError:
+            raise  # e.g. OcrFailed, which says what failed, and may pass on a retry
         except Exception as exc:
             raise ProcessingFailed(f"Could not read {source}") from exc
 

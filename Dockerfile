@@ -26,6 +26,17 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     FILES_DIR=/app/assets/files
 
+# OCR with Tesseract (OCR_ENGINE=tesseract) needs the program and a trained
+# model per language, e.g. --build-arg TESSERACT_LANGUAGES="eng deu"; the
+# default image leaves them out.
+ARG TESSERACT_LANGUAGES=""
+RUN if [ -n "$TESSERACT_LANGUAGES" ]; then \
+        apt-get update \
+        && apt-get install -y --no-install-recommends tesseract-ocr \
+            $(for language in $TESSERACT_LANGUAGES; do echo "tesseract-ocr-$language"; done) \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
+
 RUN useradd --create-home --uid 10001 app \
     && mkdir -p /app/assets/files \
     && chown -R app:app /app

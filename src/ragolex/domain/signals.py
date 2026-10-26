@@ -27,6 +27,7 @@ class ResponseSignal(Enum):
     EMBEDDING_FAILED = "embedding_failed"
     LLM_NOT_CONFIGURED = "llm_not_configured"
     LLM_FAILED = "llm_failed"
+    OCR_FAILED = "ocr_failed"
     RERANK_FAILED = "rerank_failed"
     JOB_NOT_FOUND = "job_not_found"
     JOB_NOT_FAILED = "job_not_failed"

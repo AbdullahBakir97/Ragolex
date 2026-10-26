@@ -304,7 +304,7 @@ Supported files, chosen by extension:
 | `.docx` | One document per section; tables as one line per row, list items with `-` | `section` |
 | Source code: `.py`, `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, `.tsx`, `.go`, `.java`, `.kt`, `.kts`, `.cs`, `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.rs`, `.php`, `.swift` | One document per definition; see [Source code](#source-code) | `section` (the definition's name), `language` |
 
-A section starts at a heading (in Word, a paragraph in a heading style) and its text starts with that heading. `section` is the path of headings above it, such as `"Setup > Install"`, so chunks never mix two sections and citations can say where they come from. Scanned PDFs and the older `.doc` format are not read.
+A section starts at a heading (in Word, a paragraph in a heading style) and its text starts with that heading. `section` is the path of headings above it, such as `"Setup > Install"`, so chunks never mix two sections and citations can say where they come from. Scanned PDFs are read with OCR when `OCR_ENGINE` is set ([Reading scanned PDFs](configuration.md#reading-scanned-pdfs)): their pages' chunks have `"ocr": true` in their metadata. The older `.doc` format is not read.
 
 ### Source code
 
@@ -324,7 +324,8 @@ For code, the extension decides the content type whatever the upload declares (`
 | Chunks created | `200` | `{"signal": "processing_success", ...}` |
 | No such file in this project (or not uploaded through the API) | `404` | `{"signal": "file_not_found"}` |
 | Extension is not one of the above | `415` | `{"signal": "file_type_not_supported"}` |
-| No extractable text (e.g. a scanned PDF) | `422` | `{"signal": "file_has_no_text"}` |
+| No extractable text (e.g. a scanned PDF, without OCR) | `422` | `{"signal": "file_has_no_text"}` |
+| A scanned page could not be read: the OCR engine failed or is not installed | `502` | `{"signal": "ocr_failed"}` |
 | File could not be read | `422` | `{"signal": "processing_failed"}` |
 | Invalid `file_id` or chunk settings | `422` | Validation error details |
 
