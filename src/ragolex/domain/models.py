@@ -445,3 +445,33 @@ class WebhookDelivery:
     error: str | None = None
     delivered_at: datetime | None = None
 
+
+
+# Study material from a document: key points, flashcards or quiz questions,
+# each citing the numbers of the passages it comes from.
+StudyKind = Literal["summary", "flashcards", "quiz"]
+
+
+@dataclass(frozen=True)
+class KeyPoint:
+    text: str
+    sources: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class Flashcard:
+    front: str
+    back: str
+    sources: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class QuizQuestion:
+    question: str
+    choices: tuple[str, ...]
+    answer: int
+    explanation: str
+    sources: tuple[int, ...]
+
+
+StudyItem = KeyPoint | Flashcard | QuizQuestion

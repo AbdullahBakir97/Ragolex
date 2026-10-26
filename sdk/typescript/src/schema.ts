@@ -841,6 +841,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/study/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write a summary, flashcards or a quiz from a document
+         * @description Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.
+         */
+        post: operations["study"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1355,6 +1375,15 @@ export interface components {
              */
             tags: string[];
         };
+        /** FlashcardResponse */
+        FlashcardResponse: {
+            /** Front */
+            front: string;
+            /** Back */
+            back: string;
+            /** Sources */
+            sources: number[];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1480,6 +1509,13 @@ export interface components {
             started_at: string | null;
             /** Finished At */
             finished_at: string | null;
+        };
+        /** KeyPointResponse */
+        KeyPointResponse: {
+            /** Text */
+            text: string;
+            /** Sources */
+            sources: number[];
         };
         /** MeResponse */
         MeResponse: {
@@ -1645,6 +1681,28 @@ export interface components {
              */
             unpriced_answers: number;
         };
+        /** QuizQuestionResponse */
+        QuizQuestionResponse: {
+            /** Question */
+            question: string;
+            /**
+             * Choices
+             * @description Four choices.
+             */
+            choices: string[];
+            /**
+             * Answer
+             * @description The position of the right choice, from 0.
+             */
+            answer: number;
+            /**
+             * Explanation
+             * @description Why it is right, from the document.
+             */
+            explanation: string;
+            /** Sources */
+            sources: number[];
+        };
         /** RatedAnswerResponse */
         RatedAnswerResponse: {
             /** Conversation Id */
@@ -1669,7 +1727,7 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
         /**
          * SearchFiltersRequest
          * @description Narrows the chunks searched; leave a field out not to narrow by it.
@@ -1877,6 +1935,84 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** StudyRequest */
+        StudyRequest: {
+            /**
+             * File Id
+             * @description The document to study; it must be processed.
+             * @example a16q20nzrtvj_notes.txt
+             */
+            file_id: string;
+            /**
+             * Kind
+             * @description `summary`: key points in the document's order. `flashcards`: a question or term on the front, its answer on the back. `quiz`: multiple-choice questions with four choices, the right one and why.
+             * @enum {string}
+             */
+            kind: "summary" | "flashcards" | "quiz";
+            /**
+             * Count
+             * @description Most items to write.
+             * @default 10
+             */
+            count?: number;
+        };
+        /** StudyResponse */
+        StudyResponse: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "summary" | "flashcards" | "quiz";
+            /** File Id */
+            file_id: string;
+            /** Original Name */
+            original_name: string;
+            /**
+             * Items
+             * @description Of the requested kind; each cites the passages it comes from. Empty when the model wrote nothing usable.
+             */
+            items: components["schemas"]["KeyPointResponse"][] | components["schemas"]["FlashcardResponse"][] | components["schemas"]["QuizQuestionResponse"][];
+            /**
+             * Sources
+             * @description The passages the items cite.
+             */
+            sources: components["schemas"]["StudySourceResponse"][];
+            /** Prompt Version */
+            prompt_version: string;
+            usage: components["schemas"]["UsageResponse"];
+            /**
+             * Passages
+             * @description Chunks given to the model.
+             */
+            passages: number;
+            /**
+             * Chunks
+             * @description Chunks of the document: more than `passages` when the document is longer than the model reads at once, and only chunks spread over it were used.
+             */
+            chunks: number;
+        };
+        /** StudySourceResponse */
+        StudySourceResponse: {
+            /**
+             * Number
+             * @description What items cite in their `sources`.
+             */
+            number: number;
+            /** Chunk Index */
+            chunk_index: number;
+            /**
+             * Page
+             * @description Page number for PDFs, starting at 1; null otherwise.
+             */
+            page: number | null;
+            /**
+             * Section
+             * @description The headings above the passage, when known.
+             */
+            section: string | null;
+            /** Text */
+            text: string;
         };
         /** TagListResponse */
         TagListResponse: {
@@ -4733,6 +4869,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    study: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudyResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `file_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `file_not_processed` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Signal: `llm_failed` */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `llm_not_configured` */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

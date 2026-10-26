@@ -38,6 +38,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `WEBHOOK_TIMEOUT_SECONDS` | `10` | How long a webhook's receiver has to answer (up to 60) |
 | `SEARCH_MODE` | `"hybrid"` | `hybrid` ranks chunks by meaning and by the words they share with the question, merged by reciprocal rank fusion; `vector` by meaning only. Scores are the cosine similarity either way |
 | `ANSWER_MIN_SCORE` | `0.3` | Chunks scoring below this cosine similarity are not used for answers; with none left the answer is `no_answer`. The default suits `text-embedding-3-small`; other models may need another value |
+| `STUDY_MAX_CHARACTERS` | `32000` | Characters of a document given to the model at once for [study material](api.md#study) (1,000–1,000,000); a longer document is given in chunks spread evenly over it. Raise it for models with a large context |
 | `LOG_LEVEL` | `"INFO"` | Level for the app's own logs: `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` (libraries log warnings and above) |
 | `METRICS_TOKEN` | unset | When set, `GET /metrics` requires `Authorization: Bearer <token>`; set it whenever the API's port is reachable from outside. See [Operations](operations.md#metrics) |
 | `LOG_FORMAT` | `"text"` | `text`: readable lines. `json`: one JSON object per line (`time`, `level`, `logger`, `message`, `request_id`, `tenant`, `trace_id` when tracing, and fields such as `method`, `path`, `status` and `duration_ms` on access lines), uvicorn's own lines included, for log collectors |

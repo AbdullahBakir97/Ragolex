@@ -5006,6 +5006,143 @@
           }
         }
       }
+    },
+    "/api/v1/study/{project_id}": {
+      "post": {
+        "tags": [
+          "study"
+        ],
+        "summary": "Write a summary, flashcards or a quiz from a document",
+        "description": "Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.",
+        "operationId": "study",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `file_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "file_not_found": {
+                    "value": {
+                      "signal": "file_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `file_not_processed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "file_not_processed": {
+                    "value": {
+                      "signal": "file_not_processed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Signal: `llm_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "llm_failed": {
+                    "value": {
+                      "signal": "llm_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Signal: `llm_not_configured`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "llm_not_configured": {
+                    "value": {
+                      "signal": "llm_not_configured"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6182,6 +6319,32 @@
         ],
         "title": "FileTagsRequest"
       },
+      "FlashcardResponse": {
+        "properties": {
+          "front": {
+            "type": "string",
+            "title": "Front"
+          },
+          "back": {
+            "type": "string",
+            "title": "Back"
+          },
+          "sources": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "front",
+          "back",
+          "sources"
+        ],
+        "title": "FlashcardResponse"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -6470,6 +6633,27 @@
           "finished_at"
         ],
         "title": "JobResponse"
+      },
+      "KeyPointResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "sources": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "sources"
+        ],
+        "title": "KeyPointResponse"
       },
       "MeResponse": {
         "properties": {
@@ -6813,6 +6997,48 @@
         ],
         "title": "ProjectUsageResponse"
       },
+      "QuizQuestionResponse": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Choices",
+            "description": "Four choices."
+          },
+          "answer": {
+            "type": "integer",
+            "title": "Answer",
+            "description": "The position of the right choice, from 0."
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "description": "Why it is right, from the document."
+          },
+          "sources": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "choices",
+          "answer",
+          "explanation",
+          "sources"
+        ],
+        "title": "QuizQuestionResponse"
+      },
       "RatedAnswerResponse": {
         "properties": {
           "conversation_id": {
@@ -6873,6 +7099,7 @@
           "file_not_found",
           "project_not_found",
           "file_has_no_text",
+          "file_not_processed",
           "processing_success",
           "processing_failed",
           "indexing_success",
@@ -7375,6 +7602,177 @@
           "created_at"
         ],
         "title": "SourceResponse"
+      },
+      "StudyRequest": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^[\\w.]+$",
+            "title": "File Id",
+            "description": "The document to study; it must be processed.",
+            "examples": [
+              "a16q20nzrtvj_notes.txt"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "flashcards",
+              "quiz"
+            ],
+            "title": "Kind",
+            "description": "`summary`: key points in the document's order. `flashcards`: a question or term on the front, its answer on the back. `quiz`: multiple-choice questions with four choices, the right one and why."
+          },
+          "count": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "description": "Most items to write.",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_id",
+          "kind"
+        ],
+        "title": "StudyRequest"
+      },
+      "StudyResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "flashcards",
+              "quiz"
+            ],
+            "title": "Kind"
+          },
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "original_name": {
+            "type": "string",
+            "title": "Original Name"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/KeyPointResponse"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FlashcardResponse"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/QuizQuestionResponse"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Items",
+            "description": "Of the requested kind; each cites the passages it comes from. Empty when the model wrote nothing usable."
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/StudySourceResponse"
+            },
+            "type": "array",
+            "title": "Sources",
+            "description": "The passages the items cite."
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageResponse"
+          },
+          "passages": {
+            "type": "integer",
+            "title": "Passages",
+            "description": "Chunks given to the model."
+          },
+          "chunks": {
+            "type": "integer",
+            "title": "Chunks",
+            "description": "Chunks of the document: more than `passages` when the document is longer than the model reads at once, and only chunks spread over it were used."
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "file_id",
+          "original_name",
+          "items",
+          "sources",
+          "prompt_version",
+          "usage",
+          "passages",
+          "chunks"
+        ],
+        "title": "StudyResponse"
+      },
+      "StudySourceResponse": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number",
+            "description": "What items cite in their `sources`."
+          },
+          "chunk_index": {
+            "type": "integer",
+            "title": "Chunk Index"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page",
+            "description": "Page number for PDFs, starting at 1; null otherwise."
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section",
+            "description": "The headings above the passage, when known."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "chunk_index",
+          "page",
+          "section",
+          "text"
+        ],
+        "title": "StudySourceResponse"
       },
       "TagListResponse": {
         "properties": {

@@ -81,7 +81,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 ### Phase 7: Study mode
 
-- [ ] Summaries, flashcards and quizzes generated from documents, each answer linked to its source page.
+- [x] Summaries, flashcards and quizzes generated from documents, each item linked to its source page ([API › Study](api.md#study)).
 - [ ] Spaced-repetition review and export to Anki.
 - [ ] Code-aware chunking for source repositories.
 
