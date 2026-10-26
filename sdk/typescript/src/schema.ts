@@ -405,7 +405,7 @@ export interface paths {
         put?: never;
         /**
          * Send a project's events to a URL
-         * @description Each event is POSTed as JSON, signed with the returned `secret` (see X-Mini-RAG-Signature), and retried for about 20 hours until the URL answers 2xx. The project is created if it has no files yet.
+         * @description Each event is POSTed as JSON, signed with the returned `secret` (see X-Ragolex-Signature), and retried for about 20 hours until the URL answers 2xx. The project is created if it has no files yet.
          */
         post: operations["create_webhook"];
         delete?: never;
@@ -813,7 +813,7 @@ export interface paths {
         get?: never;
         /**
          * Rate an answer thumbs up or down
-         * @description Replaces any rating the answer had. Rated answers can be reviewed with GET /api/v1/projects/{project_id}/feedback and exported as evaluation cases with `mini-rag feedback-export`.
+         * @description Replaces any rating the answer had. Rated answers can be reviewed with GET /api/v1/projects/{project_id}/feedback and exported as evaluation cases with `ragolex feedback-export`.
          */
         put: operations["rate_answer"];
         post?: never;
@@ -1215,7 +1215,7 @@ export interface components {
         DeliveryResponse: {
             /**
              * Id
-             * @description Also sent as X-Mini-RAG-Delivery; the same on every attempt.
+             * @description Also sent as X-Ragolex-Delivery; the same on every attempt.
              */
             id: string;
             /** Event */
@@ -2004,7 +2004,7 @@ export interface components {
              * Url
              * Format: uri
              * @description Where to POST events: an http or https URL.
-             * @example https://example.com/hooks/mini-rag
+             * @example https://example.com/hooks/ragolex
              */
             url: string;
             /**

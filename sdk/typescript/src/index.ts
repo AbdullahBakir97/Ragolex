@@ -1,4 +1,4 @@
-export { MiniRag } from "./client.js";
+export { Ragolex } from "./client.js";
 export type {
   Answer,
   AnswerEvent,
@@ -6,7 +6,7 @@ export type {
   AskRequest,
   FileInfo,
   Job,
-  MiniRagOptions,
+  RagolexOptions,
   Schemas,
   SearchFilters,
   SearchOptions,
@@ -16,5 +16,5 @@ export type {
   UploadOptions,
   WaitOptions,
 } from "./client.js";
-export { MiniRagError } from "./errors.js";
+export { RagolexError } from "./errors.js";
 export type { components, operations, paths } from "./schema.js";

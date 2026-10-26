@@ -22,18 +22,18 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_USER: mini_rag
-          POSTGRES_PASSWORD: mini_rag
-          POSTGRES_DB: mini_rag_test
+          POSTGRES_USER: ragolex
+          POSTGRES_PASSWORD: ragolex
+          POSTGRES_DB: ragolex_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U mini_rag -d mini_rag_test"
+          --health-cmd "pg_isready -U ragolex -d ragolex_test"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
     env:
-      TEST_DATABASE_URL: postgresql+asyncpg://mini_rag:mini_rag@localhost:5432/mini_rag_test
+      TEST_DATABASE_URL: postgresql+asyncpg://ragolex:ragolex@localhost:5432/ragolex_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -205,19 +205,19 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_USER: mini_rag
+          POSTGRES_USER: ragolex
           # A throwaway database for one job: no password needed.
           POSTGRES_HOST_AUTH_METHOD: trust
-          POSTGRES_DB: mini_rag_eval
+          POSTGRES_DB: ragolex_eval
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U mini_rag -d mini_rag_eval"
+          --health-cmd "pg_isready -U ragolex -d ragolex_eval"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql+asyncpg://mini_rag@localhost:5432/mini_rag_eval
+      DATABASE_URL: postgresql+asyncpg://ragolex@localhost:5432/ragolex_eval
       EMBEDDING_BASE_URL: http://localhost:11434/v1
       EMBEDDING_MODEL: nomic-embed-text:v1.5
       EMBEDDING_DIMENSIONS: '768'
@@ -244,7 +244,7 @@ jobs:
       - name: Migrate the database
         run: alembic upgrade head
       - name: Evaluate retrieval
-        run: mini-rag eval evals/handbook/v1 --baseline evals/baselines/handbook-v1.json --output eval-report.json --save-baseline eval-baseline.json
+        run: ragolex eval evals/handbook/v1 --baseline evals/baselines/handbook-v1.json --output eval-report.json --save-baseline eval-baseline.json
       - name: Show this run's baseline
         # To copy into evals/baselines/handbook-v1.json when retrieval got better.
         if: always()
@@ -278,7 +278,7 @@ jobs:
           exit 1
       - name: Upload a file through the API
         run: |
-          echo "Mini RAG in Docker." > notes.txt
+          echo "Ragolex in Docker." > notes.txt
           curl --fail --silent -F "file=@notes.txt;type=text/plain" http://localhost:8000/api/v1/data/upload/demo
       - name: The web app serves its pages and forwards the API
         run: |

@@ -7,9 +7,9 @@ import io
 import pytest
 from pydantic import ValidationError
 
-from mini_rag import cli
-from mini_rag.core.config import Settings, get_settings
-from mini_rag.core.encryption import (
+from ragolex import cli
+from ragolex.core.config import Settings, get_settings
+from ragolex.core.encryption import (
     FILE_MAGIC,
     HEADER_BYTES,
     SEGMENT_BYTES,
@@ -17,7 +17,7 @@ from mini_rag.core.encryption import (
     KeyRing,
     new_key,
 )
-from mini_rag.storage.file_storage import FileStorage
+from ragolex.storage.file_storage import FileStorage
 
 from .test_ask_api import GUIDE, ask, upload_process_and_index
 from .test_upload_scanning import FakeClamd
@@ -154,7 +154,7 @@ def test_the_scanner_gets_the_file_as_uploaded(db, monkeypatch, files_dir, encry
     with FakeClamd() as clamd:
         monkeypatch.setenv("CLAMAV_URL", f"tcp://127.0.0.1:{clamd.port}")
         get_settings.cache_clear()
-        from mini_rag.main import create_app
+        from ragolex.main import create_app
 
         with TestClient(create_app()) as client:
             response = client.post("/api/v1/data/upload/demo",
@@ -212,7 +212,7 @@ def test_webhook_secrets_are_stored_encrypted_and_still_sign(client, dispatch, q
     assert dispatch(sender) == [True]
     [(_, _, headers, raw)] = sender.requests
     expected = hmac.new(created["secret"].encode(), b"1700000000." + raw, hashlib.sha256)
-    assert headers["X-Mini-RAG-Signature"] == f"t=1700000000,v1={expected.hexdigest()}"
+    assert headers["X-Ragolex-Signature"] == f"t=1700000000,v1={expected.hexdigest()}"
 
 
 # The command

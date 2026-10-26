@@ -4,10 +4,10 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 
 | Variable | Example | Description |
 |---|---|---|
-| `APP_NAME` | `"mini-RAG"` | Name returned by the welcome endpoint |
+| `APP_NAME` | `"Ragolex"` | Name returned by the welcome endpoint |
 | `APP_VERSION` | `"0.1"` | Version returned by the welcome endpoint |
 | `OPENAI_API_KEY` | `""` | API key for OpenAI, used for embeddings and answers. Leave empty when both use local servers set in `EMBEDDING_BASE_URL` and `LLM_BASE_URL` |
-| `DATABASE_URL` | `"postgresql+asyncpg://mini_rag:mini_rag@localhost:5432/mini_rag"` | PostgreSQL connection (must use the `postgresql+asyncpg://` driver); the default matches `compose.yaml` |
+| `DATABASE_URL` | `"postgresql+asyncpg://ragolex:ragolex@localhost:5432/ragolex"` | PostgreSQL connection (must use the `postgresql+asyncpg://` driver); the default matches `compose.yaml` |
 | `EMBEDDING_BASE_URL` | `""` | OpenAI-compatible server for embeddings, e.g. `"http://localhost:11434/v1"` for Ollama; empty means OpenAI |
 | `EMBEDDING_MODEL` | `"text-embedding-3-small"` | Embedding model name |
 | `EMBEDDING_DIMENSIONS` | `1536` | Length of each vector, up to 2000; must match the embedding model. See [Changing the embedding model](#changing-the-embedding-model) |
@@ -24,10 +24,10 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `RERANK_API_KEY` | `""` | Sent as a bearer token when set |
 | `RERANK_CANDIDATES` | `20` | Results reranked per search (1–100); the best `top_k` of them are kept. If the reranker fails, the search order stays and a warning is logged |
 | `AUTH_ENABLED` | `false` | Require an API key on every request but the welcome and health endpoints; off, every request acts for the tenant `default` with every scope. Turn it on for any server others can reach (see [Authentication](api.md#authentication-and-tenants)) |
-| `RATE_LIMIT_PER_MINUTE` | `0` | Requests per minute per tenant (`429` beyond it); `0` is unlimited. `mini-rag tenants limits` sets a tenant's own |
+| `RATE_LIMIT_PER_MINUTE` | `0` | Requests per minute per tenant (`429` beyond it); `0` is unlimited. `ragolex tenants limits` sets a tenant's own |
 | `ANSWERS_PER_MONTH` | `0` | Answers per calendar month (UTC) per tenant; `0` is unlimited |
 | `STORAGE_MB_PER_TENANT` | `0` | Megabytes of uploaded files per tenant; `0` is unlimited |
-| `JOB_WORKERS` | `1` | Background jobs the API runs at once (0–32); above 0, the API also sends webhook deliveries. `0` leaves both to `mini-rag worker` processes, for an API that only queues them |
+| `JOB_WORKERS` | `1` | Background jobs the API runs at once (0–32); above 0, the API also sends webhook deliveries. `0` leaves both to `ragolex worker` processes, for an API that only queues them |
 | `JOB_MAX_ATTEMPTS` | `3` | Tries per job (1–10) when the embedding provider fails, before the job fails |
 | `WEBHOOK_ALLOW_PRIVATE_URLS` | `false` | Let webhooks reach `localhost` and private networks, e.g. n8n next to the API. Off, they reach only public addresses |
 | `CLAMAV_URL` | unset | ClamAV's daemon, as `tcp://host:port` (e.g. `tcp://clamav:3310` with `docker compose --profile scan`): every new upload is scanned for malware before it is kept, and refused when it cannot be scanned. Unset, uploads are not scanned. clamd refuses files over its `StreamMaxLength` (25 MB by default), so keep `FILE_MAX_SIZE` below it |
@@ -45,7 +45,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `FILE_ALLOWED_TYPES` | Text, Markdown, HTML, PDF and Word (`.docx`) | MIME types accepted for upload. An upload with no type, or `application/octet-stream`, gets the type of its extension |
 | `FILE_MAX_SIZE` | `10` | Maximum upload size in MB |
 | `FILE_DEFAULT_CHUNK_SIZE` | `512000` | Bytes read per chunk while saving an upload |
-| `ENCRYPTION_KEYS` | `""` | Comma-separated keys from `mini-rag encryption new-key`. Set, uploaded files and webhook secrets are encrypted at rest (AES-256-GCM) with the first key, and any of the keys decrypts. Empty, they are stored as they are. Losing a key loses what it encrypted. See [Operations › Encryption at rest](operations.md#encryption-at-rest) |
+| `ENCRYPTION_KEYS` | `""` | Comma-separated keys from `ragolex encryption new-key`. Set, uploaded files and webhook secrets are encrypted at rest (AES-256-GCM) with the first key, and any of the keys decrypts. Empty, they are stored as they are. Losing a key loses what it encrypted. See [Operations › Encryption at rest](operations.md#encryption-at-rest) |
 
 ## Model providers
 
@@ -85,8 +85,8 @@ Vectors from different models cannot be compared, so after changing `EMBEDDING_M
 - **Vectors stored:** the app refuses to start and names the command that switches. It clears the stored vectors:
 
   ```bash
-  mini-rag resize-embeddings                              # API outside Docker
-  docker compose run --rm app mini-rag resize-embeddings  # with Docker
+  ragolex resize-embeddings                              # API outside Docker
+  docker compose run --rm app ragolex resize-embeddings  # with Docker
   ```
 
 Then start the app and index each project again; the web app offers this with **Index now**.

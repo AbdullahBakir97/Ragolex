@@ -5,10 +5,10 @@ import re
 
 import pytest
 
-from mini_rag.core.config import get_settings
-from mini_rag.core.errors import WidgetOriginInvalid
-from mini_rag.domain.models import Widget
-from mini_rag.services.widget_service import normalize_origin, origin_allowed
+from ragolex.core.config import get_settings
+from ragolex.core.errors import WidgetOriginInvalid
+from ragolex.domain.models import Widget
+from ragolex.services.widget_service import normalize_origin, origin_allowed
 
 from .test_ask_api import upload_process_and_index
 from .test_auth import bearer, make_key
