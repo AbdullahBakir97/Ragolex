@@ -8,9 +8,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import make_url
 from sqlalchemy import text as sql_text
 
-from mini_rag.cli import main
-from mini_rag.core.config import get_settings
-from mini_rag.persistence.database import (
+from ragolex.cli import main
+from ragolex.core.config import get_settings
+from ragolex.persistence.database import (
     create_engine,
     resize_embeddings,
     stored_embedding_dimensions,
@@ -106,7 +106,7 @@ def test_sizes_the_index_cannot_hold_are_refused(dimensions):
 
 
 def test_the_app_resizes_an_empty_column_at_start(resize_db, monkeypatch):
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     add_chunk(None)  # chunks without vectors lose nothing
     monkeypatch.setenv("EMBEDDING_DIMENSIONS", "768")
@@ -118,13 +118,13 @@ def test_the_app_resizes_an_empty_column_at_start(resize_db, monkeypatch):
 
 
 def test_the_app_refuses_to_start_when_stored_vectors_do_not_fit(resize_db, monkeypatch):
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     add_chunk([0.5] * 1536)
     monkeypatch.setenv("EMBEDDING_DIMENSIONS", "768")
     get_settings.cache_clear()
 
-    with pytest.raises(RuntimeError, match=r"768.*1 vectors of 1536.*mini-rag resize-embeddings"):
+    with pytest.raises(RuntimeError, match=r"768.*1 vectors of 1536.*ragolex resize-embeddings"):
         with TestClient(create_app()):
             pass
     assert stored_dimensions() == 1536

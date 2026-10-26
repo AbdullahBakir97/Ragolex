@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from mini_rag.core.config import Settings
+from ragolex.core.config import Settings
 
 
 def test_defaults_use_openai_small_model():

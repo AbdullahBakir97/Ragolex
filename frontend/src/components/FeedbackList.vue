@@ -46,7 +46,7 @@ watch([() => props.project, filter], () => void load(), { immediate: true });
         <h3>Feedback</h3>
         <p class="muted small">
           Answers rated in conversations. Export them as evaluation cases with
-          <code>mini-rag feedback-export {{ project }} &lt;folder&gt;</code>.
+          <code>ragolex feedback-export {{ project }} &lt;folder&gt;</code>.
         </p>
       </div>
       <div v-if="list" class="counts">
