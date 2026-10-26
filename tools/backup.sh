@@ -1,7 +1,7 @@
 #!/bin/sh
-# Back up Mini RAG, or restore a backup: the database and the uploaded files together.
+# Back up Ragolex, or restore a backup: the database and the uploaded files together.
 #
-#   tools/backup.sh create [directory]             writes mini-rag-<UTC time>.tar.gz there (default .)
+#   tools/backup.sh create [directory]             writes ragolex-<UTC time>.tar.gz there (default .)
 #   tools/backup.sh restore <archive> [--force]    restores one into an empty database and files folder
 #
 # Settings come from the environment, as for the API:
@@ -29,7 +29,7 @@ trap 'rm -rf "$work"' EXIT
 create() {
     target=${1:-.}
     mkdir -p "$target"
-    archive="$target/mini-rag-$(date -u +%Y%m%d-%H%M%S).tar.gz"
+    archive="$target/ragolex-$(date -u +%Y%m%d-%H%M%S).tar.gz"
     [ -e "$archive" ] && die "$archive exists already"
 
     pg_dump --dbname="$url" --format=custom --no-owner --no-privileges --file="$work/database.dump"

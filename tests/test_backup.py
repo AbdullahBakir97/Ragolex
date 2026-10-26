@@ -13,8 +13,8 @@ from sqlalchemy import make_url
 from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from mini_rag.api.dependencies import get_embedder
-from mini_rag.core.config import get_settings
+from ragolex.api.dependencies import get_embedder
+from ragolex.core.config import get_settings
 
 from .conftest import TEST_DATABASE_URL
 from .fakes import FakeEmbedder
@@ -71,7 +71,7 @@ def backed_up(client, db, embedder, files_dir, tmp_path):
     upload_process_and_index(client)
     created = run("create", str(tmp_path / "backups"), database=db, files=files_dir)
     assert created.returncode == 0, created.stderr
-    [archive] = (tmp_path / "backups").glob("mini-rag-*.tar.gz")
+    [archive] = (tmp_path / "backups").glob("ragolex-*.tar.gz")
     return archive, search(client)
 
 
@@ -94,7 +94,7 @@ def test_a_backup_restores_into_a_working_copy(backed_up, empty_database, files_
     monkeypatch.setenv("DATABASE_URL", empty_database)
     monkeypatch.setenv("FILES_DIR", str(restored_files))
     get_settings.cache_clear()
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     with TestClient(create_app()) as restored_client:
         restored_client.app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()
@@ -139,7 +139,7 @@ def test_force_restores_over_a_disaster(backed_up, client, db, files_dir):
 
     # The API is restarted after a restore: the restore recreates the vector
     # extension, whose type a running app's connections still know by its old id.
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     with TestClient(create_app()) as restarted:
         restarted.app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()

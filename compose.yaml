@@ -70,7 +70,7 @@ services:
     profiles: ["backup"]
     entrypoint: ["sh", "/tools/backup.sh"]
     environment:
-      DATABASE_URL: postgresql:///mini_rag?host=/var/run/postgresql&user=mini_rag
+      DATABASE_URL: postgresql:///ragolex?host=/var/run/postgresql&user=ragolex
       FILES_DIR: /files
     volumes:
       - ./tools:/tools:ro
