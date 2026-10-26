@@ -4,10 +4,10 @@ import json
 
 import pytest
 
-from mini_rag.api.dependencies import get_llm
-from mini_rag.core.config import get_settings
-from mini_rag.domain.models import Chunk
-from mini_rag.services.study_service import _spread
+from ragolex.api.dependencies import get_llm
+from ragolex.core.config import get_settings
+from ragolex.domain.models import Chunk
+from ragolex.services.study_service import _spread
 
 from .fakes import FakeLLM
 from .test_ask_api import GUIDE

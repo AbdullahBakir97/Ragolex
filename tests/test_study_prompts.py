@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from mini_rag.prompts.study import (
+from ragolex.prompts.study import (
     FLASHCARDS_PROMPT_V1,
     QUIZ_PROMPT_V1,
     STUDY_PROMPTS,

@@ -81,7 +81,7 @@ export class ChatWidget {
     readonly config: WidgetConfig,
   ) {
     this.inline = Boolean(options.container);
-    this.host = element("div", { "data-mini-rag-widget": config.id });
+    this.host = element("div", { "data-ragolex-widget": config.id });
     this.shadow = this.host.attachShadow({ mode: "open" });
     const style = element("style", {}, STYLES);
     this.root = element("div", { class: `root${this.inline ? " inline" : ""}${options.position === "left" ? " left" : ""}` });
@@ -342,7 +342,7 @@ export class ChatWidget {
   }
 
   private get storageKey(): string {
-    return `mini-rag-widget:${this.config.id}`;
+    return `ragolex-widget:${this.config.id}`;
   }
 
   private load(): Saved | null {

@@ -1,13 +1,13 @@
 import pytest
 
-from mini_rag.core.spaced_repetition import (
+from ragolex.core.spaced_repetition import (
     MAX_INTERVAL_DAYS,
     MIN_EASE,
     RELEARN_DAYS,
     next_schedule,
     previews,
 )
-from mini_rag.domain.models import Schedule
+from ragolex.domain.models import Schedule
 
 NEW = Schedule()
 

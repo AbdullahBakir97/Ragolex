@@ -74,6 +74,6 @@ export const router = createRouter({
 
 router.afterEach((to) => {
   const project = typeof to.params.project === "string" ? to.params.project : null;
-  const parts = [to.meta.title as string | undefined, project, "Mini RAG"].filter(Boolean);
+  const parts = [to.meta.title as string | undefined, project, "Ragolex"].filter(Boolean);
   document.title = parts.join(" · ");
 });

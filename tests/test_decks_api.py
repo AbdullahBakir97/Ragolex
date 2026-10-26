@@ -100,7 +100,7 @@ def test_cards_can_be_added_to_a_deck(client):
 
 
 def test_a_deck_holds_at_most_2000_cards(client, monkeypatch):
-    monkeypatch.setattr("mini_rag.services.deck_service.MAX_CARDS", 4)
+    monkeypatch.setattr("ragolex.services.deck_service.MAX_CARDS", 4)
     deck = create(client)
 
     response = client.post(f"/api/v1/projects/demo/decks/{deck['id']}/cards",
@@ -122,9 +122,9 @@ def test_a_deck_exports_to_anki(client, file_id):
         "#separator:tab", "#html:true", "#notetype:Basic", "#deck:Guide: chapter 1",
         "#tags column:3",
         "What does processing do?\tSplits files into chunks.<br><br><small>guide.txt</small>"
-        "\tmini-rag demo",
-        "What does indexing store?\tAn embedding vector<br>per chunk.\tmini-rag demo",
-        "Term: chunk\tA &lt;piece&gt; of a document &amp; its text.\tmini-rag demo",
+        "\tragolex demo",
+        "What does indexing store?\tAn embedding vector<br>per chunk.\tragolex demo",
+        "Term: chunk\tA &lt;piece&gt; of a document &amp; its text.\tragolex demo",
     ]
 
 
@@ -137,9 +137,9 @@ def test_the_export_names_the_page_and_section_of_each_card(client, file_id):
     lines = client.get(f"/api/v1/projects/demo/decks/{deck['id']}/anki").text.splitlines()
 
     assert lines[-3:] == [
-        "Q1\tA1<br><br><small>guide.txt, p. 4</small>\tmini-rag demo",
-        "Q2\tA2<br><br><small>guide.txt, Setup &gt; Install</small>\tmini-rag demo",
-        "Q3\tA3<br><br><small>abc123_deleted.txt</small>\tmini-rag demo"]
+        "Q1\tA1<br><br><small>guide.txt, p. 4</small>\tragolex demo",
+        "Q2\tA2<br><br><small>guide.txt, Setup &gt; Install</small>\tragolex demo",
+        "Q3\tA3<br><br><small>abc123_deleted.txt</small>\tragolex demo"]
 
 
 def test_deleting_a_deck_deletes_its_cards(client):
