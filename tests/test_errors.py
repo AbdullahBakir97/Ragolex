@@ -4,8 +4,8 @@ import json
 import pytest
 from starlette.requests import Request
 
-from mini_rag.api.error_handlers import handle_app_error
-from mini_rag.core.errors import (
+from ragolex.api.error_handlers import handle_app_error
+from ragolex.core.errors import (
     AppError,
     FileNotFound,
     FileTooLarge,
@@ -50,7 +50,7 @@ def test_client_errors_with_a_cause_are_logged_as_warnings(caplog):
     error = ProcessingFailed("Could not read x.pdf")
     error.__cause__ = ValueError("bad xref table")
 
-    with caplog.at_level("WARNING", logger="mini_rag.api.error_handlers"):
+    with caplog.at_level("WARNING", logger="ragolex.api.error_handlers"):
         call_handler(error)
 
     assert "bad xref table" in caplog.text

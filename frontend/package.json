@@ -1,9 +1,9 @@
 {
-  "name": "mini-rag-web",
+  "name": "ragolex-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Web interface for the Mini RAG API.",
+  "description": "Web interface for the Ragolex API.",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && vite build --config vite.widget.config.ts",

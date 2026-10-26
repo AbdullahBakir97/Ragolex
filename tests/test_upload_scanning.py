@@ -7,10 +7,10 @@ import threading
 import pytest
 from fastapi.testclient import TestClient
 
-from mini_rag.core.config import get_settings
-from mini_rag.core.errors import MalwareScanFailed
-from mini_rag.domain.file_types import DOCX, content_mismatch
-from mini_rag.scanners.clamav import ClamAVScanner
+from ragolex.core.config import get_settings
+from ragolex.core.errors import MalwareScanFailed
+from ragolex.domain.file_types import DOCX, content_mismatch
+from ragolex.scanners.clamav import ClamAVScanner
 
 EICAR = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
 
@@ -131,7 +131,7 @@ def scanned_client(db, monkeypatch):
     with FakeClamd() as clamd:
         monkeypatch.setenv("CLAMAV_URL", f"tcp://127.0.0.1:{clamd.port}")
         get_settings.cache_clear()
-        from mini_rag.main import create_app
+        from ragolex.main import create_app
 
         with TestClient(create_app()) as client:
             yield client, clamd
@@ -158,7 +158,7 @@ def test_uploads_are_refused_while_the_scanner_is_down(db, monkeypatch):
         port = clamd.port
     monkeypatch.setenv("CLAMAV_URL", f"tcp://127.0.0.1:{port}")
     get_settings.cache_clear()
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     with TestClient(create_app()) as client:
         response = post(client, "notes.txt", b"Cats purr.", "text/plain")

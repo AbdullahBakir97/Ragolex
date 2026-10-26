@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from mini_rag import cli
-from mini_rag.core.config import get_settings
+from ragolex import cli
+from ragolex.core.config import get_settings
 
 from .test_auth import bearer, make_key
 

@@ -1,6 +1,6 @@
 import pytest
 
-from mini_rag.api.dependencies import get_embedder
+from ragolex.api.dependencies import get_embedder
 
 from .fakes import FakeEmbedder
 

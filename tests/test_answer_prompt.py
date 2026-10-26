@@ -3,8 +3,8 @@ import re
 
 import pytest
 
-from mini_rag.domain.models import Chunk, ScoredChunk
-from mini_rag.prompts.answer import ANSWER_PROMPT, ANSWER_PROMPT_V1
+from ragolex.domain.models import Chunk, ScoredChunk
+from ragolex.prompts.answer import ANSWER_PROMPT, ANSWER_PROMPT_V1
 
 # Released prompts must never change; new wording gets a new version.
 RELEASED = {
@@ -106,7 +106,7 @@ def test_tells_whether_a_partial_reply_may_still_be_no_answer(partial, possible)
 
 
 def test_history_comes_between_the_rules_and_the_sources_without_its_citations():
-    from mini_rag.domain.llm import Message
+    from ragolex.domain.llm import Message
 
     messages = ANSWER_PROMPT_V1.messages("And dogs?", [source("Dogs bark.")], history=[
         Message("user", "Do cats purr?"), Message("assistant", "Yes, cats purr [1][2].")])
