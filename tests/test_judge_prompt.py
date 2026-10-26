@@ -2,7 +2,7 @@ import hashlib
 
 import pytest
 
-from mini_rag.prompts.judge import JUDGE_PROMPT, JUDGE_PROMPT_V1, JudgedSource
+from ragolex.prompts.judge import JUDGE_PROMPT, JUDGE_PROMPT_V1, JudgedSource
 
 # Released prompts must never change; new wording gets a new version.
 RELEASED = {

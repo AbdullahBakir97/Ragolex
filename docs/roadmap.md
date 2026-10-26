@@ -1,6 +1,6 @@
 # Roadmap
 
-Mini RAG is growing from a retrieval service into a complete, reusable RAG platform: one deployment that answers questions over any collection of documents, for any number of separate apps, sites, bots and agents.
+Ragolex is growing from a retrieval service into a complete, reusable RAG platform: one deployment that answers questions over any collection of documents, for any number of separate apps, sites, bots and agents.
 
 Phases are delivered in order, each as reviewed, tested pull requests. A phase is done when its acceptance criteria pass in CI.
 
@@ -8,19 +8,19 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 | Step | Delivered | Pull request |
 |---|---|---|
-| 1 | Working uploads, path-traversal fix, real tests and CI | [#6](https://github.com/AbdullahBakir97/Mini-RAG/pull/6) |
-| 2 | MIT license, README, current dependencies, Dependabot | [#7](https://github.com/AbdullahBakir97/Mini-RAG/pull/7) |
-| 3 | Document processing with an exact-overlap text splitter | [#8](https://github.com/AbdullahBakir97/Mini-RAG/pull/8) |
-| 4 | Layered architecture, correct status codes, logging | [#9](https://github.com/AbdullahBakir97/Mini-RAG/pull/9) |
-| 5 | PostgreSQL storage, migrations, read endpoints, health check | [#14](https://github.com/AbdullahBakir97/Mini-RAG/pull/14) |
-| 6 | Embeddings and vector search with pgvector | [#15](https://github.com/AbdullahBakir97/Mini-RAG/pull/15) |
+| 1 | Working uploads, path-traversal fix, real tests and CI | [#6](https://github.com/AbdullahBakir97/Ragolex/pull/6) |
+| 2 | MIT license, README, current dependencies, Dependabot | [#7](https://github.com/AbdullahBakir97/Ragolex/pull/7) |
+| 3 | Document processing with an exact-overlap text splitter | [#8](https://github.com/AbdullahBakir97/Ragolex/pull/8) |
+| 4 | Layered architecture, correct status codes, logging | [#9](https://github.com/AbdullahBakir97/Ragolex/pull/9) |
+| 5 | PostgreSQL storage, migrations, read endpoints, health check | [#14](https://github.com/AbdullahBakir97/Ragolex/pull/14) |
+| 6 | Embeddings and vector search with pgvector | [#15](https://github.com/AbdullahBakir97/Ragolex/pull/15) |
 
 ## Planned
 
 | Stage | Phases | Ends when |
 |---|---|---|
 | 1. Answer | 1 Answer generation, 2 Evaluation | Quality scores are recorded in the repository |
-| 2. Reuse | 3 Platform, plus a first live deployment | A separate app uses Mini RAG through an API key |
+| 2. Reuse | 3 Platform, plus a first live deployment | A separate app uses Ragolex through an API key |
 | 3. Automate | 4 Ingestion and automation, 5 Agents | Connected sources stay in sync without manual steps |
 | 4. Improve | 6 Retrieval quality, 7 Study mode | Evaluation scores improve over the stage 1 baseline |
 | 5. Harden | 8 Security, 9 Production, 10 Web app | New tenants can onboard themselves |
@@ -39,10 +39,10 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 - [x] A versioned test set of questions, expected sources and reference answers.
 - [x] Retrieval metrics (hit rate, recall@k, MRR, and how the minimum score keeps answerable questions and rejects the others).
-- [x] Answer metrics: answered and abstained, citation precision, and groundedness and correctness graded by a judge model (`mini-rag eval --answers`).
-- [x] A `mini-rag eval` command with JSON reports.
+- [x] Answer metrics: answered and abstained, citation precision, and groundedness and correctness graded by a judge model (`ragolex eval --answers`).
+- [x] A `ragolex eval` command with JSON reports.
 - [x] Retrieval metrics checked on every pull request; changes that lower them fail CI.
-- [x] Thumbs up/down feedback stored to grow the test set (`mini-rag feedback-export`).
+- [x] Thumbs up/down feedback stored to grow the test set (`ragolex feedback-export`).
 
 ### Phase 3: Platform and white-label
 
@@ -92,7 +92,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] File type checked from content, not the declared type; optional malware scanning with ClamAV.
 - [ ] Prompt-injection test cases; encryption at rest; per-tenant export and deletion.
 - [x] Dependency vulnerability scanning (`pip-audit`, `npm audit`) and secret scanning (`gitleaks`) in CI.
-- [x] An audit log of administrative actions, with the key and request behind each (`GET /api/v1/audit`, `mini-rag audit`).
+- [x] An audit log of administrative actions, with the key and request behind each (`GET /api/v1/audit`, `ragolex audit`).
 
 ### Phase 9: Production
 
@@ -112,4 +112,4 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [ ] An admin dashboard for keys, usage, cost and evaluation scores.
 - [ ] Accessible, responsive, tested end to end with Playwright.
 
-Ideas and feedback are welcome in [issues](https://github.com/AbdullahBakir97/Mini-RAG/issues).
+Ideas and feedback are welcome in [issues](https://github.com/AbdullahBakir97/Ragolex/issues).

@@ -5,15 +5,15 @@ import asyncio
 import httpx2
 import pytest
 
-from mini_rag.connectors.website import Scope, WebsiteCrawler, normalize
-from mini_rag.core.config import get_settings
-from mini_rag.core.errors import CrawlFailed
-from mini_rag.domain.crawler import CrawledPage, UnreachablePage
-from mini_rag.domain.models import Limits
-from mini_rag.persistence.database import create_engine, create_session_factory
-from mini_rag.persistence.repositories import unit_of_work_factory
-from mini_rag.services.source_syncer import SourceSyncer, page_file_name
-from mini_rag.storage.file_storage import FileStorage
+from ragolex.connectors.website import Scope, WebsiteCrawler, normalize
+from ragolex.core.config import get_settings
+from ragolex.core.errors import CrawlFailed
+from ragolex.domain.crawler import CrawledPage, UnreachablePage
+from ragolex.domain.models import Limits
+from ragolex.persistence.database import create_engine, create_session_factory
+from ragolex.persistence.repositories import unit_of_work_factory
+from ragolex.services.source_syncer import SourceSyncer, page_file_name
+from ragolex.storage.file_storage import FileStorage
 
 SITE = "https://docs.example.com"
 

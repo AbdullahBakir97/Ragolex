@@ -2,8 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from mini_rag.core.config import get_settings
-from mini_rag.persistence.database import (
+from ragolex.core.config import get_settings
+from ragolex.persistence.database import (
     create_engine,
     create_session_factory,
     stored_embedding_dimensions,
@@ -32,7 +32,7 @@ def test_app_lifespan_opens_and_closes_the_pool(client):
 def test_database_url_must_be_async_postgres(monkeypatch):
     from pydantic import ValidationError
 
-    from mini_rag.core.config import Settings
+    from ragolex.core.config import Settings
 
     monkeypatch.setenv("DATABASE_URL", "sqlite:///db.sqlite")
 
@@ -41,7 +41,7 @@ def test_database_url_must_be_async_postgres(monkeypatch):
 
 
 def test_app_starts_without_a_database_to_check_dimensions_against(monkeypatch):
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://nobody:x@127.0.0.1:1/none")
 
@@ -50,7 +50,7 @@ def test_app_starts_without_a_database_to_check_dimensions_against(monkeypatch):
 
 
 def test_embedder_is_created_only_when_configured(db, monkeypatch):
-    from mini_rag.main import create_app
+    from ragolex.main import create_app
 
     with TestClient(create_app()) as client:
         assert client.app.state.embedder is not None

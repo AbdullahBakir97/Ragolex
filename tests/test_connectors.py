@@ -5,9 +5,9 @@ import asyncio
 import httpx2
 import pytest
 
-from mini_rag.connectors.feed import FeedCrawler, normalize_feed
-from mini_rag.connectors.github import GitHubCrawler, parse_repository
-from mini_rag.core.errors import CrawlFailed
+from ragolex.connectors.feed import FeedCrawler, normalize_feed
+from ragolex.connectors.github import GitHubCrawler, parse_repository
+from ragolex.core.errors import CrawlFailed
 
 
 def collect(crawler, url, max_pages=50):
