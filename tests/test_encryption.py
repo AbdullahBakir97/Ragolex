@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import io
+import zipfile
 
 import pytest
 from pydantic import ValidationError
@@ -146,6 +147,18 @@ def test_uploads_are_stored_encrypted_and_still_answer(client, embedder, llm, fi
     assert b"embedding" not in content
     answer = ask(client, question="Where is the embedding vector stored?", min_score=0.2)
     assert answer.status_code == 200 and answer.json()["answer"]
+
+
+def test_a_tenant_export_holds_the_files_as_uploaded(client, embedder, files_dir,
+                                                     encryption_on):
+    file_id = upload_process_and_index(client, project="demo")
+
+    [stored] = stored_files(files_dir)
+    assert stored.read_bytes().startswith(FILE_MAGIC)
+    response = client.get("/api/v1/export")
+    assert response.status_code == 200, response.text
+    exported = zipfile.ZipFile(io.BytesIO(response.content))
+    assert exported.read(f"projects/demo/files/{file_id}").decode() == GUIDE
 
 
 def test_the_scanner_gets_the_file_as_uploaded(db, monkeypatch, files_dir, encryption_on):

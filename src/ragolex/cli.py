@@ -532,7 +532,7 @@ async def _tenant_data(args: argparse.Namespace, session) -> int:
         return 1
     settings = get_settings()
     service = TenantDataService(SqlUnitOfWork(session, tenant.id),
-                                FileStorage(root=settings.FILES_DIR))
+                                FileStorage.from_settings(settings))
     if args.action == "export":
         if args.output.exists():
             print(f"{args.output} exists already; choose a new file.", file=sys.stderr)
