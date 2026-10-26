@@ -25,7 +25,7 @@ export type AnswerEvent = { type: "delta"; text: string } | { type: "answer"; an
 export interface RagolexOptions {
   /** Where the API is, e.g. `https://rag.example.com`. */
   baseUrl: string;
-  /** An API key (`mrag_…`); leave it out when the server does not require one. */
+  /** An API key (`ragolex_…`); leave it out when the server does not require one. */
   apiKey?: string;
   /** Another fetch, e.g. for tests or a proxy; the global one by default. */
   fetch?: typeof globalThis.fetch;

@@ -9,7 +9,7 @@ pip install ragolex-client       # or, from this repository: pip install ./sdk/p
 ```python
 from ragolex_client import AnswerDelta, AnswerDone, Ragolex
 
-with Ragolex("https://rag.example.com", api_key="mrag_…") as rag:
+with Ragolex("https://rag.example.com", api_key="ragolex_…") as rag:
     # Upload a file (a path, bytes or a binary file) and wait until it is indexed.
     rag.add_document("handbook", "leave-policy.pdf", tags=["hr"])
 

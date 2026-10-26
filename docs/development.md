@@ -36,6 +36,28 @@ npm run build        # type check, then the production build in dist/
 
 See [Web app](web.md) for what it does and how it is built.
 
+### End-to-end tests
+
+`npm run e2e` drives the web app in Chromium against the real API and database. Playwright starts what they need (`frontend/playwright.config.ts`): `tools/fake_models.py`, a stand-in for the embedding and answer models, so no model account is needed; the API on port 8000, after migrating the database; and the web app on port 5173. The tests cover:
+
+- creating a project and uploading a document until it is indexed, then reading its chunks;
+- asking a question: the streamed answer, its source, the conversation's address, a rating and a follow-up; and a question the documents do not answer;
+- searching, and adding a chat widget whose live preview answers;
+- accessibility: [axe](https://github.com/dequelabs/axe-core) finds no WCAG 2.1 A or AA violation on any page, in the light and dark themes, at desktop and phone width (the tests tagged `@phone` run on a phone too), and no page is wider than the screen.
+
+They need PostgreSQL with pgvector and a database for them, by default `ragolex_e2e` on `localhost` (set `E2E_DATABASE_URL` for another), and a browser:
+
+```bash
+createdb -U ragolex ragolex_e2e    # once, or: docker compose exec db createdb -U ragolex ragolex_e2e
+cd frontend
+npx playwright install chromium      # once
+npm run e2e                          # --ui to watch them, --headed to see the browser
+```
+
+Each test makes its own project with a unique name, so they run in parallel on one database and a second run needs no cleanup. Locally, servers already running on those ports are reused; in CI (the `e2e` job) they are started fresh, and a failed run keeps its report, traces and screenshots as an artifact.
+
+`tools/fake_models.py` also serves a demo of the whole app without an account: run it, then start the API with `EMBEDDING_BASE_URL` and `LLM_BASE_URL` set to `http://127.0.0.1:9999/v1` and `ANSWER_MIN_SCORE=0.05`. Its answers quote the first matching sentence: predictable, not good.
+
 ## Docker
 
 The `Dockerfile` builds the API image in two stages: the first installs the package and its dependencies into a virtual environment, the second copies only that environment into a slim Python image and runs as an unprivileged user (UID 10001). `compose.yaml` runs the image as the `app` service next to the database, with settings from `.env` and the database address and file storage path set for the stack; uploaded files live in the `files` volume. On every start the service applies any missing migrations, then starts the API.

@@ -335,3 +335,89 @@ export interface SourcePage {
   file_id: string;
   synced_at: string;
 }
+
+export type StudyKind = "summary" | "flashcards" | "quiz";
+
+/** Items cite their passages by number, in `sources`. */
+export interface KeyPoint {
+  text: string;
+  sources: number[];
+}
+
+export interface Flashcard {
+  front: string;
+  back: string;
+  sources: number[];
+}
+
+export interface QuizQuestion {
+  question: string;
+  choices: string[];
+  /** The position of the right choice, from 0. */
+  answer: number;
+  explanation: string;
+  sources: number[];
+}
+
+export interface StudySource {
+  number: number;
+  chunk_index: number;
+  page: number | null;
+  section: string | null;
+  text: string;
+}
+
+interface StudyBase {
+  file_id: string;
+  original_name: string;
+  sources: StudySource[];
+  prompt_version: string;
+  usage: Usage;
+  /** Chunks given to the model, of `chunks`: fewer for a long document. */
+  passages: number;
+  chunks: number;
+}
+
+export type StudyMaterial =
+  | (StudyBase & { kind: "summary"; items: KeyPoint[] })
+  | (StudyBase & { kind: "flashcards"; items: Flashcard[] })
+  | (StudyBase & { kind: "quiz"; items: QuizQuestion[] });
+
+export type ReviewGrade = "again" | "hard" | "good" | "easy";
+
+export interface Deck {
+  id: string;
+  name: string;
+  cards: number;
+  /** Cards due for review now. */
+  due: number;
+  created_at: string;
+}
+
+export interface Card {
+  id: string;
+  front: string;
+  back: string;
+  source: { file_id: string | null; chunk_index: number | null; page: number | null; section: string | null };
+  due_at: string;
+  interval_days: number;
+  ease: number;
+  repetitions: number;
+  lapses: number;
+  last_reviewed_at: string | null;
+  created_at: string;
+}
+
+/** A card due for review, with the days until it is due again for each grade. */
+export interface ReviewCard extends Card {
+  intervals: Record<ReviewGrade, number>;
+}
+
+export interface NewCard {
+  front: string;
+  back: string;
+  file_id?: string | null;
+  chunk_index?: number | null;
+  page?: number | null;
+  section?: string | null;
+}

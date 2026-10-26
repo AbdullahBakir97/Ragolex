@@ -2,6 +2,7 @@ import logging
 from typing import Literal
 
 from ragolex.core.errors import FileNotFound, ProjectNotFound, RerankFailed
+from ragolex.core.tracing import annotate, span
 from ragolex.domain.embedder import Embedder
 from ragolex.domain.models import ScoredChunk, SearchFilters
 from ragolex.domain.repositories import UnitOfWork
@@ -48,13 +49,17 @@ class SearchService:
         if await self.uow.chunks.count_embedded_for_project(project.id) == 0:
             return []
 
-        [vector] = await self.embedder.embed([query])
+        with span("search.embed_query", model=self.embedder.model):
+            [vector] = await self.embedder.embed([query])
         fetched = max(top_k, self.rerank_candidates) if self.reranker else top_k
-        hits = await self.uow.chunks.search(
-            project.id, vector, top_k=fetched, min_score=min_score,
-            query=query if self.mode == "hybrid" else None, filters=filters)
+        with span("search.query", mode=self.mode, top_k=fetched) as current:
+            hits = await self.uow.chunks.search(
+                project.id, vector, top_k=fetched, min_score=min_score,
+                query=query if self.mode == "hybrid" else None, filters=filters)
+            annotate(current, results=len(hits))
         if self.reranker is not None and len(hits) > 1:
-            hits = await self._rerank(self.reranker, query, hits)
+            with span("search.rerank", model=self.reranker.model, candidates=len(hits)):
+                hits = await self._rerank(self.reranker, query, hits)
         return hits[:top_k]
 
     @staticmethod
