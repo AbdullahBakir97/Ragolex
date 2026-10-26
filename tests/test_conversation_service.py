@@ -1,12 +1,12 @@
 import pytest
 
-from mini_rag.core.errors import ConversationNotFound, LLMFailed, ProjectNotFound
-from mini_rag.domain.llm import TokenPrices, TokenUsage
-from mini_rag.domain.models import Chunk
-from mini_rag.services.answer_service import HISTORY_MESSAGES, AnswerService
-from mini_rag.services.conversation_service import ConversationService
-from mini_rag.services.indexing_service import IndexingService
-from mini_rag.services.search_service import SearchService
+from ragolex.core.errors import ConversationNotFound, LLMFailed, ProjectNotFound
+from ragolex.domain.llm import TokenPrices, TokenUsage
+from ragolex.domain.models import Chunk
+from ragolex.services.answer_service import HISTORY_MESSAGES, AnswerService
+from ragolex.services.conversation_service import ConversationService
+from ragolex.services.indexing_service import IndexingService
+from ragolex.services.search_service import SearchService
 
 from .fakes import FAKE_USAGE, FakeEmbedder, FakeLLM, FakeUnitOfWork
 
@@ -206,7 +206,7 @@ async def test_long_first_questions_make_short_titles(uow):
 
 
 async def rated_conversation(uow):
-    from mini_rag.domain.models import ConversationMessage
+    from ragolex.domain.models import ConversationMessage
 
     project = await uow.projects.get_by_name("p1")
     conversation = await uow.conversations.create(project.id, None)
@@ -234,7 +234,7 @@ async def test_answers_are_rated_and_listed(uow):
 
 
 async def test_only_answers_of_the_projects_conversations_can_be_rated(uow):
-    from mini_rag.core.errors import MessageNotFound
+    from ragolex.core.errors import MessageNotFound
 
     conversation, question, answer = await rated_conversation(uow)
     service = ConversationService(uow)

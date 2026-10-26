@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from mini_rag.evaluation.dataset import DatasetError, load_dataset
-from mini_rag.evaluation.metrics import normalize
-from mini_rag.loaders.registry import default_loader_registry
-from mini_rag.services.processing_service import ProcessingService
-from mini_rag.text.splitter import RecursiveTextSplitter
+from ragolex.evaluation.dataset import DatasetError, load_dataset
+from ragolex.evaluation.metrics import normalize
+from ragolex.loaders.registry import default_loader_registry
+from ragolex.services.processing_service import ProcessingService
+from ragolex.text.splitter import RecursiveTextSplitter
 
 EVALS = Path(__file__).resolve().parents[1] / "evals"
 

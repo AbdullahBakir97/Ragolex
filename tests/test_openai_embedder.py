@@ -3,10 +3,10 @@ import json
 import httpx2
 import pytest
 
-from mini_rag.core.config import Settings
-from mini_rag.core.errors import EmbeddingFailed
-from mini_rag.embeddings.factory import create_embedder
-from mini_rag.embeddings.openai_embedder import OpenAIEmbedder
+from ragolex.core.config import Settings
+from ragolex.core.errors import EmbeddingFailed
+from ragolex.embeddings.factory import create_embedder
+from ragolex.embeddings.openai_embedder import OpenAIEmbedder
 
 pytestmark = pytest.mark.anyio
 

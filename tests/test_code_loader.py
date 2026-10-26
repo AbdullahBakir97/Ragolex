@@ -2,8 +2,8 @@
 
 import pytest
 
-from mini_rag.loaders import code_loader
-from mini_rag.loaders.code_loader import CodeLoader
+from ragolex.loaders import code_loader
+from ragolex.loaders.code_loader import CodeLoader
 
 from .test_projects_api import process, upload
 

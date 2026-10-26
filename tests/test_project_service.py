@@ -1,8 +1,8 @@
 import pytest
 
-from mini_rag.core.errors import FileNotFound, ProjectNotFound
-from mini_rag.domain.models import Chunk
-from mini_rag.services.project_service import ProjectService
+from ragolex.core.errors import FileNotFound, ProjectNotFound
+from ragolex.domain.models import Chunk
+from ragolex.services.project_service import ProjectService
 
 from .fakes import FakeUnitOfWork
 

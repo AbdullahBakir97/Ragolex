@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from mini_rag.core.config import LOCAL_DATABASE_URL, Settings
+from ragolex.core.config import LOCAL_DATABASE_URL, Settings
 
 from .conftest import TEST_ENV
 
@@ -22,8 +22,8 @@ def test_every_setting_has_a_default(no_settings):
     # Only the model settings need to be added for a real run.
     settings = Settings()
 
-    assert settings.APP_NAME == "mini-RAG"
-    assert settings.APP_VERSION == version("mini-rag")
+    assert settings.APP_NAME == "Ragolex"
+    assert settings.APP_VERSION == version("ragolex")
     assert settings.DATABASE_URL == LOCAL_DATABASE_URL
     assert settings.FILE_ALLOWED_TYPES == [
         "text/plain", "text/markdown", "text/html", "application/pdf",
