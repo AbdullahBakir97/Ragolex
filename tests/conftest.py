@@ -35,7 +35,6 @@ TEST_ENV = {
     "APP_NAME": "Ragolex-test",
     "APP_VERSION": "0.0.1",
     "OPENAI_API_KEY": "test-key",
-    "FILE_ALLOWED_TYPES": '["text/plain", "text/markdown", "text/html", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]',
     "FILE_MAX_SIZE": "1",
     "FILE_DEFAULT_CHUNK_SIZE": "1024",
     "DATABASE_URL": TEST_DATABASE_URL,
@@ -236,8 +235,8 @@ def run_jobs(db, files_dir):
             engine = create_engine(db)
             try:
                 runner = JobRunner(unit_of_work_factory(create_session_factory(engine)),
-                                   FileStorage(root=files_dir), default_loader_registry(),
-                                   embedder, batch_size=2, **options)
+                                   FileStorage.from_settings(get_settings()),
+                                   default_loader_registry(), embedder, batch_size=2, **options)
                 return [await runner.run_next() for _ in range(times)]
             finally:
                 await engine.dispose()

@@ -1,9 +1,20 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronRight, Globe, LoaderCircle, Plus, RefreshCw, Trash2, TriangleAlert } from "@lucide/vue";
+import {
+  ChevronDown,
+  ChevronRight,
+  FolderGit2,
+  Globe,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Rss,
+  Trash2,
+  TriangleAlert,
+} from "@lucide/vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import { ApiError, api } from "@/api/client";
-import type { SourcePage, WebsiteSource } from "@/api/types";
+import type { SourceKind, SourcePage, WebsiteSource } from "@/api/types";
 import TagInput from "@/components/TagInput.vue";
 import { useToasts } from "@/composables/useToasts";
 import { formatNumber, formatRelative } from "@/lib/format";
@@ -20,6 +31,25 @@ const INTERVALS = [
   { hours: 168, label: "Every week" },
   { hours: 0, label: "Only when asked" },
 ];
+
+const KINDS: Record<SourceKind, { label: string; placeholder: string; help: string }> = {
+  website: {
+    label: "Website",
+    placeholder: "https://docs.example.com/guide/",
+    help: "The pages under this address, found by following their links.",
+  },
+  feed: {
+    label: "RSS or Atom feed",
+    placeholder: "https://blog.example.com/feed.xml",
+    help: "Each entry of the feed; older entries stay when they drop off it.",
+  },
+  github: {
+    label: "GitHub repository",
+    placeholder: "https://github.com/owner/repo/tree/main/docs",
+    help: "The repository's Markdown, text, HTML and PDF files, or one folder's.",
+  },
+};
+const KIND_ICONS = { website: Globe, feed: Rss, github: FolderGit2 };
 
 const sources = ref<WebsiteSource[]>([]);
 const loaded = ref(false);
@@ -54,31 +84,37 @@ async function load() {
 }
 
 // Adding one.
+const kind = ref<SourceKind>("website");
 const url = ref("");
 const maxPages = ref(50);
 const interval = ref(24);
 const tags = ref<string[]>([]);
 const tagInput = ref<InstanceType<typeof TagInput> | null>(null);
 const adding = ref(false);
-const validUrl = computed(() => /^https?:\/\/[^\s/]+/i.test(url.value.trim()));
+const validUrl = computed(() =>
+  kind.value === "github"
+    ? /^https:\/\/github\.com\/[\w-]+\/[\w.-]+(\/tree\/[^\s/]+(\/\S*)?)?\/?$/i.test(url.value.trim())
+    : /^https?:\/\/[^\s/]+/i.test(url.value.trim()),
+);
 
 async function add() {
   if (tagInput.value && !tagInput.value.commit()) return;
   adding.value = true;
   try {
     await api.createSource(props.project, {
+      kind: kind.value,
       url: url.value.trim(),
       max_pages: maxPages.value,
       sync_interval_hours: interval.value,
       tags: tags.value,
     });
-    toasts.success("Website added", "Its pages are being fetched; each one is indexed as it arrives.");
+    toasts.success(`${KINDS[kind.value].label} added`, "Its pages are being fetched; each one is indexed as it arrives.");
     url.value = "";
     tags.value = [];
     await load();
     emit("synced");
   } catch (caught) {
-    toasts.error("The website could not be added", caught instanceof ApiError ? caught.message : undefined);
+    toasts.error("The source could not be added", caught instanceof ApiError ? caught.message : undefined);
   } finally {
     adding.value = false;
   }
@@ -166,9 +202,9 @@ defineExpose({ load });
     <div class="head">
       <Globe :size="18" class="subtle" aria-hidden="true" />
       <div>
-        <h3 id="websites-title">Websites</h3>
+        <h3 id="websites-title">Sources</h3>
         <p class="muted small">
-          Keep a website's pages in this project: its pages under the address are fetched by following their links
+          Keep a website's pages, a feed's entries or a GitHub repository's documents in this project: they are fetched
           (robots.txt is obeyed), indexed, and synced again on a schedule, adding new pages, replacing changed ones and
           removing the ones that are gone.
         </p>
@@ -176,9 +212,15 @@ defineExpose({ load });
     </div>
 
     <form class="add" @submit.prevent="add">
+      <label class="field">
+        <span>Type</span>
+        <select v-model="kind" class="input">
+          <option v-for="(info, value) in KINDS" :key="value" :value="value">{{ info.label }}</option>
+        </select>
+      </label>
       <label class="field grow">
-        <span>Address</span>
-        <input v-model="url" class="input" type="url" required maxlength="2000" placeholder="https://docs.example.com/guide/" />
+        <span>Address <span class="hint subtle">· {{ KINDS[kind].help }}</span></span>
+        <input v-model="url" class="input" type="url" required maxlength="2000" :placeholder="KINDS[kind].placeholder" />
       </label>
       <label class="field">
         <span>Most pages</span>
@@ -197,7 +239,7 @@ defineExpose({ load });
       <button class="btn btn-primary" type="submit" :disabled="adding || !validUrl || maxPages < 1 || maxPages > 1000">
         <LoaderCircle v-if="adding" :size="16" class="spin" />
         <Plus v-else :size="16" />
-        Add website
+        Add source
       </button>
     </form>
 
@@ -213,6 +255,12 @@ defineExpose({ load });
             <ChevronDown v-if="open === source.id" :size="16" />
             <ChevronRight v-else :size="16" />
           </button>
+          <component
+            :is="KIND_ICONS[source.kind] ?? Globe"
+            :size="15"
+            class="subtle kind-icon"
+            :aria-label="KINDS[source.kind]?.label ?? source.kind"
+          />
           <div class="info">
             <a class="url mono" :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.url }}</a>
             <p class="small muted">
@@ -257,7 +305,7 @@ defineExpose({ load });
         </ul>
       </li>
     </ul>
-    <p v-else-if="loaded" class="subtle small">No websites yet.</p>
+    <p v-else-if="loaded" class="subtle small">No sources yet.</p>
   </section>
 </template>
 
@@ -306,6 +354,14 @@ defineExpose({ load });
 
 .field.grow .input {
   width: 100%;
+}
+
+.hint {
+  font-weight: 400;
+}
+
+.kind-icon {
+  flex: none;
 }
 
 .pages-input {

@@ -15,12 +15,12 @@ describe("API keys", () => {
     vi.stubGlobal("fetch", fetch);
 
     await api.projects();
-    setApiKey("mrag_secret");
+    setApiKey("ragolex_secret");
     await api.projects();
 
     expect(fetch.mock.calls[0]![1].headers).toEqual({});
-    expect(fetch.mock.calls[1]![1].headers).toEqual({ Authorization: "Bearer mrag_secret" });
-    expect(localStorage.getItem("ragolex.api-key")).toBe("mrag_secret");
+    expect(fetch.mock.calls[1]![1].headers).toEqual({ Authorization: "Bearer ragolex_secret" });
+    expect(localStorage.getItem("ragolex.api-key")).toBe("ragolex_secret");
   });
 
   it("are asked for when the server refuses a request", async () => {

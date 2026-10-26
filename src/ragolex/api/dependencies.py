@@ -13,7 +13,7 @@ from ragolex.core.config import Settings, get_settings
 from ragolex.core.errors import EmbeddingNotConfigured, LLMNotConfigured, ScopeMissing
 from ragolex.domain.embedder import Embedder
 from ragolex.domain.llm import LLM
-from ragolex.domain.models import Limits, Principal, Scope
+from ragolex.domain.models import Principal, Scope
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
 from ragolex.ocr.factory import create_ocr
@@ -62,7 +62,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 # Both appear in the OpenAPI schema, so /docs and generated clients know how to send a key.
-bearer = HTTPBearer(auto_error=False, description="An API key: `Authorization: Bearer mrag_…`")
+bearer = HTTPBearer(auto_error=False, description="An API key: `Authorization: Bearer ragolex_…`")
 key_header = APIKeyHeader(name="X-API-Key", auto_error=False,
                           description="An API key, for clients that cannot set Authorization")
 
@@ -89,10 +89,7 @@ PrincipalDep = Annotated[Principal, Depends(get_principal)]
 
 
 def get_limit_service(session: SessionDep, settings: SettingsDep) -> LimitService:
-    return LimitService(SqlUnitOfWork(session), Limits(
-        requests_per_minute=settings.RATE_LIMIT_PER_MINUTE,
-        answers_per_month=settings.ANSWERS_PER_MONTH,
-        storage_mb=settings.STORAGE_MB_PER_TENANT))
+    return LimitService(SqlUnitOfWork(session), settings.default_limits)
 
 
 LimitServiceDep = Annotated[LimitService, Depends(get_limit_service)]
@@ -148,7 +145,7 @@ AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 
 
 def get_file_storage(settings: SettingsDep) -> FileStorage:
-    return FileStorage(root=settings.FILES_DIR)
+    return FileStorage.from_settings(settings)
 
 
 FileStorageDep = Annotated[FileStorage, Depends(get_file_storage)]
@@ -277,9 +274,10 @@ LLMDep = Annotated[LLM, Depends(get_llm)]
 
 
 def get_answer_service(search: SearchServiceDep, llm: LLMDep, uow: UnitOfWorkDep,
-                       settings: SettingsDep) -> AnswerService:
+                       settings: SettingsDep, limits: LimitServiceDep) -> AnswerService:
     return AnswerService(search=search, llm=llm, uow=uow, min_score=settings.ANSWER_MIN_SCORE,
-                         prices=settings.llm_prices)
+                         prices=settings.llm_prices, limits=limits,
+                         max_research_steps=settings.RESEARCH_MAX_STEPS)
 
 
 AnswerServiceDep = Annotated[AnswerService, Depends(get_answer_service)]

@@ -16,6 +16,7 @@ EVALS = Path(__file__).resolve().parents[1] / "evals"
 # go into a new version. Update a hash only for a version not yet released.
 RELEASED = {
     "handbook/v1": "da430293ada70100df52268468380940e1057b2b44b4b22622d4e01f29967d5a",
+    "injection/v1": "e67ca7ade5542a5f83330e4b227b05d86a3f135da2f93db3a670feaeb65c0aeb",
 }
 
 
@@ -50,6 +51,14 @@ def test_every_evidence_fits_in_one_chunk(label, chunk_size, overlap_size):
                if not any(normalize(source.evidence) in chunk for chunk in chunks[source.file])]
 
     assert missing == []
+
+
+def test_every_injection_case_says_what_an_answer_must_not_hold():
+    dataset = load_dataset(EVALS / "injection" / "v1")
+
+    assert all(case.forbidden for case in dataset.cases)
+    assert {"override", "tag-breakout", "disguised-tags", "exfiltration", "system-leak",
+            "false-fact", "unanswerable"} <= {tag for case in dataset.cases for tag in case.tags}
 
 
 def test_the_handbook_has_every_kind_of_question():
@@ -89,13 +98,15 @@ def test_loads_a_dataset(tmp_path):
 
 
 @pytest.mark.parametrize(("cases", "documents", "message"), [
+    ([{**CAT, "forbidden": "PWNED"}], ("notes.txt",), "'forbidden' must be a list of texts"),
+    ([{**CAT, "forbidden": [" "]}], ("notes.txt",), "'forbidden' must be a list of texts"),
     ([CAT, CAT], ("notes.txt",), "used twice: purr"),
     ([{**CAT, "expected_sources": [{"file": "other.txt", "evidence": "x"}]}], ("notes.txt",),
      "'other.txt' is not one of"),
     ([{**CAT, "reference_answer": None}], ("notes.txt",), "or neither"),
     ([{**CAT, "question": " "}], ("notes.txt",), "needs an 'id' and a 'question'"),
     (["{not json"], ("notes.txt",), "cases.jsonl:1: not valid JSON"),
-    ([CAT], ("notes.doc",), r"only .txt, .md, .markdown, .html, .htm, .pdf, .docx documents"),
+    ([CAT], ("notes.doc",), r"\.doc is not a supported document type"),
     ([], ("notes.txt",), "there are no cases"),
 ])
 def test_rejects_invalid_datasets(tmp_path, cases, documents, message):

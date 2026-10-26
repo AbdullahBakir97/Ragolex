@@ -39,11 +39,11 @@ class Server:
         response = self.responses.pop(0)
         return response(request) if callable(response) else response
 
-    def client(self, api_key="mrag_test"):
+    def client(self, api_key="ragolex_test"):
         return Ragolex("https://rag.example.com/", api_key, transport=httpx.MockTransport(self))
 
     def async_client(self):
-        return AsyncRagolex("https://rag.example.com", "mrag_test",
+        return AsyncRagolex("https://rag.example.com", "ragolex_test",
                             transport=httpx.MockTransport(self))
 
 
@@ -65,7 +65,7 @@ def test_operations_send_their_parameters_and_return_models():
     request = server.requests[0]
     assert request.url.raw_path.split(b"?")[0] == b"/api/v1/projects/hand%20book/files"
     assert dict(request.url.params) == {"limit": "5", "tag": "hr"}
-    assert request.headers["Authorization"] == "Bearer mrag_test"
+    assert request.headers["Authorization"] == "Bearer ragolex_test"
 
 
 def test_bodies_hold_only_the_fields_given_and_none_is_null():
@@ -100,6 +100,17 @@ def test_no_content_and_keys_are_optional():
 
     assert "Authorization" not in server.requests[0].headers
     assert server.requests[0].method == "DELETE"
+
+
+def test_files_come_back_as_bytes():
+    zip_bytes = b"PK\x03\x04 an archive"
+    server = Server(httpx.Response(200, content=zip_bytes,
+                                   headers={"Content-Type": "application/zip"}))
+
+    with server.client() as rag:
+        assert rag.export_tenant() == zip_bytes
+
+    assert server.requests[0].url.path == "/api/v1/export"
 
 
 def test_errors_carry_the_signal_and_retry_after():

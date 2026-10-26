@@ -38,9 +38,18 @@ dependencies = [
     "httpx2==2.13.1",
     "anyio==4.15.1",
     "prometheus-client==0.26.0",
+    # AES-GCM for encryption at rest (ENCRYPTION_KEYS).
+    "cryptography==50.0.2",
 ]
 
 [project.optional-dependencies]
+# Tracing (TRACING_ENABLED): spans over OTLP/HTTP. FastAPI brings OpenTelemetry's API
+# and traces requests; these export the spans and trace the database queries.
+tracing = [
+    "opentelemetry-sdk==1.45.1",
+    "opentelemetry-exporter-otlp-proto-http==1.45.1",
+    "opentelemetry-instrumentation-sqlalchemy==0.66b1",
+]
 dev = [
     "mypy==2.4.0",
     "pytest==9.1.1",

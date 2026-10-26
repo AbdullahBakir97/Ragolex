@@ -189,9 +189,13 @@ def operations_module(spec: dict) -> str:
                 signature += ["*"] + [k for _, k in keywords]
 
             ok = next(code for code in op["responses"] if code.startswith("2"))
-            content = op["responses"][ok].get("content", {}).get("application/json", {})
+            media = op["responses"][ok].get("content", {})
+            content = media.get("application/json", {})
             result = content.get("schema", {})
-            if ok == "204" or not result:
+            if media and "application/json" not in media:
+                # A file, such as a ZIP archive: its bytes as they came.
+                returns, parse = "bytes", "_bytes"
+            elif ok == "204" or not result:
                 returns, parse = "None", "_none"
             elif "$ref" in result:
                 returns = class_name(ref_name(result["$ref"]))
@@ -230,7 +234,7 @@ def operations_module(spec: dict) -> str:
         imports.append("from datetime import datetime")
     imports += ["from collections.abc import Callable",
                 f"from typing import {', '.join(typing_names + ['TypeVar'])}\n",
-                "from ._types import UNSET, Unset, _body, _list, _none, _path, _raw",
+                "from ._types import UNSET, Unset, _body, _bytes, _list, _none, _path, _raw",
                 "from .models import (", *[f"    {name}," for name in used], ")\n"]
     return "\n".join([
         HEADER,

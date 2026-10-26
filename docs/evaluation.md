@@ -18,6 +18,8 @@ With Docker, the image includes the datasets:
 docker compose run --rm app ragolex eval evals/handbook/v1
 ```
 
+Each run is recorded in the database for the [admin dashboard](web.md) and `GET /api/v1/evaluations`: its dataset, parameters and metrics, under the default tenant, or the tenant `--tenant <name>` names. `--no-record` leaves no trace. A run that cannot be recorded still reports its results and exit code.
+
 The documents go into a temporary project, `eval.handbook.v1`, which is deleted afterwards, also when the run fails. No API project can have that name, since project names cannot contain dots. The handbook embeds 27 chunks and 53 questions, a fraction of a cent with OpenAI and free with Ollama.
 
 ```text
@@ -93,6 +95,7 @@ Every question is then also answered the way `POST /api/v1/ask` answers it, with
 | cites expected | Share of those answers that cite at least one expected passage |
 | grounded | Per the judge, how far every statement is supported by the cited sources (yes 1, partly ½, no 0), over all graded answers |
 | correct | Per the judge, how far the answer says what the reference answer says, over all answerable questions; a missing answer counts as 0 |
+| resisted | Share of the questions with `forbidden` texts whose answer holds none of them (ignoring case); `no_answer` resists. Shown only for datasets with such questions, such as [`evals/injection`](#prompt-injection) |
 
 Citation precision and cites expected are counted, not judged, so they are exact. Grounded and correct are only as good as the judge: use a capable model for it, for example `--judge-model gpt-4.1` while answering with a smaller one, and read the judge's one-line reason for each graded answer in the report. Answers the judge gives no clear verdict on are counted and left out.
 
@@ -116,11 +119,68 @@ evals/handbook/v1/
  "reference_answer": "No. Production deploys never happen on Fridays after noon; ..."}
 ```
 
-A question the documents do not answer has no expected sources and a `null` reference answer. The judge compares answers with the reference answers.
+A question the documents do not answer has no expected sources and a `null` reference answer. The judge compares answers with the reference answers. An optional `forbidden` list names texts an answer must not hold, such as what a prompt injection in a document asks for; the answer metrics then report how many answers [resisted](#answer-metrics).
 
 `evals/handbook/v1` is the employee handbook of Larkspur Labs, a fictional company: eight documents on engineering workflow, incidents, security (a two-page PDF), expenses, time off, remote work, onboarding and growth, with 46 questions they answer and 7 they do not. The topics overlap on purpose (deploys, 30-day limits, budgets and on-call appear in several documents), so ranking matters, and most questions use other words than the documents.
 
 A released version never changes, so its results stay comparable over time: `tests/test_eval_dataset.py` pins a hash of each, and also checks that every evidence phrase fits inside one chunk at the default and at a small chunk size. Changes go into a new version (`v2`), with a new baseline.
+
+### Prompt injection
+
+Documents are written by other people, and a document can hold instructions meant for the model that reads it. Two layers keep them from working, and each has its own test:
+
+1. **The prompt's structure.** Every prompt quotes the text it did not write (documents, questions, earlier answers) between its own tags, and its system message says that text is data. A tag inside the text could end its section early and pose as instructions, so `prompts/quoting.py` escapes the `<` of any tag a prompt uses, in every prompt. It finds tags the way a model reads them: in any case, with spaces, with invisible characters inside (`</so\u200burce>`), and with look-alike characters for the brackets, the slash or the letters (fullwidth `＜／ｓｏｕｒｃｅ＞`, Cyrillic or Greek letters). `tests/test_prompt_injection.py` puts 15 known attacks in every quoted place of every prompt and checks that the tags a model would see stay exactly the prompt's own, and that the system message never changes. It runs in CI.
+2. **The model.** Whether a model then ignores instructions it reads as data depends on the model. `evals/injection/v1` measures it: the policies of Fernhill Studio, a fictional company, in six documents (text, Markdown and HTML), each holding one attack. The attacks try to override the rules, break out of the quoted source with real tags and with disguised ones, plant an image link that leaks the question to another site, leak the system message, and invent a CEO. Its 11 questions (one the documents do not answer) list what an answer must not hold, such as the attacker's domain or a code word.
+
+```bash
+ragolex eval evals/injection/v1 --answers
+```
+
+The answer metrics then include `resisted`, and the report lists every question whose answer followed an injection under "Followed a prompt injection". Run it whenever the answer prompt or the model changes; like the other answer metrics it needs a language model, so CI does not run it. Resisted should be 100%. Correct and grounded matter here too: an answer that resists by refusing to answer still fails the question.
+
+## Tuning chunk size and overlap
+
+`ragolex tune` runs the retrieval evaluation once per chunk size and overlap, and ranks the runs: by hit rate, then MRR, then recall, and fewer chunks between equals, since those cost less to embed and store.
+
+```bash
+ragolex tune evals/handbook/v1 --chunk-sizes 500,1000,2000 --overlaps 0,200 --output tune.json
+```
+
+Each run embeds the documents again, so a sweep costs as many evaluations as it has runs. The `--search-mode`, `--top-k` and `--min-score` options are those of `ragolex eval`; the `min score` column of the table is the lowest minimum score that would keep every answerable question while turning away the others, where one does. The [Tune workflow](../.github/workflows/tune.yml) runs the default sweep in CI with the eval job's model; start it from the Actions tab with other sizes, and read the table, or every run as JSON, in its log.
+
+### What the handbook measured
+
+`nomic-embed-text:v1.5`, hybrid search, top 5, on `handbook/v1` (46 answerable questions), best first:
+
+| Chunk | Overlap | Hit rate | MRR | Recall | Chunks |
+|---:|---:|---:|---:|---:|---:|
+| 2000 | 0 | 100.0% | 96.7% | 100.0% | 13 |
+| 1000 | 0 | 100.0% | 95.0% | 100.0% | 24 |
+| 750 | 100 | 100.0% | 94.8% | 100.0% | 33 |
+| 2000 | 200 | 100.0% | 94.6% | 100.0% | 14 |
+| 500 | 0 | 100.0% | 94.2% | 100.0% | 46 |
+| 2000 | 100 | 100.0% | 93.5% | 100.0% | 14 |
+| 750 | 0 | 100.0% | 91.3% | 100.0% | 28 |
+| 500 | 100 | 100.0% | 91.1% | 98.9% | 62 |
+| 1500 | 0 | 100.0% | 89.3% | 100.0% | 16 |
+| 1500 | 100 | 100.0% | 87.3% | 100.0% | 16 |
+| 1000 | 100 | 97.8% | 94.6% | 97.8% | 25 |
+| 1500 | 200 | 97.8% | 92.4% | 97.8% | 16 |
+| **1000** | **200** | **97.8%** | **91.8%** | **97.8%** | **27** |
+| 300 | 0 | 97.8% | 90.4% | 97.8% | 84 |
+| 500 | 200 | 95.7% | 89.2% | 95.7% | 84 |
+| 750 | 200 | 95.7% | 88.4% | 95.7% | 42 |
+| 300 | 200 | 95.7% | 87.9% | 94.6% | 248 |
+| 300 | 100 | 91.3% | 83.2% | 91.3% | 142 |
+
+The default, 1000 characters with 200 overlap (in bold), stays, although it ranks 13th:
+
+- The spread is small. Between the default and the runs above it, the hit rate differs by one question in 46, and the MRR by a few points.
+- The handbook does not test what overlap is for. Its eight documents are short, with short paragraphs, and the splitter cuts at paragraph breaks first, so few passages are split mid-sentence. In long documents with long paragraphs, overlap keeps such a sentence whole in one of the two chunks.
+- 2000-character chunks come first because they hold nearly whole documents here (13 chunks for 8 documents). That does not carry over to long documents, and it doubles what each source adds to the answer prompt.
+- Very small chunks are clearly worse: 300 characters lose up to 4 questions and need 3 to 9 times as many chunks.
+
+To choose for your own documents, measure them: export a dataset with `ragolex feedback-export` (below) and run `ragolex tune` on it. The defaults live in `src/ragolex/domain/chunking.py`, and any upload can choose its own with `chunk_size` and `overlap_size`.
 
 ## Growing the test set from feedback
 

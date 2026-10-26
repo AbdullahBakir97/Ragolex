@@ -1,15 +1,30 @@
 """Storage of uploaded files on the local file system.
 
 All path handling lives here, including the checks that keep every path
-inside the storage root, so no other layer builds file paths itself.
+inside the storage root, so no other layer builds file paths itself. With
+encryption keys, files are written encrypted (see core.encryption), and
+readers get a decrypted copy for as long as they need it.
 """
 
+import os
 import re
 import secrets
 import shutil
 import string
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
+from ragolex.core.config import Settings
+from ragolex.core.encryption import (
+    HEADER_BYTES,
+    EncryptionError,
+    FileEncryptor,
+    KeyRing,
+    file_key_id,
+    is_encrypted_file,
+)
 from ragolex.core.errors import FileNotFound
 
 _KEY_ALPHABET = string.ascii_lowercase + string.digits
@@ -29,8 +44,97 @@ def _random_key() -> str:
 
 class FileStorage:
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, keys: KeyRing | None = None):
         self.root = Path(root).resolve()
+        self.keys = keys
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "FileStorage":
+        return cls(root=settings.FILES_DIR, keys=settings.encryption_keys)
+
+    def encryptor(self) -> FileEncryptor | None:
+        """What new files are encrypted with as they are written; None stores them as they are."""
+        return self.keys.file_encryptor() if self.keys else None
+
+    @contextmanager
+    def plaintext(self, path: Path) -> Iterator[Path]:
+        """A stored file as its readers need it.
+
+        That is the file itself, or, when it is encrypted, a decrypted copy
+        in a private temporary folder, removed again afterwards. Raises
+        EncryptionError when it cannot be decrypted.
+        """
+        if not self.is_encrypted(path):
+            yield path
+            return
+        with tempfile.TemporaryDirectory(prefix="ragolex-") as folder:
+            copy = Path(folder) / path.name
+            self._decrypt(path, copy)
+            yield copy
+
+    def copy_plaintext(self, path: Path, target: Path) -> None:
+        """Copy a stored file to ``target`` as it was uploaded, decrypted if need be."""
+        if self.is_encrypted(path):
+            self._decrypt(path, target)
+        else:
+            shutil.copyfile(path, target)
+
+    @staticmethod
+    def is_encrypted(path: Path) -> bool:
+        with path.open("rb") as file:
+            return is_encrypted_file(file.read(HEADER_BYTES))
+
+    @staticmethod
+    def key_id(path: Path) -> str | None:
+        """The id of the key a stored file is encrypted with; None if it is not encrypted."""
+        with path.open("rb") as file:
+            return file_key_id(file.read(HEADER_BYTES))
+
+    def encrypt_file(self, path: Path) -> bool:
+        """Encrypt a stored file with the current key, unless it already is.
+
+        A file encrypted with an older key is encrypted again with the
+        current one. The file is replaced in one step, so it is never left
+        half-written. Returns whether it changed.
+        """
+        keys = self._keys()
+        current = self.key_id(path)
+        if current == keys.current_id:
+            return False
+        encryptor = keys.file_encryptor()
+        temporary = path.with_name(f".{path.name}.encrypting")
+        try:
+            with path.open("rb") as source, temporary.open("wb") as out:
+                out.write(encryptor.header)
+                pieces = keys.decrypt_stream(source) if current else iter(
+                    lambda: source.read(1024 * 1024), b"")
+                for piece in pieces:
+                    out.write(encryptor.update(piece))
+                out.write(encryptor.finish())
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return True
+
+    def stored_files(self) -> Iterator[Path]:
+        """Every stored file, in every project folder."""
+        if not self.root.is_dir():
+            return
+        for directory in sorted(self.root.iterdir()):
+            if directory.is_dir():
+                yield from sorted(path for path in directory.iterdir()
+                                  if path.is_file() and not path.name.startswith("."))
+
+    def _decrypt(self, path: Path, target: Path) -> None:
+        keys = self._keys()
+        with path.open("rb") as source, target.open("wb") as out:
+            for piece in keys.decrypt_stream(source):
+                out.write(piece)
+
+    def _keys(self) -> KeyRing:
+        if self.keys is None:
+            raise EncryptionError("files are encrypted, but ENCRYPTION_KEYS is empty")
+        return self.keys
 
     def reserve_file(self, project_id: str, original_name: str) -> tuple[str, Path]:
         """Create an empty file with a unique ID in the project folder.

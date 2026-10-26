@@ -7,7 +7,10 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ragolex.core.encryption import KeyRing, parse_keys
+from ragolex.domain.file_types import CODE_TYPES
 from ragolex.domain.llm import TokenPrices
+from ragolex.domain.models import Limits
 
 BYTES_PER_MB = 1024 * 1024
 
@@ -37,6 +40,8 @@ class Settings(BaseSettings):
     METRICS_TOKEN: str | None = None
     # "json" writes one JSON object per line, for log collectors.
     LOG_FORMAT: Literal["text", "json"] = "text"
+    # Spans to the OTLP collector named by the OTEL_* variables (see core/tracing).
+    TRACING_ENABLED: bool = False
 
     DATABASE_URL: str = Field(
         default=LOCAL_DATABASE_URL,
@@ -48,6 +53,7 @@ class Settings(BaseSettings):
     FILE_ALLOWED_TYPES: list[str] = [
         "text/plain", "text/markdown", "text/html", "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        *sorted(set(CODE_TYPES.values())),
     ]
     FILE_MAX_SIZE: int = Field(default=10, gt=0, description="Maximum upload size in MB")
     FILE_DEFAULT_CHUNK_SIZE: int = Field(default=512_000, gt=0,
@@ -73,6 +79,10 @@ class Settings(BaseSettings):
         default=None, ge=0, le=2, description="Sampling temperature; empty uses the model's default")
     LLM_STREAM_USAGE: bool = Field(
         default=True, description="Ask for token usage at the end of streamed answers")
+    RESEARCH_MAX_STEPS: int = Field(
+        default=3, ge=1, le=5,
+        description="The most planning and review steps research mode may take per question; "
+                    "each is one model call before the answer, followed by its searches")
     LLM_INPUT_PRICE_PER_MILLION: float | None = Field(
         default=None, ge=0, description="US dollars per million prompt tokens; empty: cost unknown")
     LLM_OUTPUT_PRICE_PER_MILLION: float | None = Field(
@@ -100,6 +110,13 @@ class Settings(BaseSettings):
         default=0, ge=0, description="Answers per calendar month per tenant; 0 is unlimited")
     STORAGE_MB_PER_TENANT: int = Field(
         default=0, ge=0, description="Megabytes of uploaded files per tenant; 0 is unlimited")
+    BUDGET_USD_PER_MONTH: float = Field(
+        default=0, ge=0, le=1_000_000_000,
+        description="US dollars of answers per calendar month per tenant; 0 is unlimited")
+    STUDY_MAX_CHARACTERS: int = Field(
+        default=32_000, ge=1_000, le=1_000_000,
+        description="Characters of a document given to the model for study material; a longer "
+                    "document is given in chunks spread over it")
     JOB_WORKERS: int = Field(
         default=1, ge=0, le=32,
         description="Background jobs the app runs at once; 0 leaves them to `ragolex worker`")
@@ -116,6 +133,9 @@ class Settings(BaseSettings):
     CRAWLER_ALLOW_PRIVATE_URLS: bool = False
     CRAWLER_DELAY_SECONDS: float = Field(default=0.5, ge=0, le=10)
     CRAWLER_TIMEOUT_SECONDS: float = Field(default=15, gt=0, le=120)
+    # GitHub sources: a token reads private repositories and raises the
+    # API's rate limit (60 requests an hour without one, 5000 with).
+    GITHUB_TOKEN: str | None = None
     # OCR reads PDF pages that are pictures of text (scans): with "tesseract",
     # the tesseract program; with "vision", LLM_BASE_URL's model or OCR_MODEL.
     OCR_ENGINE: Literal["", "tesseract", "vision"] = ""
@@ -124,6 +144,10 @@ class Settings(BaseSettings):
     OCR_TIMEOUT_SECONDS: float = Field(default=120, gt=0, le=600)
     WEBHOOK_TIMEOUT_SECONDS: float = Field(
         default=10, gt=0, le=60, description="How long a webhook's receiver has to answer")
+    ENCRYPTION_KEYS: str = Field(
+        default="", description="Comma-separated keys from `ragolex encryption new-key`: "
+                                "uploaded files and webhook secrets are encrypted with the "
+                                "first, and any of them decrypts; empty stores them as they are")
 
     @model_validator(mode="before")
     @classmethod
@@ -143,6 +167,12 @@ class Settings(BaseSettings):
         if not url.startswith("postgresql+asyncpg://"):
             raise ValueError("DATABASE_URL must start with postgresql+asyncpg://")
         return url
+
+    @field_validator("ENCRYPTION_KEYS")
+    @classmethod
+    def check_encryption_keys(cls, value: str) -> str:
+        parse_keys(value)
+        return value
 
     @field_validator("EMBEDDING_BASE_URL", "LLM_BASE_URL", "RERANK_BASE_URL")
     @classmethod
@@ -174,8 +204,26 @@ class Settings(BaseSettings):
                            output_per_million=self.LLM_OUTPUT_PRICE_PER_MILLION)
 
     @property
+    def default_limits(self) -> Limits:
+        """What a tenant may use when its own limits do not say otherwise."""
+        return Limits(requests_per_minute=self.RATE_LIMIT_PER_MINUTE,
+                      answers_per_month=self.ANSWERS_PER_MONTH,
+                      storage_mb=self.STORAGE_MB_PER_TENANT,
+                      budget_usd_per_month=self.BUDGET_USD_PER_MONTH)
+
+    @property
     def max_upload_bytes(self) -> int:
         return self.FILE_MAX_SIZE * BYTES_PER_MB
+
+    @property
+    def encryption_keys(self) -> KeyRing | None:
+        """The keys that encrypt data at rest; None when it is stored as it is."""
+        return _key_ring(self.ENCRYPTION_KEYS)
+
+
+@lru_cache
+def _key_ring(value: str) -> KeyRing | None:
+    return KeyRing.from_setting(value)
 
 
 @lru_cache

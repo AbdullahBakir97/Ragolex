@@ -14,6 +14,31 @@ CONTENT_TYPES = {
     ".docx": DOCX,
 }
 
+# Source code: each extension's language, and each language's content type.
+CODE_LANGUAGES = {
+    ".py": "python",
+    ".js": "javascript", ".mjs": "javascript", ".cjs": "javascript", ".jsx": "javascript",
+    ".ts": "typescript", ".mts": "typescript", ".cts": "typescript", ".tsx": "typescript",
+    ".go": "go",
+    ".java": "java",
+    ".kt": "kotlin", ".kts": "kotlin",
+    ".cs": "csharp",
+    ".c": "c", ".h": "c",
+    ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp", ".hh": "cpp", ".hxx": "cpp",
+    ".rs": "rust",
+    ".php": "php",
+    ".swift": "swift",
+}
+_LANGUAGE_TYPES = {
+    "python": "text/x-python", "javascript": "text/javascript", "typescript": "text/x-typescript",
+    "go": "text/x-go", "java": "text/x-java", "kotlin": "text/x-kotlin", "csharp": "text/x-csharp",
+    "c": "text/x-c", "cpp": "text/x-c++", "rust": "text/x-rust", "php": "text/x-php",
+    "swift": "text/x-swift",
+}
+CODE_TYPES = {extension: _LANGUAGE_TYPES[language]
+              for extension, language in CODE_LANGUAGES.items()}
+CONTENT_TYPES.update(CODE_TYPES)
+
 # What clients send when they don't know a file's type.
 _GENERIC = {"", "application/octet-stream"}
 # Other names for the same types.
@@ -24,8 +49,12 @@ def content_type_for(file_name: str, declared: str | None) -> str | None:
     """The content type of an upload: the declared one, or the extension's.
 
     Browsers often send no type, or a generic one, for Markdown files;
-    the extension decides then.
+    the extension decides then. For source code the extension always
+    decides: browsers name code types inconsistently (a TypeScript file
+    can arrive as ``video/mp2t``), and the content check still applies.
     """
+    if code_type := CODE_TYPES.get(PurePath(file_name).suffix.lower()):
+        return code_type
     declared = (declared or "").split(";")[0].strip().lower()
     if declared in _GENERIC:
         return CONTENT_TYPES.get(PurePath(file_name).suffix.lower(), declared or None)

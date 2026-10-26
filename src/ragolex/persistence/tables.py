@@ -31,6 +31,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from ragolex.persistence.encrypted import EncryptedString
+
 # Deterministic constraint names, so migrations are reproducible and
 # constraints can be referenced (and dropped) by name.
 NAMING_CONVENTION = {
@@ -72,6 +74,20 @@ class TenantRow(Base):
     requests_per_minute: Mapped[int | None] = mapped_column(Integer)
     answers_per_month: Mapped[int | None] = mapped_column(Integer)
     storage_mb: Mapped[int | None] = mapped_column(Integer)
+    budget_usd_per_month: Mapped[float | None] = mapped_column(Numeric(12, 2, asdecimal=False))
+
+
+class BudgetAlertRow(Base):
+    """A budget threshold a tenant reached in a month: each is announced once."""
+
+    __tablename__ = "budget_alerts"
+
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    # Percent of the budget: 80 or 100.
+    threshold: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = _created_at()
 
 
 class RequestCountRow(Base):
@@ -252,6 +268,8 @@ class AnswerRow(Base):
     cost_usd: Mapped[float | None] = mapped_column(Numeric(14, 8, asdecimal=False))
     created_at: Mapped[datetime] = _created_at()
 
+    __table_args__ = (Index("ix_answers_project_id_created_at", "project_id", "created_at"),)
+
 
 class WidgetRow(Base):
     """A chat widget that websites embed to ask one project."""
@@ -361,8 +379,9 @@ class WebhookRow(Base):
         ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     url: Mapped[str] = mapped_column(Text)
     events: Mapped[list[str]] = mapped_column(ARRAY(String(32)))
-    # Signs each delivery; kept as is, since signing needs it.
-    secret: Mapped[str] = mapped_column(String(128))
+    # Signs each delivery, so it is kept, not hashed: encrypted with
+    # ENCRYPTION_KEYS when set (an encrypted secret is about 120 characters).
+    secret: Mapped[str] = mapped_column(EncryptedString(128))
     description: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created_at()
 
@@ -393,3 +412,61 @@ class WebhookDeliveryRow(Base):
     created_at: Mapped[datetime] = _created_at()
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+
+
+class EvaluationRunRow(Base):
+    """A `ragolex eval` run's parameters and metrics, for the admin dashboard."""
+
+    __tablename__ = "evaluation_runs"
+    __table_args__ = (
+        Index("ix_evaluation_runs_tenant_id_created_at", "tenant_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    dataset: Mapped[str] = mapped_column(String(255))
+    dataset_version: Mapped[str | None] = mapped_column(String(64))
+    cases: Mapped[int] = mapped_column(Integer)
+    parameters: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    answer_metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    version: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = _created_at()
+
+
+class DeckRow(Base):
+    """Flashcards to learn by spaced repetition, from a project's documents."""
+
+    __tablename__ = "decks"
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _created_at()
+
+
+class CardRow(Base):
+    """A flashcard and when it is next due."""
+
+    __tablename__ = "cards"
+    __table_args__ = (Index("ix_cards_deck_id_due_at", "deck_id", "due_at"),)
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    deck_id: Mapped[str] = mapped_column(ForeignKey("decks.id", ondelete="CASCADE"))
+    # The order cards were added in.
+    position: Mapped[int] = mapped_column(Integer)
+    front: Mapped[str] = mapped_column(Text)
+    back: Mapped[str] = mapped_column(Text)
+    # Where the card comes from; kept when the file is deleted, as a reference.
+    file_key: Mapped[str | None] = mapped_column(String(255))
+    chunk_index: Mapped[int | None] = mapped_column(Integer)
+    page: Mapped[int | None] = mapped_column(Integer)
+    section: Mapped[str | None] = mapped_column(Text)
+    interval_days: Mapped[float] = mapped_column(Float, server_default=text("0"))
+    ease: Mapped[float] = mapped_column(Float, server_default=text("2.5"))
+    repetitions: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    lapses: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created_at()

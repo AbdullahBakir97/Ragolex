@@ -2,9 +2,11 @@ from collections.abc import Mapping
 from pathlib import PurePath
 
 from ragolex.core.errors import UnsupportedFileType
+from ragolex.domain.file_types import CODE_LANGUAGES
 from ragolex.domain.ocr import OcrEngine
 
 from .base import DocumentLoader
+from .code_loader import CodeLoader
 from .docx_loader import DocxLoader
 from .html_loader import HtmlLoader
 from .markdown_loader import MarkdownLoader
@@ -37,7 +39,9 @@ class LoaderRegistry:
 def default_loader_registry(ocr: OcrEngine | None = None) -> LoaderRegistry:
     """Every supported file type; with ``ocr``, scanned PDF pages are read too."""
     markdown, html = MarkdownLoader(), HtmlLoader()
+    code = {language: CodeLoader(language) for language in set(CODE_LANGUAGES.values())}
     return LoaderRegistry({
+        **{extension: code[language] for extension, language in CODE_LANGUAGES.items()},
         ".txt": TextLoader(),
         ".md": markdown,
         ".markdown": markdown,
