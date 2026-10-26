@@ -784,12 +784,12 @@ class Operations:
         self,
         project_id: str,
         deck_id: str,
-    ) -> None:
+    ) -> bytes:
         """Export a deck for Anki
 
         A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
         """
-        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_none)
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_bytes)
 
 
 class AsyncOperations:
@@ -1502,12 +1502,12 @@ class AsyncOperations:
         self,
         project_id: str,
         deck_id: str,
-    ) -> None:
+    ) -> bytes:
         """Export a deck for Anki
 
         A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
         """
-        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_none)
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_bytes)
 
 
 __all__ = ['AsyncOperations', 'Operations']
