@@ -328,8 +328,8 @@ export interface paths {
         get: operations["list_sources"];
         put?: never;
         /**
-         * Keep a website's pages in the project
-         * @description The site's pages under the URL's folder are crawled, following their links (robots.txt is obeyed), and each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone. The first sync starts at once. The project is created if it has no files yet.
+         * Keep a website's pages, a feed's entries or a GitHub repository's documents
+         * @description A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
          */
         post: operations["create_source"];
         delete?: never;
@@ -664,6 +664,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everything the tenant has, as a ZIP archive
+         * @description Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+         */
+        get: operations["export_tenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp": {
         parameters: {
             query?: never;
@@ -841,6 +861,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/study/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write a summary, flashcards or a quiz from a document
+         * @description Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.
+         */
+        post: operations["study"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/decks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the project's decks, newest first */
+        get: operations["list_decks"];
+        put?: never;
+        /**
+         * Create a deck of flashcards
+         * @description Usually with the flashcards of `POST /study`; every card is new and due at once.
+         */
+        post: operations["create_deck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/decks/{deck_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A deck, with how many cards are due */
+        get: operations["get_deck"];
+        put?: never;
+        post?: never;
+        /** Delete a deck and its cards */
+        delete: operations["delete_deck"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/decks/{deck_id}/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A deck's cards, in order */
+        get: operations["list_cards"];
+        put?: never;
+        /**
+         * Add cards to a deck
+         * @description After its other cards, new and due at once. A deck holds up to 2,000 cards.
+         */
+        post: operations["add_cards"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/decks/{deck_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The cards due for review now
+         * @description The longest due first, each with the interval every grade would give it. Review them one at a time with `POST .../review`.
+         */
+        get: operations["review_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/decks/{deck_id}/cards/{card_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grade a review of a card, and schedule its next one
+         * @description Spaced repetition as in Anki: `again` brings the card back in ten minutes, the other grades in days that grow with each good review.
+         */
+        post: operations["review_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/decks/{deck_id}/anki": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export a deck for Anki
+         * @description A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
+         */
+        get: operations["export_anki"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -935,6 +1095,18 @@ export interface components {
             conversation_id?: string | null;
             /** @description Answer only from the chunks these filters leave. */
             filters?: components["schemas"]["SearchFiltersRequest"] | null;
+            /**
+             * Research
+             * @description Research mode, for questions with several parts: the model plans the searches, and reviews what they found, searching again for what is still missing. Slower, and each step is a model call that counts in `usage`.
+             * @default false
+             */
+            research?: boolean;
+            /**
+             * Max Steps
+             * @description In research mode, the most planning and review steps; the server's RESEARCH_MAX_STEPS caps it.
+             * @default 3
+             */
+            max_steps?: number;
         };
         /** AskResponse */
         AskResponse: {
@@ -975,6 +1147,11 @@ export interface components {
              * @description In a conversation: the answer's message, to rate it with PUT .../messages/{message_id}/feedback.
              */
             message_id?: number | null;
+            /**
+             * Research
+             * @description In research mode: the searches made, in order; null otherwise.
+             */
+            research?: components["schemas"]["SearchStepResponse"][] | null;
         };
         /** AssistantResponse */
         AssistantResponse: {
@@ -1072,6 +1249,104 @@ export interface components {
              * @description Comma-separated. Tags: letters, digits and hyphens, up to 32 characters each; they are lowercased, with spaces and underscores turned into hyphens.
              */
             tags?: string | null;
+        };
+        /** CardListResponse */
+        CardListResponse: {
+            /** Total */
+            total: number;
+            /** Offset */
+            offset: number;
+            /** Limit */
+            limit: number;
+            /** Items */
+            items: components["schemas"]["CardResponse"][];
+        };
+        /** CardRequest */
+        CardRequest: {
+            /**
+             * Front
+             * @description The question or term.
+             */
+            front: string;
+            /**
+             * Back
+             * @description Its answer.
+             */
+            back: string;
+            /**
+             * File Id
+             * @description The document it comes from.
+             */
+            file_id?: string | null;
+            /**
+             * Chunk Index
+             * @description The passage it comes from.
+             */
+            chunk_index?: number | null;
+            /** Page */
+            page?: number | null;
+            /** Section */
+            section?: string | null;
+        };
+        /** CardResponse */
+        CardResponse: {
+            /** Id */
+            id: string;
+            /** Front */
+            front: string;
+            /** Back */
+            back: string;
+            /** @description Where it comes from; all null when unknown. */
+            source: components["schemas"]["CardSourceResponse"];
+            /**
+             * Due At
+             * Format: date-time
+             * @description When it is next due for review.
+             */
+            due_at: string;
+            /**
+             * Interval Days
+             * @description Days from the last review to `due_at`; 0 for a card never reviewed.
+             */
+            interval_days: number;
+            /**
+             * Ease
+             * @description How much the interval grows after a good review.
+             */
+            ease: number;
+            /**
+             * Repetitions
+             * @description Reviews in a row it was remembered.
+             */
+            repetitions: number;
+            /**
+             * Lapses
+             * @description Times it was forgotten after being learnt.
+             */
+            lapses: number;
+            /** Last Reviewed At */
+            last_reviewed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** CardSourceResponse */
+        CardSourceResponse: {
+            /** File Id */
+            file_id: string | null;
+            /** Chunk Index */
+            chunk_index: number | null;
+            /** Page */
+            page: number | null;
+            /** Section */
+            section: string | null;
+        };
+        /** CardsRequest */
+        CardsRequest: {
+            /** Cards */
+            cards: components["schemas"]["CardRequest"][];
         };
         /** ChunkListResponse */
         ChunkListResponse: {
@@ -1199,6 +1474,38 @@ export interface components {
              * @description The chat widget a visitor started it in; null otherwise.
              */
             widget_id?: string | null;
+        };
+        /** DeckRequest */
+        DeckRequest: {
+            /** Name */
+            name: string;
+            /**
+             * Cards
+             * @description Flashcards to start with, e.g. from `POST /study` with `kind: flashcards`.
+             */
+            cards?: components["schemas"]["CardRequest"][];
+        };
+        /** DeckResponse */
+        DeckResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Cards
+             * @description Cards in the deck.
+             */
+            cards: number;
+            /**
+             * Due
+             * @description Cards due for review now.
+             */
+            due: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** DeliveryListResponse */
         DeliveryListResponse: {
@@ -1355,6 +1662,15 @@ export interface components {
              */
             tags: string[];
         };
+        /** FlashcardResponse */
+        FlashcardResponse: {
+            /** Front */
+            front: string;
+            /** Back */
+            back: string;
+            /** Sources */
+            sources: number[];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1480,6 +1796,13 @@ export interface components {
             started_at: string | null;
             /** Finished At */
             finished_at: string | null;
+        };
+        /** KeyPointResponse */
+        KeyPointResponse: {
+            /** Text */
+            text: string;
+            /** Sources */
+            sources: number[];
         };
         /** MeResponse */
         MeResponse: {
@@ -1645,6 +1968,28 @@ export interface components {
              */
             unpriced_answers: number;
         };
+        /** QuizQuestionResponse */
+        QuizQuestionResponse: {
+            /** Question */
+            question: string;
+            /**
+             * Choices
+             * @description Four choices.
+             */
+            choices: string[];
+            /**
+             * Answer
+             * @description The position of the right choice, from 0.
+             */
+            answer: number;
+            /**
+             * Explanation
+             * @description Why it is right, from the document.
+             */
+            explanation: string;
+            /** Sources */
+            sources: number[];
+        };
         /** RatedAnswerResponse */
         RatedAnswerResponse: {
             /** Conversation Id */
@@ -1669,7 +2014,76 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        /** ReviewCardResponse */
+        ReviewCardResponse: {
+            /** Id */
+            id: string;
+            /** Front */
+            front: string;
+            /** Back */
+            back: string;
+            /** @description Where it comes from; all null when unknown. */
+            source: components["schemas"]["CardSourceResponse"];
+            /**
+             * Due At
+             * Format: date-time
+             * @description When it is next due for review.
+             */
+            due_at: string;
+            /**
+             * Interval Days
+             * @description Days from the last review to `due_at`; 0 for a card never reviewed.
+             */
+            interval_days: number;
+            /**
+             * Ease
+             * @description How much the interval grows after a good review.
+             */
+            ease: number;
+            /**
+             * Repetitions
+             * @description Reviews in a row it was remembered.
+             */
+            repetitions: number;
+            /**
+             * Lapses
+             * @description Times it was forgotten after being learnt.
+             */
+            lapses: number;
+            /** Last Reviewed At */
+            last_reviewed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Intervals
+             * @description Days until the card is due again for each grade, to show on the buttons.
+             */
+            intervals: {
+                [key: string]: number;
+            };
+        };
+        /** ReviewQueueResponse */
+        ReviewQueueResponse: {
+            deck: components["schemas"]["DeckResponse"];
+            /**
+             * Cards
+             * @description Cards due now, the longest due first.
+             */
+            cards: components["schemas"]["ReviewCardResponse"][];
+        };
+        /** ReviewRequest */
+        ReviewRequest: {
+            /**
+             * Grade
+             * @description How well the card was remembered: `again` (not at all), `hard`, `good` or `easy`.
+             * @enum {string}
+             */
+            grade: "again" | "hard" | "good" | "easy";
+        };
         /**
          * SearchFiltersRequest
          * @description Narrows the chunks searched; leave a field out not to narrow by it.
@@ -1768,6 +2182,19 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** SearchStepResponse */
+        SearchStepResponse: {
+            /**
+             * Query
+             * @description What was searched for.
+             */
+            query: string;
+            /**
+             * Results
+             * @description How many chunks the search found.
+             */
+            results: number;
+        };
         /** SourceListResponse */
         SourceListResponse: {
             /** Items */
@@ -1802,9 +2229,16 @@ export interface components {
         /** SourceRequest */
         SourceRequest: {
             /**
+             * Kind
+             * @description `website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.
+             * @default website
+             * @enum {string}
+             */
+            kind?: "website" | "feed" | "github";
+            /**
              * Url
              * Format: uri
-             * @description Where to start: the site's pages under this URL's folder are crawled, following their links.
+             * @description The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.
              * @example https://docs.example.com/guide/
              */
             url: string;
@@ -1836,9 +2270,9 @@ export interface components {
             id: string;
             /**
              * Kind
-             * @constant
+             * @enum {string}
              */
-            kind: "website";
+            kind: "website" | "feed" | "github";
             /** Url */
             url: string;
             /** Max Pages */
@@ -1877,6 +2311,84 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** StudyRequest */
+        StudyRequest: {
+            /**
+             * File Id
+             * @description The document to study; it must be processed.
+             * @example a16q20nzrtvj_notes.txt
+             */
+            file_id: string;
+            /**
+             * Kind
+             * @description `summary`: key points in the document's order. `flashcards`: a question or term on the front, its answer on the back. `quiz`: multiple-choice questions with four choices, the right one and why.
+             * @enum {string}
+             */
+            kind: "summary" | "flashcards" | "quiz";
+            /**
+             * Count
+             * @description Most items to write.
+             * @default 10
+             */
+            count?: number;
+        };
+        /** StudyResponse */
+        StudyResponse: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "summary" | "flashcards" | "quiz";
+            /** File Id */
+            file_id: string;
+            /** Original Name */
+            original_name: string;
+            /**
+             * Items
+             * @description Of the requested kind; each cites the passages it comes from. Empty when the model wrote nothing usable.
+             */
+            items: components["schemas"]["KeyPointResponse"][] | components["schemas"]["FlashcardResponse"][] | components["schemas"]["QuizQuestionResponse"][];
+            /**
+             * Sources
+             * @description The passages the items cite.
+             */
+            sources: components["schemas"]["StudySourceResponse"][];
+            /** Prompt Version */
+            prompt_version: string;
+            usage: components["schemas"]["UsageResponse"];
+            /**
+             * Passages
+             * @description Chunks given to the model.
+             */
+            passages: number;
+            /**
+             * Chunks
+             * @description Chunks of the document: more than `passages` when the document is longer than the model reads at once, and only chunks spread over it were used.
+             */
+            chunks: number;
+        };
+        /** StudySourceResponse */
+        StudySourceResponse: {
+            /**
+             * Number
+             * @description What items cite in their `sources`.
+             */
+            number: number;
+            /** Chunk Index */
+            chunk_index: number;
+            /**
+             * Page
+             * @description Page number for PDFs, starting at 1; null otherwise.
+             */
+            page: number | null;
+            /**
+             * Section
+             * @description The headings above the passage, when known.
+             */
+            section: string | null;
+            /** Text */
+            text: string;
         };
         /** TagListResponse */
         TagListResponse: {
@@ -4191,6 +4703,26 @@ export interface operations {
             };
         };
     };
+    export_tenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archive, named <tenant>-<date>.zip. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+        };
+    };
     mcp_endpoint: {
         parameters: {
             query?: never;
@@ -4724,6 +5256,490 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    study: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudyResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `file_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `file_not_processed` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Signal: `llm_failed` */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `llm_not_configured` */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_decks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeckResponse"][];
+                };
+            };
+            /** @description Signal: `project_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_deck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeckResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_deck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The deck's id. */
+                deck_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeckResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `deck_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_deck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The deck's id. */
+                deck_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Signal: `project_not_found`, `deck_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_cards: {
+        parameters: {
+            query?: {
+                /** @description Items to skip. */
+                offset?: number;
+                /** @description Items to return (1-100). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The deck's id. */
+                deck_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardListResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `deck_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_cards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The deck's id. */
+                deck_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeckResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `deck_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `deck_full` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_queue: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The deck's id. */
+                deck_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewQueueResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `deck_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The deck's id. */
+                deck_id: string;
+                /** @description The card's id. */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `deck_not_found`, `card_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_anki: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The deck's id. */
+                deck_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Signal: `project_not_found`, `deck_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "text/plain": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */

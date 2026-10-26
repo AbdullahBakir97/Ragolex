@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal, TypeVar
 
-from ._types import UNSET, Unset, _body, _list, _none, _path, _raw
+from ._types import UNSET, Unset, _body, _bytes, _list, _none, _path, _raw
 from .models import (
     ApiKeyCreatedResponse,
     ApiKeyRequest,
@@ -15,11 +15,17 @@ from .models import (
     AssistantResponse,
     AssistantUpdateRequest,
     AuditListResponse,
+    CardListResponse,
+    CardRequest,
+    CardResponse,
+    CardsRequest,
     ChunkListResponse,
     ConversationCreateRequest,
     ConversationDetailResponse,
     ConversationListResponse,
     ConversationResponse,
+    DeckRequest,
+    DeckResponse,
     DeliveryListResponse,
     DeliveryResponse,
     FeedbackListResponse,
@@ -40,6 +46,8 @@ from .models import (
     ProjectListResponse,
     ProjectResponse,
     ProjectUsageResponse,
+    ReviewQueueResponse,
+    ReviewRequest,
     SearchFiltersRequest,
     SearchRequest,
     SearchResponse,
@@ -47,6 +55,8 @@ from .models import (
     SourcePagesResponse,
     SourceRequest,
     SourceResponse,
+    StudyRequest,
+    StudyResponse,
     TagListResponse,
     TenantUsageResponse,
     WebhookCreatedResponse,
@@ -271,15 +281,16 @@ class Operations:
         project_id: str,
         *,
         url: str,
+        kind: Literal['website', 'feed', 'github'] | str | Unset = UNSET,
         max_pages: int | Unset = UNSET,
         sync_interval_hours: int | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
     ) -> SourceResponse:
-        """Keep a website's pages in the project
+        """Keep a website's pages, a feed's entries or a GitHub repository's documents
 
-        The site's pages under the URL's folder are crawled, following their links (robots.txt is obeyed), and each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone. The first sync starts at once. The project is created if it has no files yet.
+        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
         """
-        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
 
     def list_sources(
         self,
@@ -538,6 +549,15 @@ class Operations:
         """
         return self._request('GET', '/api/v1/audit', query={'action': action, 'offset': offset, 'limit': limit}, json=None, response=AuditListResponse.model_validate)
 
+    def export_tenant(
+        self,
+    ) -> bytes:
+        """Everything the tenant has, as a ZIP archive
+
+        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+        """
+        return self._request('GET', '/api/v1/export', query={}, json=None, response=_bytes)
+
     def tool_schemas(
         self,
     ) -> list[dict[str, Any]]:
@@ -571,12 +591,14 @@ class Operations:
         min_score: float | None | Unset = UNSET,
         conversation_id: str | None | Unset = UNSET,
         filters: SearchFiltersRequest | dict[str, Any] | None | Unset = UNSET,
+        research: bool | Unset = UNSET,
+        max_steps: int | Unset = UNSET,
     ) -> AskResponse:
         """Answer a question from the project's documents
 
         Finds the indexed chunks that best match the question and has a language model answer from them, citing each source as [n]. Signal `no_answer`, with `answer` null, means the documents do not answer the question. With `conversation_id`, the question is a follow-up: it is first rewritten into a standalone question from the conversation so far, and the question and the answer are added to the conversation.
         """
-        return self._request('POST', f'/api/v1/ask/{_path(project_id)}', query={}, json=_body(AskRequest, {'question': question, 'top_k': top_k, 'min_score': min_score, 'conversation_id': conversation_id, 'filters': filters}, optional=False), response=AskResponse.model_validate)
+        return self._request('POST', f'/api/v1/ask/{_path(project_id)}', query={}, json=_body(AskRequest, {'question': question, 'top_k': top_k, 'min_score': min_score, 'conversation_id': conversation_id, 'filters': filters, 'research': research, 'max_steps': max_steps}, optional=False), response=AskResponse.model_validate)
 
     def create_conversation(
         self,
@@ -655,6 +677,122 @@ class Operations:
         """Rated answers, most recently rated first
         """
         return self._request('GET', f'/api/v1/projects/{_path(project_id)}/feedback', query={'rating': rating, 'offset': offset, 'limit': limit}, json=None, response=FeedbackListResponse.model_validate)
+
+    def study(
+        self,
+        project_id: str,
+        *,
+        file_id: str,
+        kind: Literal['summary', 'flashcards', 'quiz'] | str,
+        count: int | Unset = UNSET,
+    ) -> StudyResponse:
+        """Write a summary, flashcards or a quiz from a document
+
+        Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.
+        """
+        return self._request('POST', f'/api/v1/study/{_path(project_id)}', query={}, json=_body(StudyRequest, {'file_id': file_id, 'kind': kind, 'count': count}, optional=False), response=StudyResponse.model_validate)
+
+    def list_decks(
+        self,
+        project_id: str,
+    ) -> list[DeckResponse]:
+        """List the project's decks, newest first
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks', query={}, json=None, response=_list(DeckResponse))
+
+    def create_deck(
+        self,
+        project_id: str,
+        *,
+        name: str,
+        cards: list[CardRequest | dict[str, Any]] | Unset = UNSET,
+    ) -> DeckResponse:
+        """Create a deck of flashcards
+
+        Usually with the flashcards of `POST /study`; every card is new and due at once.
+        """
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks', query={}, json=_body(DeckRequest, {'name': name, 'cards': cards}, optional=False), response=DeckResponse.model_validate)
+
+    def get_deck(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> DeckResponse:
+        """A deck, with how many cards are due
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}', query={}, json=None, response=DeckResponse.model_validate)
+
+    def delete_deck(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> None:
+        """Delete a deck and its cards
+        """
+        return self._request('DELETE', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}', query={}, json=None, response=_none)
+
+    def list_cards(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> CardListResponse:
+        """A deck's cards, in order
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards', query={'offset': offset, 'limit': limit}, json=None, response=CardListResponse.model_validate)
+
+    def add_cards(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        cards: list[CardRequest | dict[str, Any]],
+    ) -> DeckResponse:
+        """Add cards to a deck
+
+        After its other cards, new and due at once. A deck holds up to 2,000 cards.
+        """
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards', query={}, json=_body(CardsRequest, {'cards': cards}, optional=False), response=DeckResponse.model_validate)
+
+    def review_queue(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        limit: int | None = None,
+    ) -> ReviewQueueResponse:
+        """The cards due for review now
+
+        The longest due first, each with the interval every grade would give it. Review them one at a time with `POST .../review`.
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/review', query={'limit': limit}, json=None, response=ReviewQueueResponse.model_validate)
+
+    def review_card(
+        self,
+        project_id: str,
+        deck_id: str,
+        card_id: str,
+        *,
+        grade: Literal['again', 'hard', 'good', 'easy'] | str,
+    ) -> CardResponse:
+        """Grade a review of a card, and schedule its next one
+
+        Spaced repetition as in Anki: `again` brings the card back in ten minutes, the other grades in days that grow with each good review.
+        """
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards/{_path(card_id)}/review', query={}, json=_body(ReviewRequest, {'grade': grade}, optional=False), response=CardResponse.model_validate)
+
+    def export_anki(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> bytes:
+        """Export a deck for Anki
+
+        A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_bytes)
 
 
 class AsyncOperations:
@@ -864,15 +1002,16 @@ class AsyncOperations:
         project_id: str,
         *,
         url: str,
+        kind: Literal['website', 'feed', 'github'] | str | Unset = UNSET,
         max_pages: int | Unset = UNSET,
         sync_interval_hours: int | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
     ) -> SourceResponse:
-        """Keep a website's pages in the project
+        """Keep a website's pages, a feed's entries or a GitHub repository's documents
 
-        The site's pages under the URL's folder are crawled, following their links (robots.txt is obeyed), and each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone. The first sync starts at once. The project is created if it has no files yet.
+        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
         """
-        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
 
     async def list_sources(
         self,
@@ -1131,6 +1270,15 @@ class AsyncOperations:
         """
         return await self._request('GET', '/api/v1/audit', query={'action': action, 'offset': offset, 'limit': limit}, json=None, response=AuditListResponse.model_validate)
 
+    async def export_tenant(
+        self,
+    ) -> bytes:
+        """Everything the tenant has, as a ZIP archive
+
+        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+        """
+        return await self._request('GET', '/api/v1/export', query={}, json=None, response=_bytes)
+
     async def tool_schemas(
         self,
     ) -> list[dict[str, Any]]:
@@ -1164,12 +1312,14 @@ class AsyncOperations:
         min_score: float | None | Unset = UNSET,
         conversation_id: str | None | Unset = UNSET,
         filters: SearchFiltersRequest | dict[str, Any] | None | Unset = UNSET,
+        research: bool | Unset = UNSET,
+        max_steps: int | Unset = UNSET,
     ) -> AskResponse:
         """Answer a question from the project's documents
 
         Finds the indexed chunks that best match the question and has a language model answer from them, citing each source as [n]. Signal `no_answer`, with `answer` null, means the documents do not answer the question. With `conversation_id`, the question is a follow-up: it is first rewritten into a standalone question from the conversation so far, and the question and the answer are added to the conversation.
         """
-        return await self._request('POST', f'/api/v1/ask/{_path(project_id)}', query={}, json=_body(AskRequest, {'question': question, 'top_k': top_k, 'min_score': min_score, 'conversation_id': conversation_id, 'filters': filters}, optional=False), response=AskResponse.model_validate)
+        return await self._request('POST', f'/api/v1/ask/{_path(project_id)}', query={}, json=_body(AskRequest, {'question': question, 'top_k': top_k, 'min_score': min_score, 'conversation_id': conversation_id, 'filters': filters, 'research': research, 'max_steps': max_steps}, optional=False), response=AskResponse.model_validate)
 
     async def create_conversation(
         self,
@@ -1248,6 +1398,122 @@ class AsyncOperations:
         """Rated answers, most recently rated first
         """
         return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/feedback', query={'rating': rating, 'offset': offset, 'limit': limit}, json=None, response=FeedbackListResponse.model_validate)
+
+    async def study(
+        self,
+        project_id: str,
+        *,
+        file_id: str,
+        kind: Literal['summary', 'flashcards', 'quiz'] | str,
+        count: int | Unset = UNSET,
+    ) -> StudyResponse:
+        """Write a summary, flashcards or a quiz from a document
+
+        Gives the document's chunks to the language model (spread evenly over a long document) and returns study material of the requested kind. Each item cites the passages it comes from, with their page or section. Costs a model call, counted like an answer in usage and the answer quota.
+        """
+        return await self._request('POST', f'/api/v1/study/{_path(project_id)}', query={}, json=_body(StudyRequest, {'file_id': file_id, 'kind': kind, 'count': count}, optional=False), response=StudyResponse.model_validate)
+
+    async def list_decks(
+        self,
+        project_id: str,
+    ) -> list[DeckResponse]:
+        """List the project's decks, newest first
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks', query={}, json=None, response=_list(DeckResponse))
+
+    async def create_deck(
+        self,
+        project_id: str,
+        *,
+        name: str,
+        cards: list[CardRequest | dict[str, Any]] | Unset = UNSET,
+    ) -> DeckResponse:
+        """Create a deck of flashcards
+
+        Usually with the flashcards of `POST /study`; every card is new and due at once.
+        """
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks', query={}, json=_body(DeckRequest, {'name': name, 'cards': cards}, optional=False), response=DeckResponse.model_validate)
+
+    async def get_deck(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> DeckResponse:
+        """A deck, with how many cards are due
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}', query={}, json=None, response=DeckResponse.model_validate)
+
+    async def delete_deck(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> None:
+        """Delete a deck and its cards
+        """
+        return await self._request('DELETE', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}', query={}, json=None, response=_none)
+
+    async def list_cards(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> CardListResponse:
+        """A deck's cards, in order
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards', query={'offset': offset, 'limit': limit}, json=None, response=CardListResponse.model_validate)
+
+    async def add_cards(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        cards: list[CardRequest | dict[str, Any]],
+    ) -> DeckResponse:
+        """Add cards to a deck
+
+        After its other cards, new and due at once. A deck holds up to 2,000 cards.
+        """
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards', query={}, json=_body(CardsRequest, {'cards': cards}, optional=False), response=DeckResponse.model_validate)
+
+    async def review_queue(
+        self,
+        project_id: str,
+        deck_id: str,
+        *,
+        limit: int | None = None,
+    ) -> ReviewQueueResponse:
+        """The cards due for review now
+
+        The longest due first, each with the interval every grade would give it. Review them one at a time with `POST .../review`.
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/review', query={'limit': limit}, json=None, response=ReviewQueueResponse.model_validate)
+
+    async def review_card(
+        self,
+        project_id: str,
+        deck_id: str,
+        card_id: str,
+        *,
+        grade: Literal['again', 'hard', 'good', 'easy'] | str,
+    ) -> CardResponse:
+        """Grade a review of a card, and schedule its next one
+
+        Spaced repetition as in Anki: `again` brings the card back in ten minutes, the other grades in days that grow with each good review.
+        """
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/cards/{_path(card_id)}/review', query={}, json=_body(ReviewRequest, {'grade': grade}, optional=False), response=CardResponse.model_validate)
+
+    async def export_anki(
+        self,
+        project_id: str,
+        deck_id: str,
+    ) -> bytes:
+        """Export a deck for Anki
+
+        A text file to import in Anki (File > Import): one Basic note per card, into a deck of the same name, tagged `ragolex` and the project's name, with the document and page each card comes from.
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/decks/{_path(deck_id)}/anki', query={}, json=None, response=_bytes)
 
 
 __all__ = ['AsyncOperations', 'Operations']

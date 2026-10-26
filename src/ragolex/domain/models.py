@@ -362,7 +362,7 @@ class Widget:
     logo_url: str | None = None
 
 
-SourceKind = Literal["website"]
+SourceKind = Literal["website", "feed", "github"]
 
 
 @dataclass(frozen=True)
@@ -445,3 +445,88 @@ class WebhookDelivery:
     error: str | None = None
     delivered_at: datetime | None = None
 
+
+
+# Study material from a document: key points, flashcards or quiz questions,
+# each citing the numbers of the passages it comes from.
+StudyKind = Literal["summary", "flashcards", "quiz"]
+
+
+@dataclass(frozen=True)
+class KeyPoint:
+    text: str
+    sources: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class Flashcard:
+    front: str
+    back: str
+    sources: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class QuizQuestion:
+    question: str
+    choices: tuple[str, ...]
+    answer: int
+    explanation: str
+    sources: tuple[int, ...]
+
+
+StudyItem = KeyPoint | Flashcard | QuizQuestion
+
+
+# How well a card was remembered, as in Anki: not at all, with effort, well, easily.
+ReviewGrade = Literal["again", "hard", "good", "easy"]
+
+
+@dataclass(frozen=True)
+class CardSource:
+    """Where a card comes from in the project's documents; all None when unknown."""
+
+    file_key: str | None = None
+    chunk_index: int | None = None
+    page: int | None = None
+    section: str | None = None
+
+
+@dataclass(frozen=True)
+class Schedule:
+    """When a card is next due, by spaced repetition.
+
+    ``interval_days`` is the time until then (fractions of a day for cards
+    being relearnt), ``ease`` how much the interval grows after a good
+    review, ``repetitions`` the reviews in a row it was remembered, and
+    ``lapses`` how often it was forgotten after being learnt.
+    """
+
+    interval_days: float = 0.0
+    ease: float = 2.5
+    repetitions: int = 0
+    lapses: int = 0
+
+
+@dataclass(frozen=True)
+class Card:
+    id: str
+    deck_id: str
+    front: str
+    back: str
+    source: CardSource
+    schedule: Schedule
+    due_at: datetime
+    created_at: datetime
+    last_reviewed_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class Deck:
+    """Flashcards to learn, from a project's documents: ``due`` of its ``cards`` are due now."""
+
+    id: str
+    project_id: int
+    name: str
+    created_at: datetime
+    cards: int = 0
+    due: int = 0

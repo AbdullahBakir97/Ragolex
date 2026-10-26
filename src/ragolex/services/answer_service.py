@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 
 from ragolex.core.errors import ConversationNotFound, ProjectNotFound
 from ragolex.core.metrics import ANSWERS, LLM_COST, LLM_TOKENS
+from ragolex.core.tracing import annotate, end_span, span, start_span
 from ragolex.domain.llm import LLM, Message, TokenPrices, TokenUsage
 from ragolex.domain.models import (
     AnswerRecord,
@@ -16,6 +17,7 @@ from ragolex.domain.models import (
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.prompts.answer import ANSWER_PROMPT, NO_ANSWER, AnswerPrompt
 from ragolex.prompts.condense import CONDENSE_PROMPT, CondensePrompt
+from ragolex.prompts.research import RESEARCH_PROMPT, ResearchPrompt
 from ragolex.services.search_service import SearchService
 
 # The usage of an answer for which the model was not called.
@@ -27,6 +29,17 @@ HISTORY_MESSAGES = 6
 
 # Conversations are titled after their first question, shortened to this.
 TITLE_LENGTH = 80
+
+# Research mode: the most searches one planning or review step asks for.
+MAX_QUERIES_PER_STEP = 4
+
+
+@dataclass(frozen=True)
+class SearchStep:
+    """One search of research mode: the query, and how many chunks it found."""
+
+    query: str
+    results: int
 
 
 @dataclass(frozen=True)
@@ -63,6 +76,7 @@ class Answer:
     conversation_id: str | None = None
     search_question: str | None = None
     message_id: int | None = None
+    research: list[SearchStep] | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +95,7 @@ class Prepared:
     conversation: Conversation | None
     history: list[Message]
     usage: TokenUsage | None
+    research: list[SearchStep] | None = None
 
 
 class AnswerService:
@@ -94,7 +109,8 @@ class AnswerService:
 
     def __init__(self, search: SearchService, llm: LLM, uow: UnitOfWork, min_score: float,
                  prices: TokenPrices | None = None, prompt: AnswerPrompt = ANSWER_PROMPT,
-                 condense_prompt: CondensePrompt = CONDENSE_PROMPT):
+                 condense_prompt: CondensePrompt = CONDENSE_PROMPT,
+                 research_prompt: ResearchPrompt = RESEARCH_PROMPT, max_research_steps: int = 3):
         self.search = search
         self.llm = llm
         self.uow = uow
@@ -102,10 +118,12 @@ class AnswerService:
         self.prices = prices
         self.prompt = prompt
         self.condense_prompt = condense_prompt
+        self.research_prompt = research_prompt
+        self.max_research_steps = max_research_steps
 
     async def ask(self, project_name: str, question: str, top_k: int,
                   min_score: float | None = None, conversation_id: str | None = None,
-                  filters: SearchFilters | None = None) -> Answer:
+                  filters: SearchFilters | None = None, research_steps: int = 0) -> Answer:
         """Retrieve the best matching chunks and have the model answer from them.
 
         Only chunks scoring at least ``min_score`` (default: the service's)
@@ -115,22 +133,28 @@ class AnswerService:
         that conversation and is added to it.
         """
         prepared = await self.prepare(project_name, question, top_k, min_score, conversation_id,
-                                      filters)
+                                      filters, research_steps)
         if not prepared.sources:
             answer = self._no_answer(prepared, NOT_CALLED)
         else:
-            completion = await self.llm.complete(self._answer_messages(prepared))
+            with span("answer.generate", model=self.llm.model, sources=len(prepared.sources),
+                      prompt_version=self.prompt.version) as current:
+                completion = await self.llm.complete(self._answer_messages(prepared))
+                annotate(current, **_usage_attributes(completion.usage))
             answer = self._finish(prepared, completion.text, completion.usage)
         return await self._record(prepared, answer, streamed=False)
 
     async def prepare(self, project_name: str, question: str, top_k: int,
                       min_score: float | None = None,
                       conversation_id: str | None = None,
-                      filters: SearchFilters | None = None) -> Prepared:
+                      filters: SearchFilters | None = None,
+                      research_steps: int = 0) -> Prepared:
         """Find the sources for ``question``, rewriting a follow-up first.
 
-        Raises ConversationNotFound for a conversation that is not this
-        project's.
+        With ``research_steps`` (research mode), the model plans the
+        searches, and reviews what they found up to that many times (at most
+        the service's ``max_research_steps``); see ``_research``. Raises
+        ConversationNotFound for a conversation that is not this project's.
         """
         project = await self.uow.projects.get_by_name(project_name)
         if project is None:
@@ -147,16 +171,67 @@ class AnswerService:
         search_question = question
         usage: TokenUsage | None = NOT_CALLED
         if history:
-            completion = await self.llm.complete(self.condense_prompt.messages(history, question))
+            with span("answer.condense", model=self.llm.model, history=len(history)):
+                completion = await self.llm.complete(
+                    self.condense_prompt.messages(history, question))
             search_question = self.condense_prompt.standalone(completion.text, question)
             usage = completion.usage
 
         if min_score is None:
             min_score = self.min_score
-        sources = await self.search.search(project_name, search_question, top_k=top_k,
-                                           min_score=min_score, filters=filters)
+        research = None
+        if research_steps > 0:
+            sources, research, research_usage = await self._research(
+                project_name, search_question, top_k, min_score, filters,
+                min(research_steps, self.max_research_steps))
+            usage = _add(usage, research_usage)
+        else:
+            sources = await self.search.search(project_name, search_question, top_k=top_k,
+                                               min_score=min_score, filters=filters)
         return Prepared(project=project, question=question, search_question=search_question,
-                        sources=sources, conversation=conversation, history=history, usage=usage)
+                        sources=sources, conversation=conversation, history=history, usage=usage,
+                        research=research)
+
+    async def _research(self, project_name: str, question: str, top_k: int, min_score: float,
+                        filters: SearchFilters | None,
+                        steps: int) -> tuple[list[ScoredChunk], list[SearchStep],
+                                             TokenUsage | None]:
+        """Search in up to ``steps`` rounds, each planned or reviewed by the model.
+
+        The first round searches what the model plans (the question itself
+        when the plan is unreadable); each later one searches only what the
+        review of the sources so far says is still missing, and none
+        follows when nothing is. The sources are each search's best ones
+        taken in turn, so every part of the question has its own, up to
+        ``top_k`` in all.
+        """
+        usage: TokenUsage | None = NOT_CALLED
+        results: list[list[ScoredChunk]] = []
+        trail: list[SearchStep] = []
+        searched: set[str] = set()
+        sources: list[ScoredChunk] = []
+        for step in range(steps):
+            if step == 0:
+                messages = self.research_prompt.plan_messages(question, MAX_QUERIES_PER_STEP)
+            else:
+                messages = self.research_prompt.review_messages(
+                    question, [s.query for s in trail], sources, MAX_QUERIES_PER_STEP)
+            completion = await self.llm.complete(messages)
+            usage = _add(usage, completion.usage)
+            queries = [query for query in self.research_prompt.queries(
+                completion.text, MAX_QUERIES_PER_STEP) if query.lower() not in searched]
+            if step == 0 and not queries:
+                queries = [question]
+            if not queries:
+                break
+            for query in queries:
+                searched.add(query.lower())
+                hits = await self.search.search(project_name, query, top_k=top_k,
+                                                min_score=min_score, filters=filters)
+                trail.append(SearchStep(query=query, results=len(hits)))
+                results.append(hits)
+            sources = _interleave(results, top_k)
+        return sources, trail, usage
 
     async def stream(self, prepared: Prepared) -> AsyncIterator[AnswerDelta | Answer]:
         """Like ``ask``, for a prepared question: the text as it is written, then the Answer.
@@ -172,15 +247,22 @@ class AnswerService:
             reply = ""
             usage = None
             holding = True
-            async for piece in self.llm.stream(self._answer_messages(prepared)):
-                if isinstance(piece, TokenUsage):
-                    usage = piece
-                    continue
-                reply += piece
-                if holding and self.prompt.could_be_no_answer(reply):
-                    continue
-                yield AnswerDelta(reply if holding else piece)
-                holding = False
+            # Not made current: the stream yields to its reader between pieces.
+            generation = start_span("answer.generate", model=self.llm.model, streamed=True,
+                                    sources=len(prepared.sources),
+                                    prompt_version=self.prompt.version)
+            try:
+                async for piece in self.llm.stream(self._answer_messages(prepared)):
+                    if isinstance(piece, TokenUsage):
+                        usage = piece
+                        continue
+                    reply += piece
+                    if holding and self.prompt.could_be_no_answer(reply):
+                        continue
+                    yield AnswerDelta(reply if holding else piece)
+                    holding = False
+            finally:
+                end_span(generation, **_usage_attributes(usage))
             answer = self._finish(prepared, reply, usage)
         yield await self._record(prepared, answer, streamed=True)
 
@@ -210,7 +292,8 @@ class AnswerService:
         return Answer(text=text, citations=citations, prompt_version=self.prompt.version,
                       usage=total, cost_usd=self._cost(total),
                       conversation_id=prepared.conversation.id if prepared.conversation else None,
-                      search_question=prepared.search_question if rewritten else None)
+                      search_question=prepared.search_question if rewritten else None,
+                      research=prepared.research)
 
     def _cost(self, usage: TokenUsage | None) -> float | None:
         if usage == NOT_CALLED:
@@ -249,6 +332,20 @@ class AnswerService:
         return answer
 
 
+def _interleave(results: list[list[ScoredChunk]], limit: int) -> list[ScoredChunk]:
+    """Each search's best chunk, then each one's second best, and so on, without repeats."""
+    chosen: list[ScoredChunk] = []
+    seen: set[tuple[str, int]] = set()
+    for rank in range(max((len(hits) for hits in results), default=0)):
+        for hits in results:
+            if rank < len(hits):
+                key = (hits[rank].file_key, hits[rank].chunk.index)
+                if key not in seen:
+                    seen.add(key)
+                    chosen.append(hits[rank])
+    return chosen[:limit]
+
+
 def _add(first: TokenUsage | None, second: TokenUsage | None) -> TokenUsage | None:
     """Two usages together; unknown when either is."""
     if first is None or second is None:
@@ -268,3 +365,11 @@ def _stored(citation: Citation) -> StoredCitation:
 def _title(question: str) -> str:
     title = " ".join(question.split())
     return title if len(title) <= TITLE_LENGTH else title[:TITLE_LENGTH - 1].rstrip() + "…"
+
+
+def _usage_attributes(usage: TokenUsage | None) -> dict[str, int]:
+    """A model call's token counts as span attributes, in OpenTelemetry's names."""
+    if usage is None:
+        return {}
+    return {"gen_ai.usage.input_tokens": usage.input_tokens,
+            "gen_ai.usage.output_tokens": usage.output_tokens}

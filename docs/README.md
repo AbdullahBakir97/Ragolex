@@ -7,7 +7,8 @@
 | [Architecture](architecture.md) | Layers and their rules, how to add a file type, project structure |
 | [Evaluation](evaluation.md) | Measuring retrieval with `ragolex eval`: datasets, metrics, baselines and the CI check |
 | [Web app](web.md) | The browser interface: pages, how it is built, running it |
-| [Operations](operations.md) | Health checks, logs and request ids, Prometheus metrics, the audit log, malware scanning |
+| [Operations](operations.md) | Health checks, logs and request ids, Prometheus metrics, the audit log, malware scanning, backups and restores |
+| [Deployment](deployment.md) | Images, servers, staging and production, releases and rollbacks |
 | [Development](development.md) | Local setup, tests, database migrations, workflow |
 | [Roadmap](roadmap.md) | What is done and what is planned, phase by phase |
 

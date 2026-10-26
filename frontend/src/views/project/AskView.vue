@@ -49,7 +49,7 @@ function show(id: string | null) {
   return router.push({ name: "ask", params });
 }
 
-const settings = ref<AskSettings>({ top_k: 5, min_score: null, stream: true, files: [], tags: [] });
+const settings = ref<AskSettings>({ top_k: 5, min_score: null, stream: true, research: false, files: [], tags: [] });
 const chosenFiles = computed({
   get: () => settings.value.files ?? [],
   set: (value: string[]) => (settings.value.files = value),
@@ -315,6 +315,18 @@ watch(
             <Search :size="13" />
             <span>Searched for <q>{{ turn.answer.search_question }}</q></span>
           </p>
+          <details v-if="turn.answer?.research?.length" class="research subtle small">
+            <summary>
+              <Search :size="13" />
+              <span>Researched with {{ turn.answer.research.length }} {{ turn.answer.research.length === 1 ? "search" : "searches" }}</span>
+            </summary>
+            <ol>
+              <li v-for="(step, index) in turn.answer.research" :key="index">
+                <q>{{ step.query }}</q>
+                <span class="found">{{ step.results }} found</span>
+              </li>
+            </ol>
+          </details>
 
           <div v-if="turn.status === 'failed'" class="alert alert-danger">
             <TriangleAlert :size="18" />
@@ -439,6 +451,13 @@ watch(
         <label class="toggle">
           <input v-model="settings.stream" type="checkbox" />
           <span>Stream the answer as it is written</span>
+        </label>
+        <label class="toggle research-toggle">
+          <input v-model="settings.research" type="checkbox" />
+          <span>
+            Research mode
+            <span class="subtle">· plans several searches, for questions with several parts; slower</span>
+          </span>
         </label>
         <div class="field documents">
           <span>Answer from</span>
@@ -654,6 +673,34 @@ watch(
 
 .searched q {
   color: var(--text-2);
+}
+
+.research {
+  margin-bottom: -4px;
+}
+
+.research summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.research ol {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-left: 38px;
+}
+
+.research q {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.research .found {
+  margin-left: 6px;
+  white-space: nowrap;
 }
 
 .empty,
@@ -916,8 +963,14 @@ watch(
   }
 }
 
-.documents {
+.documents,
+.research-toggle {
   grid-column: 1 / -1;
+}
+
+.research-toggle {
+  height: auto;
+  min-height: 34px;
 }
 
 .pickers {
@@ -946,6 +999,7 @@ watch(
 }
 
 .toggle input {
+  flex: none;
   width: 16px;
   height: 16px;
   accent-color: var(--accent);

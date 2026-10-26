@@ -9,6 +9,7 @@ import type {
   ChatWidget,
   ChatWidgetSettings,
   Chunk,
+  SourceKind,
   SourcePage,
   WebsiteSource,
   Conversation,
@@ -31,6 +32,13 @@ import type {
   SearchOptions,
   SearchResult,
   TagCount,
+  Card,
+  Deck,
+  NewCard,
+  ReviewCard,
+  ReviewGrade,
+  StudyKind,
+  StudyMaterial,
   TenantUsage,
   UploadResult,
   Webhook,
@@ -116,12 +124,20 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/** A file the API makes, to save: its text and the name the server gives it. */
+async function download(path: string): Promise<{ blob: Blob; filename: string | null }> {
+  const response = await send(path);
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  return { blob: await response.blob(), filename: /filename="([^"]+)"/.exec(disposition)?.[1] ?? null };
+}
+
 async function remove(path: string): Promise<void> {
   await send(path, { method: "DELETE" });
 }
 
 const project = (name: string) => encodeURIComponent(name);
 const conversations = (name: string) => `/projects/${project(name)}/conversations`;
+const decks = (name: string) => `/projects/${project(name)}/decks`;
 const feedbackPath = (name: string, conversationId: string, messageId: number) =>
   `${conversations(name)}/${encodeURIComponent(conversationId)}/messages/${messageId}/feedback`;
 
@@ -216,6 +232,20 @@ export const api = {
     post<Job>(`/projects/${project(name)}/jobs`, { file_id: fileId, ...options }),
   job: (name: string, jobId: string) => get<Job>(`/projects/${project(name)}/jobs/${encodeURIComponent(jobId)}`),
   me: () => get<Me>("/me"),
+  decks: (name: string) => get<Deck[]>(decks(name)),
+  createDeck: (name: string, deckName: string, cards: NewCard[]) => post<Deck>(decks(name), { name: deckName, cards }),
+  addCards: (name: string, deckId: string, cards: NewCard[]) =>
+    post<Deck>(`${decks(name)}/${encodeURIComponent(deckId)}/cards`, { cards }),
+  deleteDeck: (name: string, deckId: string) => remove(`${decks(name)}/${encodeURIComponent(deckId)}`),
+  reviewQueue: (name: string, deckId: string, limit = 50) =>
+    get<{ deck: Deck; cards: ReviewCard[] }>(`${decks(name)}/${encodeURIComponent(deckId)}/review`, { limit }),
+  reviewCard: (name: string, deckId: string, cardId: string, grade: ReviewGrade) =>
+    post<Card>(`${decks(name)}/${encodeURIComponent(deckId)}/cards/${encodeURIComponent(cardId)}/review`, { grade }),
+  /** The deck as a text file that Anki imports. */
+  ankiExport: (name: string, deckId: string) => download(`${decks(name)}/${encodeURIComponent(deckId)}/anki`),
+  /** A summary, flashcards or a quiz from a processed document; one model call. */
+  study: (name: string, fileId: string, kind: StudyKind, count: number) =>
+    post<StudyMaterial>(`/study/${project(name)}`, { file_id: fileId, kind, count }),
   tenantUsage: () => get<TenantUsage>("/usage"),
   webhooks: (name: string, page: PageParams = {}) =>
     get<Page<Webhook>>(`/projects/${project(name)}/webhooks`, { offset: page.offset ?? 0, limit: page.limit ?? 100 }),
@@ -231,7 +261,10 @@ export const api = {
       limit: page.limit ?? 10,
     }),
   sources: (name: string) => get<{ items: WebsiteSource[] }>(`/projects/${project(name)}/sources`),
-  createSource: (name: string, body: { url: string; max_pages: number; sync_interval_hours: number; tags: string[] }) =>
+  createSource: (
+    name: string,
+    body: { kind: SourceKind; url: string; max_pages: number; sync_interval_hours: number; tags: string[] },
+  ) =>
     post<WebsiteSource>(`/projects/${project(name)}/sources`, body),
   syncSource: (name: string, sourceId: string) =>
     post<WebsiteSource>(`/projects/${project(name)}/sources/${encodeURIComponent(sourceId)}/sync`),

@@ -61,7 +61,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 # Both appear in the OpenAPI schema, so /docs and generated clients know how to send a key.
-bearer = HTTPBearer(auto_error=False, description="An API key: `Authorization: Bearer mrag_…`")
+bearer = HTTPBearer(auto_error=False, description="An API key: `Authorization: Bearer ragolex_…`")
 key_header = APIKeyHeader(name="X-API-Key", auto_error=False,
                           description="An API key, for clients that cannot set Authorization")
 
@@ -278,7 +278,8 @@ LLMDep = Annotated[LLM, Depends(get_llm)]
 def get_answer_service(search: SearchServiceDep, llm: LLMDep, uow: UnitOfWorkDep,
                        settings: SettingsDep) -> AnswerService:
     return AnswerService(search=search, llm=llm, uow=uow, min_score=settings.ANSWER_MIN_SCORE,
-                         prices=settings.llm_prices)
+                         prices=settings.llm_prices,
+                         max_research_steps=settings.RESEARCH_MAX_STEPS)
 
 
 AnswerServiceDep = Annotated[AnswerService, Depends(get_answer_service)]

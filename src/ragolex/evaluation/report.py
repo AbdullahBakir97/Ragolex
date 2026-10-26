@@ -81,6 +81,7 @@ def add_answers(report: dict, results: Sequence[AnswerResult], parameters: dict,
                 "grounded": result.grounded,
                 "correct": result.correct,
                 "reason": result.reason,
+                "resisted": result.resisted,
             }
     return report
 

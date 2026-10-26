@@ -49,7 +49,7 @@ describe("WebsiteSources", () => {
 
     await wrapper.find("input[type=url]").setValue("https://docs.example.com/guide/");
     await wrapper.find("input[type=number]").setValue(20);
-    await wrapper.find("select").setValue(0);
+    await wrapper.findAll("select")[1]!.setValue(0);
     await wrapper.find('input[aria-label="Tags for its pages"]').setValue("Guides, v2");
     await wrapper.find("form").trigger("submit");
     await flushPromises();
@@ -57,6 +57,7 @@ describe("WebsiteSources", () => {
     const [url, init] = fetch.mock.calls[1]!;
     expect(url).toBe("/api/v1/projects/demo/sources");
     expect(JSON.parse(init.body)).toEqual({
+      kind: "website",
       url: "https://docs.example.com/guide/",
       max_pages: 20,
       sync_interval_hours: 0,
@@ -64,6 +65,25 @@ describe("WebsiteSources", () => {
     });
     expect(wrapper.emitted("synced")).toHaveLength(1);
     expect(wrapper.findAll(".item")).toHaveLength(1);
+  });
+
+  it("adds a GitHub repository, checking its address", async () => {
+    const fetch = respond({ items: [] }, { ...SOURCE, kind: "github" }, { items: [] });
+    const wrapper = mount(WebsiteSources, { props: { project: "demo" } });
+    await flushPromises();
+
+    await wrapper.findAll("select")[0]!.setValue("github");
+    expect(wrapper.find("input[type=url]").attributes("placeholder")).toContain("github.com/owner/repo");
+    await wrapper.find("input[type=url]").setValue("https://github.com/acme");
+    expect(wrapper.find("button[type=submit]").attributes("disabled")).toBeDefined();
+    await wrapper.find("input[type=url]").setValue("https://github.com/acme/handbook/tree/main/docs");
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toMatchObject({
+      kind: "github",
+      url: "https://github.com/acme/handbook/tree/main/docs",
+    });
   });
 
   it("removes a website, keeping its pages when asked", async () => {
@@ -79,6 +99,6 @@ describe("WebsiteSources", () => {
     const [url, init] = fetch.mock.calls[1]!;
     expect(url).toBe("/api/v1/projects/demo/sources/s-1?keep_files=true");
     expect(init.method).toBe("DELETE");
-    expect(wrapper.text()).toContain("No websites yet.");
+    expect(wrapper.text()).toContain("No sources yet.");
   });
 });
