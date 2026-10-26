@@ -69,7 +69,7 @@ A backup is the database and the uploaded files together, taken at the same time
 # With docker compose: the backup service, written to ./backups
 docker compose --profile backup run --rm backup create /backups
 
-# Without docker: pg_dump, pg_restore and psql of the server's version or newer
+# Without docker: pg_dump, pg_restore and psql of the server's major version
 DATABASE_URL=postgresql://user:password@host:5432/ragolex FILES_DIR=assets/files \
     tools/backup.sh create /var/backups/ragolex
 ```

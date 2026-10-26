@@ -8,7 +8,8 @@
 #   DATABASE_URL  the database (postgresql:// or postgresql+asyncpg://)
 #   FILES_DIR     the uploaded files (default assets/files)
 #
-# It needs pg_dump, pg_restore and psql of the server's major version or newer.
+# It needs pg_dump, pg_restore and psql of the server's major version: a newer
+# pg_restore sends settings an older server rejects (transaction_timeout before 17).
 # With docker compose, the `backup` service has them: see docs/operations.md.
 #
 # An archive holds:
