@@ -3,8 +3,8 @@
     python generate.py            # from ../openapi.json
     python generate.py --check    # fail if the generated files are out of date
 
-Writes src/mini_rag_client/models.py (a Pydantic model per schema) and
-src/mini_rag_client/_operations.py (a method per operation, sync and async).
+Writes src/ragolex_client/models.py (a Pydantic model per schema) and
+src/ragolex_client/_operations.py (a method per operation, sync and async).
 """
 
 import argparse
@@ -16,7 +16,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCHEMA = HERE.parent / "openapi.json"
-PACKAGE = HERE / "src" / "mini_rag_client"
+PACKAGE = HERE / "src" / "ragolex_client"
 HEADER = '"""Generated from sdk/openapi.json by sdk/python/generate.py: do not edit."""\n'
 
 # Written by hand in client.py: a multipart upload, Server-Sent Events, and

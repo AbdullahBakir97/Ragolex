@@ -1,6 +1,6 @@
 import createClient, { type Client, type Middleware } from "openapi-fetch";
 
-import { MiniRagError, errorFromResponse } from "./errors.js";
+import { RagolexError, errorFromResponse } from "./errors.js";
 import type { components, paths } from "./schema.js";
 import { readEvents } from "./sse.js";
 
@@ -22,10 +22,10 @@ export type SearchOptions = Omit<SearchRequest, "query">;
 /** What a streamed answer yields: pieces of text as they are written, then the whole answer. */
 export type AnswerEvent = { type: "delta"; text: string } | { type: "answer"; answer: Answer };
 
-export interface MiniRagOptions {
+export interface RagolexOptions {
   /** Where the API is, e.g. `https://rag.example.com`. */
   baseUrl: string;
-  /** An API key (`mrag_…`); leave it out when the server does not require one. */
+  /** An API key (`ragolex_…`); leave it out when the server does not require one. */
   apiKey?: string;
   /** Another fetch, e.g. for tests or a proxy; the global one by default. */
   fetch?: typeof globalThis.fetch;
@@ -51,20 +51,20 @@ export interface WaitOptions {
 const encode = encodeURIComponent;
 
 /**
- * A client for the Mini RAG API.
+ * A client for the Ragolex API.
  *
  * `api` is the whole API, typed from its OpenAPI schema: `api.GET("/api/v1/projects")`.
- * Error responses throw a `MiniRagError`, so a call that returns has its `data`.
+ * Error responses throw a `RagolexError`, so a call that returns has its `data`.
  * The methods beside it cover what the schema cannot type, such as uploads and
  * streamed answers, and the usual steps of a RAG app.
  */
-export class MiniRag {
+export class Ragolex {
   readonly api: Client<paths>;
   private readonly baseUrl: string;
   private readonly fetcher: typeof globalThis.fetch;
   private readonly headers: Record<string, string>;
 
-  constructor(options: MiniRagOptions) {
+  constructor(options: RagolexOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.fetcher = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.headers = { ...options.headers };
@@ -97,7 +97,7 @@ export class MiniRag {
     return data!;
   }
 
-  /** Waits until a job succeeds, and returns it; throws a `MiniRagError` if it fails. */
+  /** Waits until a job succeeds, and returns it; throws a `RagolexError` if it fails. */
   async waitForJob(project: string, jobId: string, options: WaitOptions = {}): Promise<Job> {
     const deadline = Date.now() + (options.timeoutMs ?? 600_000);
     for (;;) {
@@ -107,8 +107,8 @@ export class MiniRag {
       });
       const job = data!;
       if (job.status === "succeeded") return job;
-      if (job.status === "failed") throw new MiniRagError(422, job.error ?? "job_failed", { body: job });
-      if (Date.now() >= deadline) throw new MiniRagError(0, "timeout", { message: `Job ${jobId} is still ${job.status}` });
+      if (job.status === "failed") throw new RagolexError(422, job.error ?? "job_failed", { body: job });
+      if (Date.now() >= deadline) throw new RagolexError(0, "timeout", { message: `Job ${jobId} is still ${job.status}` });
       await sleep(options.intervalMs ?? 1000, options.signal);
     }
   }
@@ -153,16 +153,16 @@ export class MiniRag {
       body: JSON.stringify({ question, ...body }),
       signal,
     });
-    if (!response.body) throw new MiniRagError(0, "network_error");
+    if (!response.body) throw new RagolexError(0, "network_error");
     for await (const event of readEvents(response.body)) {
       const data = JSON.parse(event.data) as Record<string, unknown>;
       if (event.event === "delta") yield { type: "delta", text: String(data.text ?? "") };
       else if (event.event === "answer") {
         yield { type: "answer", answer: data as unknown as Answer };
         return;
-      } else if (event.event === "error") throw new MiniRagError(502, String(data.signal ?? "llm_failed"), { body: data });
+      } else if (event.event === "error") throw new RagolexError(502, String(data.signal ?? "llm_failed"), { body: data });
     }
-    throw new MiniRagError(502, "llm_failed", { message: "The answer stream ended before the answer was complete." });
+    throw new RagolexError(502, "llm_failed", { message: "The answer stream ended before the answer was complete." });
   }
 
   private async send(path: string, init: RequestInit): Promise<Response> {
@@ -171,7 +171,7 @@ export class MiniRag {
       response = await this.fetcher(`${this.baseUrl}${path}`, { ...init, headers: { ...this.headers, ...init.headers } });
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") throw caught;
-      throw new MiniRagError(0, "network_error", { message: `The server could not be reached: ${String(caught)}` });
+      throw new RagolexError(0, "network_error", { message: `The server could not be reached: ${String(caught)}` });
     }
     if (!response.ok) throw await errorFromResponse(response);
     return response;

@@ -3,8 +3,8 @@ import re
 
 import pytest
 
-from mini_rag.domain.llm import Message
-from mini_rag.prompts.condense import CONDENSE_PROMPT, CONDENSE_PROMPT_V1
+from ragolex.domain.llm import Message
+from ragolex.prompts.condense import CONDENSE_PROMPT, CONDENSE_PROMPT_V1
 
 # Released prompts must never change; new wording gets a new version.
 RELEASED = {

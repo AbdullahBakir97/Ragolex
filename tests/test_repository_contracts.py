@@ -8,8 +8,8 @@ import inspect
 
 import pytest
 
-from mini_rag.domain import repositories as interfaces
-from mini_rag.persistence import repositories as sql
+from ragolex.domain import repositories as interfaces
+from ragolex.persistence import repositories as sql
 
 from . import fakes
 
