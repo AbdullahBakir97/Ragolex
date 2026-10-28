@@ -580,6 +580,53 @@ class AuditEvent:
     actor_user_email: str | None = None
 
 
+BOT_KINDS = ("telegram", "slack", "whatsapp")
+BotKind = Literal["telegram", "slack", "whatsapp"]
+
+
+@dataclass(frozen=True)
+class Bot:
+    """A project's assistant in a chat app: people ask it in Telegram, Slack or WhatsApp.
+
+    ``id`` is public, in the webhook URL the chat app sends messages to.
+    ``credentials`` are the app's tokens and secrets, stored encrypted and
+    never shown again; ``webhook_secret`` checks that a message came from
+    the app (Telegram's secret token, WhatsApp's verify token).
+    """
+
+    id: str
+    tenant_id: int
+    tenant_name: str
+    project_id: int
+    project_name: str
+    kind: str
+    name: str
+    account: str  # The bot's name in the chat app, such as @acme_help_bot.
+    credentials: Mapping[str, str]
+    webhook_secret: str
+    enabled: bool
+    created_at: datetime
+    tags: tuple[str, ...] = ()
+    last_message_at: datetime | None = None
+    last_error: str | None = None
+    last_error_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class IncomingMessage:
+    """A message someone sent a bot: what to answer, and where to send the answer.
+
+    ``update_id`` tells a delivery sent again apart from a new message;
+    ``chat_key`` names the chat or thread, which keeps one conversation;
+    ``reply_to`` is what the chat app needs to answer in the same place.
+    """
+
+    update_id: str
+    chat_key: str
+    text: str
+    reply_to: Mapping[str, str]
+
+
 DeliveryStatus = Literal["pending", "delivered", "failed"]
 
 

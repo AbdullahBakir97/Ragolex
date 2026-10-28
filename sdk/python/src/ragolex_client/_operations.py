@@ -16,6 +16,10 @@ from .models import (
     AssistantResponse,
     AssistantUpdateRequest,
     AuditListResponse,
+    BotListResponse,
+    BotRequest,
+    BotResponse,
+    BotUpdateRequest,
     CardListResponse,
     CardRequest,
     CardResponse,
@@ -796,6 +800,85 @@ class Operations:
         The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.
         """
         return self._request('GET', '/api/v1/site', query={}, json=None, response=SiteResponse.model_validate)
+
+    def create_bot(
+        self,
+        project_id: str,
+        *,
+        kind: Literal['telegram', 'slack', 'whatsapp'] | str,
+        name: str,
+        credentials: dict[str, str],
+        tags: list[str] | Unset = UNSET,
+    ) -> BotResponse:
+        """Add a bot that answers in Telegram, Slack or WhatsApp
+
+        The chat app is asked to accept the credentials first. Telegram is told the webhook URL; for Slack and WhatsApp, paste `webhook_url` (and WhatsApp's `verify_token`) into the app's settings.
+        """
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/bots', query={}, json=_body(BotRequest, {'kind': kind, 'name': name, 'credentials': credentials, 'tags': tags}, optional=False), response=BotResponse.model_validate)
+
+    def list_bots(
+        self,
+        project_id: str,
+    ) -> BotListResponse:
+        """The project's bots, oldest first
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/bots', query={}, json=None, response=BotListResponse.model_validate)
+
+    def get_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+    ) -> BotResponse:
+        """A bot
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=None, response=BotResponse.model_validate)
+
+    def update_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+        *,
+        name: str | None | Unset = UNSET,
+        tags: list[str] | None | Unset = UNSET,
+        enabled: bool | None | Unset = UNSET,
+        credentials: dict[str, str] | None | Unset = UNSET,
+    ) -> BotResponse:
+        """Change a bot
+
+        Its name, tags, whether it answers, or its credentials (checked with the chat app first).
+        """
+        return self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=_body(BotUpdateRequest, {'name': name, 'tags': tags, 'enabled': enabled, 'credentials': credentials}, optional=False), response=BotResponse.model_validate)
+
+    def delete_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+    ) -> None:
+        """Remove a bot
+
+        Telegram stops sending it messages; its conversations stay with the project.
+        """
+        return self._request('DELETE', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=None, response=_none)
+
+    def bot_webhook(
+        self,
+        bot_id: str,
+    ) -> None:
+        """Where a chat app delivers a bot's messages
+
+        Checked with the app's signature (Telegram's secret token, Slack's signing secret, WhatsApp's app secret). Answers at once; the reply is sent to the chat when it is written. A delivery sent again is answered once.
+        """
+        return self._request('POST', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_none)
+
+    def bot_webhook_check(
+        self,
+        bot_id: str,
+    ) -> bytes:
+        """WhatsApp checking the callback URL
+
+        Echoes `hub.challenge` when `hub.verify_token` is the bot's verify token.
+        """
+        return self._request('GET', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_bytes)
 
     def list_audit_events(
         self,
@@ -1771,6 +1854,85 @@ class AsyncOperations:
         The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.
         """
         return await self._request('GET', '/api/v1/site', query={}, json=None, response=SiteResponse.model_validate)
+
+    async def create_bot(
+        self,
+        project_id: str,
+        *,
+        kind: Literal['telegram', 'slack', 'whatsapp'] | str,
+        name: str,
+        credentials: dict[str, str],
+        tags: list[str] | Unset = UNSET,
+    ) -> BotResponse:
+        """Add a bot that answers in Telegram, Slack or WhatsApp
+
+        The chat app is asked to accept the credentials first. Telegram is told the webhook URL; for Slack and WhatsApp, paste `webhook_url` (and WhatsApp's `verify_token`) into the app's settings.
+        """
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/bots', query={}, json=_body(BotRequest, {'kind': kind, 'name': name, 'credentials': credentials, 'tags': tags}, optional=False), response=BotResponse.model_validate)
+
+    async def list_bots(
+        self,
+        project_id: str,
+    ) -> BotListResponse:
+        """The project's bots, oldest first
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/bots', query={}, json=None, response=BotListResponse.model_validate)
+
+    async def get_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+    ) -> BotResponse:
+        """A bot
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=None, response=BotResponse.model_validate)
+
+    async def update_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+        *,
+        name: str | None | Unset = UNSET,
+        tags: list[str] | None | Unset = UNSET,
+        enabled: bool | None | Unset = UNSET,
+        credentials: dict[str, str] | None | Unset = UNSET,
+    ) -> BotResponse:
+        """Change a bot
+
+        Its name, tags, whether it answers, or its credentials (checked with the chat app first).
+        """
+        return await self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=_body(BotUpdateRequest, {'name': name, 'tags': tags, 'enabled': enabled, 'credentials': credentials}, optional=False), response=BotResponse.model_validate)
+
+    async def delete_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+    ) -> None:
+        """Remove a bot
+
+        Telegram stops sending it messages; its conversations stay with the project.
+        """
+        return await self._request('DELETE', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=None, response=_none)
+
+    async def bot_webhook(
+        self,
+        bot_id: str,
+    ) -> None:
+        """Where a chat app delivers a bot's messages
+
+        Checked with the app's signature (Telegram's secret token, Slack's signing secret, WhatsApp's app secret). Answers at once; the reply is sent to the chat when it is written. A delivery sent again is answered once.
+        """
+        return await self._request('POST', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_none)
+
+    async def bot_webhook_check(
+        self,
+        bot_id: str,
+    ) -> bytes:
+        """WhatsApp checking the callback URL
+
+        Echoes `hub.challenge` when `hub.verify_token` is the bot's verify token.
+        """
+        return await self._request('GET', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_bytes)
 
     async def list_audit_events(
         self,

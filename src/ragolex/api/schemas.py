@@ -925,6 +925,71 @@ class WidgetListResponse(BaseModel):
     items: list[WidgetResponse]
 
 
+BotIdPath = Annotated[str, Path(pattern=r"^bot_[A-Za-z0-9_-]{22}$",
+                                description="The bot's id, from its webhook URL.")]
+BOT_NAME: Any = Field(min_length=1, max_length=100, examples=["Help desk"])
+BOT_TAGS: Any = Field(default_factory=list, description="Answer only from files with any of these "
+                                                   "tags; empty for all files.")
+CREDENTIALS: Any = Field(
+    examples=[{"token": "123456:ABC-…"}],
+    description="Telegram: `token` (from @BotFather). Slack: `bot_token` (xoxb-…) and "
+                "`signing_secret`. WhatsApp: `access_token`, `phone_number_id` and "
+                "`app_secret`. Stored encrypted, and never returned.")
+
+
+class BotRequest(BaseModel):
+    kind: Literal["telegram", "slack", "whatsapp"]
+    name: str = BOT_NAME
+    credentials: dict[str, Annotated[str, Field(max_length=4096)]] = CREDENTIALS
+    tags: Tags = BOT_TAGS
+
+    @field_validator("name")
+    @classmethod
+    def name_must_contain_text(cls, name: str) -> str:
+        if not name.strip():
+            raise ValueError("name must not be blank")
+        return name
+
+
+class BotUpdateRequest(BaseModel):
+    """Only the fields sent are changed; new `credentials` replace the old ones whole."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    tags: Tags | None = Field(default=None, description="[] or null for all files.")
+    enabled: bool | None = Field(default=None, description="A bot turned off ignores messages.")
+    credentials: dict[str, Annotated[str, Field(max_length=4096)]] | None = None
+
+    @model_validator(mode="after")
+    def required_fields_not_null(self) -> "BotUpdateRequest":
+        for name in ("name", "enabled", "credentials"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+class BotResponse(BaseModel):
+    id: str
+    project: str
+    kind: Literal["telegram", "slack", "whatsapp"]
+    name: str
+    account: str = Field(description="The bot in the chat app, such as `@acme_help_bot`.")
+    tags: list[str]
+    enabled: bool
+    webhook_url: str = Field(description="Where the chat app sends messages: set by API for "
+                                         "Telegram; paste it into Slack's Event Subscriptions "
+                                         "or WhatsApp's Callback URL.")
+    verify_token: str | None = Field(description="WhatsApp only: the Verify token to paste "
+                                                 "next to the Callback URL.")
+    created_at: datetime
+    last_message_at: datetime | None
+    last_error: str | None = Field(description="Why the last message it failed on failed.")
+    last_error_at: datetime | None
+
+
+class BotListResponse(BaseModel):
+    items: list[BotResponse]
+
+
 class WidgetConfigResponse(BaseModel):
     """What the widget shows; nothing about the tenant or its project."""
 

@@ -18,6 +18,7 @@ The web app in `frontend/` is the interface for people: create projects, upload 
 | **Assistant** | Give the project's assistant a name and instructions on tone, style and what to mention, with examples to start from; every answer follows them, in the web app, the widgets and the API, while still answering only from the documents. |
 | **Widget** | Add chat widgets that websites embed to let their visitors ask the project: a name, a welcome message, a colour, a logo, the websites allowed to use it, and optionally tags, so it answers only from the documents that have them. Each widget shows its script tag with a button to copy it, and can be edited or removed. A live preview beside the list is the real widget, asking the project as a visitor would. |
 | **Webhooks** | Add a URL that gets the project's events (uploads, deletions, finished jobs), shown its signing secret once with a button to copy it; send a ping; and see each webhook's recent deliveries: delivered, waiting to try again (and when), or failed, with the receiver's answer. How to check a signature is explained on the page. |
+| **Bots** | Let people ask the project in Telegram, Slack or WhatsApp: pick the chat app, follow its setup steps, paste its credentials and give the bot a name and optionally tags, so it answers only from the documents that have them. A Telegram bot connects itself; a Slack or WhatsApp bot shows the webhook URL (and, for WhatsApp, the verify token) to paste into the app's settings, with buttons to copy them. Each bot shows its account in the chat app, when it last got a message and its last problem, if any; it can be turned off and on, or removed after a confirmation (its conversations stay). |
 | **Usage** | The tenant's limits, when it has any: answers this month, storage and cost against their quotas and monthly budget. Its spending over the last 7, 30 or 90 days: a chart of cost or answers per day, and what each project and model cost. Questions asked, how many were answered, tokens and cost for the project, and the rated answers: how many were good and bad, each with its question, the note on it and a link to its conversation. |
 
 ![The Sources card: a form to add a website, feed or GitHub repository with its page limit, schedule and tags, then a website opened to list its pages and a feed, each with when it was synced and is next due](media/web-sources.png)
@@ -75,7 +76,7 @@ frontend/
 │   ├── components/     # Sidebar, drop zone, source card, chunk panel, answer text, ...
 │   ├── composables/    # Shared state and the upload pipeline
 │   ├── lib/            # Formatting, citation parsing, error messages
-│   ├── views/          # Projects, Admin, Account, project pages (Ask, Documents, Search, Study, Usage, Assistant, Widget, Webhooks), sign-in pages (auth/), not found
+│   ├── views/          # Projects, Admin, Account, project pages (Ask, Documents, Search, Study, Usage, Assistant, Widget, Webhooks, Bots), sign-in pages (auth/), not found
 │   ├── widget/         # The embeddable chat widget (built into dist/widget.js)
 │   └── __tests__/      # Vitest unit tests
 ├── e2e/                # Playwright end-to-end and accessibility tests

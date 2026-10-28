@@ -17,6 +17,7 @@ from ragolex.api.routes import (
     ask,
     audit,
     base,
+    bots,
     conversations,
     data,
     decks,
@@ -37,6 +38,7 @@ from ragolex.api.routes import (
     widgets,
 )
 from ragolex.api.widget_cors import WidgetCors
+from ragolex.bots.factory import create_chat_platforms
 from ragolex.connectors.factory import create_crawlers
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.logging_config import configure_logging
@@ -93,6 +95,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         app.state.scanner = scanner = create_scanner(settings)
         app.state.mailer = create_mailer(settings)
         app.state.txt_resolver = DnsTxtResolver()
+        app.state.chat_platforms = platforms = create_chat_platforms(settings)
         sender = create_webhook_sender(settings)
         crawlers = create_crawlers(settings)
         workers: list[asyncio.Task] = []
@@ -127,6 +130,8 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
                 await reranker.aclose()
             if scanner is not None:
                 await scanner.aclose()
+            for platform in platforms.values():
+                await platform.aclose()
             await engine.dispose()
 
     return lifespan
@@ -170,6 +175,8 @@ def create_app() -> FastAPI:
     app.include_router(members.router)
     app.include_router(domains.router)
     app.include_router(domains.public_router)
+    app.include_router(bots.router)
+    app.include_router(bots.public_router)
     app.include_router(audit.router)
     app.include_router(evaluations.router)
     app.include_router(export.router)

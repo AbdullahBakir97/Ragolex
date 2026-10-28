@@ -33,6 +33,7 @@ CONTRACTS = [
     (interfaces.PasswordResetRepository, sql.SqlPasswordResetRepository,
      fakes.FakePasswordResets),
     (interfaces.DomainRepository, sql.SqlDomainRepository, fakes.FakeDomains),
+    (interfaces.BotRepository, sql.SqlBotRepository, fakes.FakeBots),
     (interfaces.UsageRepository, sql.SqlUsageRepository, fakes.FakeUsage),
     (interfaces.DeckRepository, sql.SqlDeckRepository, fakes.FakeDecks),
     (interfaces.EvaluationRunRepository, sql.SqlEvaluationRunRepository,
@@ -70,7 +71,7 @@ def test_unit_of_work_exposes_the_repositories(implementation):
                                                             "evaluations", "users",
                                                             "memberships", "user_sessions",
                                                             "invitations", "password_resets",
-                                                            "domains"}
+                                                            "domains", "bots"}
     instance = implementation(None) if implementation is sql.SqlUnitOfWork else implementation()
 
     assert all(hasattr(instance, name) for name in interfaces.UnitOfWork.__annotations__)

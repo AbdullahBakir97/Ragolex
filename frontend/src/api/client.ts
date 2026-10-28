@@ -6,6 +6,8 @@ import type {
   Answer,
   AskOptions,
   Assistant,
+  BotKind,
+  ChatBot,
   ChatWidget,
   ChatWidgetSettings,
   Chunk,
@@ -348,6 +350,16 @@ export const api = {
     }),
   deleteSource: (name: string, sourceId: string, keepFiles: boolean) =>
     remove(`/projects/${project(name)}/sources/${encodeURIComponent(sourceId)}?keep_files=${keepFiles}`),
+  bots: (name: string) => get<{ items: ChatBot[] }>(`/projects/${project(name)}/bots`),
+  /** The chat app checks the credentials first; they are never returned. */
+  createBot: (name: string, body: { kind: BotKind; name: string; credentials: Record<string, string>; tags: string[] }) =>
+    post<ChatBot>(`/projects/${project(name)}/bots`, body),
+  updateBot: (
+    name: string,
+    botId: string,
+    changes: Partial<{ name: string; tags: string[]; enabled: boolean; credentials: Record<string, string> }>,
+  ) => patch<ChatBot>(`/projects/${project(name)}/bots/${encodeURIComponent(botId)}`, changes),
+  deleteBot: (name: string, botId: string) => remove(`/projects/${project(name)}/bots/${encodeURIComponent(botId)}`),
   widgets: (name: string) => get<{ items: ChatWidget[] }>(`/projects/${project(name)}/widgets`),
   createWidget: (name: string, settings: ChatWidgetSettings) =>
     post<ChatWidget>(`/projects/${project(name)}/widgets`, settings),

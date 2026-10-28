@@ -12,6 +12,7 @@ from .models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Bot,
     Card,
     CardSource,
     Chunk,
@@ -558,6 +559,45 @@ class WidgetRepository(Protocol):
     async def delete(self, project_id: int, widget_id: str) -> bool: ...
 
 
+class BotRepository(Protocol):
+
+    async def create(self, *, bot_id: str, project_id: int, kind: str, name: str, account: str,
+                     credentials: Mapping[str, str], webhook_secret: str,
+                     tags: Sequence[str] = ()) -> Bot: ...
+
+    async def get(self, bot_id: str) -> Bot | None:
+        """Any tenant's bot: chat apps reach bots by their public id alone."""
+        ...
+
+    async def list_for_project(self, project_id: int) -> list[Bot]:
+        """Oldest first."""
+        ...
+
+    async def update(self, project_id: int, bot_id: str,
+                     changes: Mapping[str, Any]) -> Bot | None:
+        """Change the fields named in ``changes``; None when the project has no such bot."""
+        ...
+
+    async def delete(self, project_id: int, bot_id: str) -> bool: ...
+
+    async def first_delivery(self, bot_id: str, update_id: str) -> bool:
+        """Note a message's delivery; False when it was delivered before (a retry)."""
+        ...
+
+    async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
+        """The conversation a chat (or thread) keeps, if it has one."""
+        ...
+
+    async def set_chat_conversation(self, bot_id: str, chat_key: str,
+                                    conversation_id: str | None) -> None:
+        """Keep ``conversation_id`` for the chat; None starts afresh next time."""
+        ...
+
+    async def answered(self, bot_id: str, error: str | None) -> None:
+        """Note that the bot handled a message: when, and why it failed, if it did."""
+        ...
+
+
 class AuditRepository(Protocol):
 
     async def add(self, *, tenant_id: int, action: str, target: str | None,
@@ -691,6 +731,7 @@ class UnitOfWork(Protocol):
     invitations: InvitationRepository
     password_resets: PasswordResetRepository
     domains: DomainRepository
+    bots: BotRepository
     usage: UsageRepository
     evaluations: EvaluationRunRepository
     decks: DeckRepository

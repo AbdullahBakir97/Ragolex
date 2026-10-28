@@ -65,7 +65,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] RSS and Atom feeds, and GitHub repositories' documents, as sources synced like websites.
 - [ ] Connectors that need each user's sign-in (OAuth): Notion, Google Drive.
 - [x] Signed outgoing webhooks for automation tools such as n8n, Make and Zapier.
-- [ ] Telegram, Slack and WhatsApp bots.
+- [x] Telegram, Slack and WhatsApp bots that answer from a project's documents, with sources and follow-up questions ([API › Chat bots](api.md#chat-bots-telegram-slack-and-whatsapp)).
 
 ### Phase 5: Agents
 

@@ -16,6 +16,7 @@ import. It holds what the tenant put in and what was recorded about it:
     projects/<project>/sources.json     websites and other sources it syncs from
     projects/<project>/widgets.json     chat widgets
     projects/<project>/webhooks.json    webhooks, without their signing secrets
+    projects/<project>/bots.json        Telegram, Slack and WhatsApp bots, without credentials
     projects/<project>/conversations.jsonl  questions and answers, with citations and feedback
 
 Chunks and their embeddings are left out: processing the files again makes
@@ -160,6 +161,10 @@ class TenantDataService:
         webhooks = await self.uow.webhooks.list_for_project(project.id, offset=0, limit=1000)
         export.add_json(f"{folder}/webhooks.json",
                         [_plain(webhook, keep={"id"}) for webhook in webhooks])
+        export.add_json(f"{folder}/bots.json", [
+            {"id": bot.id, "kind": bot.kind, "name": bot.name, "account": bot.account,
+             "tags": list(bot.tags), "enabled": bot.enabled, "created_at": bot.created_at}
+            for bot in await self.uow.bots.list_for_project(project.id)])
 
         conversations = []
         offset = 0

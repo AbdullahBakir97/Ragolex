@@ -7,6 +7,7 @@ import {
   LoaderCircle,
   MessageCircle,
   MessageSquareText,
+  MessagesSquare,
   Search,
   Sparkles,
   TriangleAlert,
@@ -34,6 +35,7 @@ const tabs = [
   { name: "usage", label: "Usage", icon: BarChart3 },
   { name: "assistant", label: "Assistant", icon: Bot },
   { name: "widget", label: "Widget", icon: MessageCircle },
+  { name: "bots", label: "Bots", icon: MessagesSquare },
   { name: "webhooks", label: "Webhooks", icon: Webhook },
 ];
 
