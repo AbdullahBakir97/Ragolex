@@ -60,7 +60,7 @@
 - **Deploy** automatically: every merge runs on staging and every release tag on production, from images built once, going back to the previous release on its own when a deployment isn't healthy.
 - **Tested** by more than 1,200 backend tests with a 95% coverage threshold, Vitest unit tests, and Playwright end-to-end and accessibility checks of every page; dependencies and secrets are scanned in CI.
 
-Every item on the [roadmap](docs/roadmap.md) is delivered.
+Next on the [roadmap](docs/roadmap.md): single sign-on for organisations, self-serve plans, more sources and scale.
 
 ## Web app
 

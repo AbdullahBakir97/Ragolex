@@ -24,6 +24,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 | 3. Automate | 4 Ingestion and automation, 5 Agents | Connected sources stay in sync without manual steps |
 | 4. Improve | 6 Retrieval quality, 7 Study mode | Evaluation scores improve over the stage 1 baseline |
 | 5. Harden | 8 Security, 9 Production, 10 Web app | New tenants can onboard themselves |
+| 6. Grow | 11 Enterprise sign-in, 12 Self-serve plans, 13 More sources, 14 Scale | An organisation signs in with its identity provider and pays for a plan on its own |
 
 ### Phase 1: Answer generation
 
@@ -114,5 +115,34 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] Document management with upload, job status and website sources.
 - [x] An admin dashboard for keys, usage, cost and evaluation scores ([Web app](web.md)).
 - [x] Accessible, responsive, tested end to end with Playwright.
+
+### Phase 11: Enterprise sign-in
+
+- [ ] Single sign-on with OpenID Connect per workspace (Microsoft Entra ID, Google Workspace, Okta, Keycloak): sign-in through the organisation's identity provider, accounts made on first sign-in for its email domain, with a default role.
+- [ ] SAML 2.0 for identity providers without OpenID Connect.
+- [ ] Workspaces that require single sign-on: passwords and invitations off for their members.
+- [ ] Two-factor authentication (TOTP) for password accounts, with recovery codes, and an option for owners to require it.
+- [ ] SCIM 2.0 provisioning: members added, changed and removed by the identity provider.
+
+### Phase 12: Self-serve plans
+
+- [ ] Plans that set a workspace's limits (answers, storage, rate limit, budget, members).
+- [ ] Stripe Checkout to start or change a plan, the customer portal for invoices and payment methods, and Stripe's webhooks keeping the plan in step.
+- [ ] A free trial, and what happens when a payment fails (a grace period, then the free plan's limits).
+- [ ] Billing off by default: a self-hosted server keeps setting limits by hand.
+
+### Phase 13: More sources
+
+- [ ] Confluence pages and SharePoint/OneDrive files, read through the workspace's sign-in, like Notion and Google Drive.
+- [ ] Dropbox folders and S3-compatible buckets.
+- [ ] Incremental syncs: Google Drive's changes feed and Notion's edit times read only what changed since the last sync.
+- [ ] A source's permissions kept with its pages, so answers use only what the asking person may read.
+
+### Phase 14: Scale
+
+- [ ] Answers cached per project and question, cleared when the project's documents change.
+- [ ] Multilingual retrieval: a question in one language finds passages in another, measured on a multilingual evaluation set.
+- [ ] Separate job workers that scale on the queue's length, and read replicas for searches.
+- [ ] A load test in CI that fails when search or answer latency regresses.
 
 Ideas and feedback are welcome in [issues](https://github.com/AbdullahBakir97/Ragolex/issues).
