@@ -198,10 +198,4 @@ Full-Stack Developer based in Germany - Python · Django · Vue · Nuxt.
 
 Copyright (C) 2024-2026 Abdullah Bakir.
 
-Ragolex is released under the [GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0-only). You may use, change and share it, including to run it as a service, as long as you:
-
-- keep the copyright and the [NOTICE](./NOTICE) file in every copy,
-- keep the "Ragolex by Abdullah Bakir" credit in the web app and say in your documentation that your work is based on Ragolex,
-- publish the complete source code of your version, under the same license, to everyone who uses it, also when they only use it over a network.
-
-To use Ragolex under other terms, for example in a closed-source product, contact [Abdullah Bakir](https://github.com/AbdullahBakir97).
+Ragolex is released under the [GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0-only). You may use, change and share it, including to run it as a service.
