@@ -546,6 +546,8 @@ class DeliveryListResponse(BaseModel):
 
 
 KeyIdPath = Annotated[UUID, Path(description="The API key's id.")]
+UserIdPath = Annotated[int, Path(ge=1, description="The member's user id.")]
+InvitationIdPath = Annotated[UUID, Path(description="The invitation's id.")]
 
 
 class AuditActor(BaseModel):
@@ -659,6 +661,83 @@ class SessionResponse(BaseModel):
     workspaces: list[WorkspaceResponse] = Field(description="Every workspace the user is a "
                                                             "member of, by name.")
     expires_at: datetime = Field(description="When the sign-in ends.")
+
+
+MemberRoleField = Literal["owner", "admin", "editor", "viewer"]
+PASSWORD_DESCRIPTION = "At least 10 characters. Only an Argon2 hash is stored."
+
+
+class MemberResponse(BaseModel):
+    id: int = Field(description="The user's id.")
+    email: str
+    name: str
+    role: MemberRoleField
+    joined_at: datetime
+    last_login_at: datetime | None
+
+
+class RoleRequest(BaseModel):
+    role: MemberRoleField = Field(description="Only an owner makes someone an owner, or changes "
+                                              "an owner's role.")
+
+
+class InvitationRequest(BaseModel):
+    email: str = Field(max_length=254, pattern=EMAIL, examples=["grace@example.com"])
+    role: MemberRoleField = Field(examples=["editor"],
+                                  description="Only an owner invites an owner.")
+
+
+class InvitationResponse(BaseModel):
+    id: str
+    email: str
+    role: MemberRoleField
+    invited_by: UserResponse | None = Field(
+        description="Who invited; null for an API key, or an account that is gone.")
+    created_at: datetime
+    expires_at: datetime = Field(description="The link works until then (a week).")
+
+
+class InvitationCreatedResponse(InvitationResponse):
+    link: str = Field(description="The link to send: shown only now, so copy it.")
+    emailed: bool = Field(description="Whether the link is on its way by email too (the server "
+                                      "has `SMTP_HOST` set).")
+
+
+class InvitationTokenRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=128,
+                       description="The part of the invitation link after `#`.")
+
+
+class InvitationPreviewResponse(BaseModel):
+    workspace: str
+    email: str = Field(description="The address invited; it accepts as this account.")
+    role: MemberRoleField
+    invited_by: str | None = Field(description="The name of who invited, if a user.")
+    expires_at: datetime
+    has_account: bool = Field(description="Whether the email has an account: it signs in to "
+                                          "accept. Without one, accepting makes it.")
+
+
+class AcceptInvitationRequest(InvitationTokenRequest):
+    name: str | None = Field(default=None, min_length=1, max_length=100,
+                             description="For a new account; leave out when signed in.")
+    password: str | None = Field(default=None, min_length=10, max_length=128,
+                                 description="For a new account. " + PASSWORD_DESCRIPTION)
+
+
+class PasswordResetRequest(BaseModel):
+    email: str = Field(max_length=254, examples=["ada@example.com"])
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=128,
+                       description="The part of the reset link after `#`.")
+    password: str = Field(min_length=10, max_length=128, description=PASSWORD_DESCRIPTION)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=10, max_length=128, description=PASSWORD_DESCRIPTION)
 
 
 class Meter(BaseModel):

@@ -679,13 +679,22 @@ def _read_password(from_stdin: bool) -> str:
 
 
 async def _users(args: argparse.Namespace) -> int:
-    """`ragolex users add`: an account with a role in a tenant, e.g. its first owner."""
+    """`ragolex users add`: an account with a role in a tenant, e.g. its first owner;
+    `ragolex users reset-password`: a link that sets a new password."""
     settings = get_settings()
     engine = create_engine(settings.DATABASE_URL)
     try:
         async with create_session_factory(engine)() as session:
             uow = SqlUnitOfWork(session)
-            accounts = AccountService(uow, session_days=settings.SESSION_DAYS)
+            accounts = AccountService(uow, session_days=settings.SESSION_DAYS,
+                                      app_url=settings.APP_URL)
+            if args.action == "reset-password":
+                link = await accounts.password_reset_link(args.email)
+                if link is None:
+                    print(f"No account has the email {args.email!r}.", file=sys.stderr)
+                    return 1
+                print(f"Send this link to its owner; it works once, for an hour:\n{link}")
+                return 0
             if await uow.tenants.get_by_name(args.tenant) is None:
                 print(f"There is no tenant {args.tenant!r}; create it with "
                       f"`ragolex tenants create {args.tenant}`.", file=sys.stderr)
@@ -893,6 +902,11 @@ def main(argv: list[str] | None = None) -> int:
     add_user.add_argument("--name", help="the person's name (default: their email)")
     add_user.add_argument("--password-stdin", action="store_true",
                           help="read a new account's password from the first line of stdin")
+    reset_password = user_actions.add_parser(
+        "reset-password", help="make a link that sets a new password, for servers without email",
+        description="Prints a link (starting with APP_URL) to give the account's owner; it works "
+                    "once, for an hour, and makes any earlier link stop working.")
+    reset_password.add_argument("email")
     openapi = commands.add_parser(
         "openapi",
         help="write the API's OpenAPI schema, which the SDKs are generated from",

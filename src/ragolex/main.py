@@ -26,6 +26,7 @@ from ragolex.api.routes import (
     jobs,
     keys,
     mcp,
+    members,
     metrics,
     projects,
     search,
@@ -41,6 +42,7 @@ from ragolex.core.logging_config import configure_logging
 from ragolex.core.tracing import setup_tracing
 from ragolex.embeddings.factory import create_embedder
 from ragolex.llm.factory import create_llm
+from ragolex.mail.factory import create_mailer
 from ragolex.persistence.database import (
     create_engine,
     create_session_factory,
@@ -87,6 +89,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         app.state.llm = llm = create_llm(settings)
         app.state.reranker = reranker = create_reranker(settings)
         app.state.scanner = scanner = create_scanner(settings)
+        app.state.mailer = create_mailer(settings)
         sender = create_webhook_sender(settings)
         crawlers = create_crawlers(settings)
         workers: list[asyncio.Task] = []
@@ -161,6 +164,7 @@ def create_app() -> FastAPI:
     app.include_router(widgets.public_router)
     app.include_router(accounts.router)
     app.include_router(keys.router)
+    app.include_router(members.router)
     app.include_router(audit.router)
     app.include_router(evaluations.router)
     app.include_router(export.router)

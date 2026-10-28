@@ -13,7 +13,7 @@ PACKAGE = Path(__file__).resolve().parents[1] / "src" / "ragolex"
 # Only embeddings, llm and ocr may use a model provider's SDK.
 ALLOWED_LAYERS = {
     "api": {"api", "core", "domain", "services", "storage", "loaders", "text", "persistence",
-            "embeddings", "llm", "rerankers", "webhooks", "scanners", "connectors", "ocr"},
+            "embeddings", "llm", "rerankers", "webhooks", "scanners", "connectors", "ocr", "mail"},
     # Services use the repository interfaces in domain, never persistence.
     "services": {"core", "domain", "storage", "loaders", "text", "prompts", "evaluation"},
     "persistence": {"core", "domain"},
@@ -26,6 +26,8 @@ ALLOWED_LAYERS = {
     "ocr": {"core", "domain"},
     # Sends webhook deliveries over HTTP; services use the WebhookSender interface.
     "webhooks": {"core", "domain"},
+    # Sends email over SMTP; services use the Mailer interface.
+    "mail": {"core", "domain"},
     # Scans uploads for malware; services use the MalwareScanner interface.
     "scanners": {"core", "domain"},
     # Fetch documents from elsewhere (websites); services use the Crawler interface.

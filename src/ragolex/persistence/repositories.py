@@ -52,10 +52,13 @@ from ragolex.domain.models import (
     Feedback,
     FeedbackCounts,
     FileRecord,
+    Invitation,
     Job,
     JobStage,
     JobStatus,
+    Member,
     Membership,
+    PasswordReset,
     Project,
     RatedAnswer,
     Rating,
@@ -90,8 +93,10 @@ from ragolex.domain.repositories import (
     DeckRepository,
     EvaluationRunRepository,
     FileRepository,
+    InvitationRepository,
     JobRepository,
     MembershipRepository,
+    PasswordResetRepository,
     ProjectRepository,
     SourceRepository,
     TenantRepository,
@@ -115,8 +120,10 @@ from .tables import (
     DeckRow,
     EvaluationRunRow,
     FileRow,
+    InvitationRow,
     JobRow,
     MembershipRow,
+    PasswordResetRow,
     ProjectRow,
     RequestCountRow,
     SourcePageRow,
@@ -468,7 +475,8 @@ class SqlUserRepository:
 
     async def set_password(self, user_id: int, password_hash: str) -> None:
         await self.session.execute(
-            update(UserRow).where(UserRow.id == user_id).values(password_hash=password_hash))
+            update(UserRow).where(UserRow.id == user_id)
+            .values(password_hash=password_hash, failed_logins=0, locked_until=None))
 
 
 def _membership(row: MembershipRow, tenant_name: str) -> Membership:
@@ -501,6 +509,26 @@ class SqlMembershipRepository:
             select(MembershipRow, TenantRow.name).join(TenantRow)
             .where(MembershipRow.user_id == user_id).order_by(TenantRow.name))
         return [_membership(row, name) for row, name in rows]
+
+    async def list_for_tenant(self, tenant_id: int) -> list[Member]:
+        rows = await self.session.execute(
+            select(MembershipRow, UserRow).join(UserRow)
+            .where(MembershipRow.tenant_id == tenant_id).order_by(UserRow.email))
+        return [Member(user=_user(user), role=row.role, joined_at=row.created_at)
+                for row, user in rows]
+
+    async def remove(self, user_id: int, tenant_id: int) -> bool:
+        result = await self.session.execute(
+            delete(MembershipRow).where(MembershipRow.user_id == user_id,
+                                        MembershipRow.tenant_id == tenant_id))
+        return _affected(result) > 0
+
+    async def count_owners(self, tenant_id: int) -> int:
+        owners = await self.session.scalars(
+            select(MembershipRow.user_id)
+            .where(MembershipRow.tenant_id == tenant_id, MembershipRow.role == "owner")
+            .with_for_update())
+        return len(owners.all())
 
 
 def _user_session(row: UserSessionRow) -> UserSession:
@@ -544,6 +572,112 @@ class SqlUserSessionRepository:
 
     async def delete(self, session_id: str) -> None:
         await self.session.execute(delete(UserSessionRow).where(UserSessionRow.id == session_id))
+
+    async def delete_for_user(self, user_id: int, *, tenant_id: int | None = None,
+                              keep: str | None = None) -> None:
+        statement = delete(UserSessionRow).where(UserSessionRow.user_id == user_id)
+        if tenant_id is not None:
+            statement = statement.where(UserSessionRow.tenant_id == tenant_id)
+        if keep is not None:
+            statement = statement.where(UserSessionRow.id != keep)
+        await self.session.execute(statement)
+
+
+def _invitation(row: InvitationRow, tenant_name: str) -> Invitation:
+    return Invitation(id=row.id, tenant_id=row.tenant_id, tenant_name=tenant_name,
+                      email=row.email, role=row.role, invited_by=row.invited_by,
+                      created_at=row.created_at, expires_at=row.expires_at)
+
+
+class SqlInvitationRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, *, tenant_id: int, email: str, role: str, token_hash: str,
+                     invited_by: int | None, expires_at: datetime) -> Invitation:
+        await self.session.execute(
+            delete(InvitationRow).where(InvitationRow.tenant_id == tenant_id,
+                                        InvitationRow.email == email,
+                                        InvitationRow.accepted_at.is_(None)))
+        row = (await self.session.execute(
+            insert(InvitationRow).values(id=str(uuid.uuid4()), tenant_id=tenant_id, email=email,
+                                         role=role, token_hash=token_hash,
+                                         invited_by=invited_by, expires_at=expires_at)
+            .returning(InvitationRow))).scalar_one()
+        name = await self.session.scalar(select(TenantRow.name).where(TenantRow.id == tenant_id))
+        assert name is not None
+        return _invitation(row, name)
+
+    async def find_pending(self, token_hash: str) -> Invitation | None:
+        row = (await self.session.execute(
+            select(InvitationRow, TenantRow.name).join(TenantRow)
+            .where(InvitationRow.token_hash == token_hash, InvitationRow.accepted_at.is_(None),
+                   InvitationRow.expires_at > func.now()))).one_or_none()
+        return _invitation(*row) if row else None
+
+    async def list_pending(self, tenant_id: int) -> list[Invitation]:
+        rows = await self.session.execute(
+            select(InvitationRow, TenantRow.name).join(TenantRow)
+            .where(InvitationRow.tenant_id == tenant_id, InvitationRow.accepted_at.is_(None))
+            .order_by(InvitationRow.created_at.desc(), InvitationRow.email))
+        return [_invitation(row, name) for row, name in rows]
+
+    async def accept(self, invitation_id: str) -> bool:
+        result = await self.session.execute(
+            update(InvitationRow)
+            .where(InvitationRow.id == invitation_id, InvitationRow.accepted_at.is_(None))
+            .values(accepted_at=func.now()))
+        return _affected(result) > 0
+
+    async def delete(self, tenant_id: int, invitation_id: str) -> bool:
+        result = await self.session.execute(
+            delete(InvitationRow).where(InvitationRow.id == invitation_id,
+                                        InvitationRow.tenant_id == tenant_id,
+                                        InvitationRow.accepted_at.is_(None)))
+        return _affected(result) > 0
+
+
+def _password_reset(row: PasswordResetRow) -> PasswordReset:
+    return PasswordReset(id=row.id, user_id=row.user_id, created_at=row.created_at,
+                         expires_at=row.expires_at)
+
+
+class SqlPasswordResetRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, *, user_id: int, token_hash: str,
+                     expires_at: datetime) -> PasswordReset:
+        await self.session.execute(
+            delete(PasswordResetRow).where(PasswordResetRow.user_id == user_id,
+                                           PasswordResetRow.used_at.is_(None)))
+        row = (await self.session.execute(
+            insert(PasswordResetRow).values(id=str(uuid.uuid4()), user_id=user_id,
+                                            token_hash=token_hash, expires_at=expires_at)
+            .returning(PasswordResetRow))).scalar_one()
+        return _password_reset(row)
+
+    async def latest(self, user_id: int) -> PasswordReset | None:
+        row = await self.session.scalar(
+            select(PasswordResetRow).where(PasswordResetRow.user_id == user_id)
+            .order_by(PasswordResetRow.created_at.desc()).limit(1))
+        return _password_reset(row) if row else None
+
+    async def find_active(self, token_hash: str) -> PasswordReset | None:
+        row = await self.session.scalar(
+            select(PasswordResetRow).where(PasswordResetRow.token_hash == token_hash,
+                                           PasswordResetRow.used_at.is_(None),
+                                           PasswordResetRow.expires_at > func.now()))
+        return _password_reset(row) if row else None
+
+    async def use(self, reset_id: str) -> bool:
+        result = await self.session.execute(
+            update(PasswordResetRow)
+            .where(PasswordResetRow.id == reset_id, PasswordResetRow.used_at.is_(None))
+            .values(used_at=func.now()))
+        return _affected(result) > 0
 
 
 class SqlFileRepository:
@@ -1613,6 +1747,8 @@ class SqlUnitOfWork:
         self.users: UserRepository = SqlUserRepository(session)
         self.memberships: MembershipRepository = SqlMembershipRepository(session)
         self.user_sessions: UserSessionRepository = SqlUserSessionRepository(session)
+        self.invitations: InvitationRepository = SqlInvitationRepository(session)
+        self.password_resets: PasswordResetRepository = SqlPasswordResetRepository(session)
         self.usage: UsageRepository = SqlUsageRepository(session)
         self.evaluations: EvaluationRunRepository = SqlEvaluationRunRepository(session)
         self.decks: DeckRepository = SqlDeckRepository(session)

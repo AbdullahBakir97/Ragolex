@@ -226,6 +226,52 @@ class UserSession:
 
 
 @dataclass(frozen=True)
+class Member:
+    """A workspace's member, as its admins see them: the account and its role there."""
+
+    user: User
+    role: str
+    joined_at: datetime
+
+
+@dataclass(frozen=True)
+class Invitation:
+    """An offer to join a workspace with a role, sent as a link to one email address.
+
+    The link holds a random token, of which only a hash is stored; it works
+    once, until ``expires_at``.
+    """
+
+    id: str
+    tenant_id: int
+    tenant_name: str
+    email: str
+    role: str
+    invited_by: int | None  # The user who invited; None for an API key or an operator.
+    created_at: datetime
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class PasswordReset:
+    """A link that sets a new password, sent to the account's email; works once, briefly."""
+
+    id: str
+    user_id: int
+    created_at: datetime
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class Mail:
+    """An email to send: plain text, to one address."""
+
+    to: str
+    subject: str
+    text: str
+
+
+@dataclass(frozen=True)
 class FileRecord:
     """An uploaded file. ``key`` is the file_id clients use."""
 

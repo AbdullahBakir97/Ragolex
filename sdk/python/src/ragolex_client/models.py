@@ -15,6 +15,12 @@ class Model(BaseModel):
 
 
 
+class AcceptInvitationRequest(Model):
+    token: str = Field(description='The part of the invitation link after `#`.')
+    name: str | None = Field(default=None, description='For a new account; leave out when signed in.')
+    password: str | None = Field(default=None, description='For a new account. At least 10 characters. Only an Argon2 hash is stored.')
+
+
 class ApiKeyCreatedResponse(Model):
     id: str
     name: str
@@ -329,6 +335,44 @@ class IndexResponse(Model):
     chunks_count: int = Field(description='All chunks of the project, or of the file.')
 
 
+class InvitationCreatedResponse(Model):
+    id: str
+    email: str
+    role: Literal['owner', 'admin', 'editor', 'viewer'] | str
+    invited_by: UserResponse | None = Field(default=None, description='Who invited; null for an API key, or an account that is gone.')
+    created_at: datetime
+    expires_at: datetime = Field(description='The link works until then (a week).')
+    link: str = Field(description='The link to send: shown only now, so copy it.')
+    emailed: bool = Field(description='Whether the link is on its way by email too (the server has `SMTP_HOST` set).')
+
+
+class InvitationPreviewResponse(Model):
+    workspace: str
+    email: str = Field(description='The address invited; it accepts as this account.')
+    role: Literal['owner', 'admin', 'editor', 'viewer'] | str
+    invited_by: str | None = Field(default=None, description='The name of who invited, if a user.')
+    expires_at: datetime
+    has_account: bool = Field(description='Whether the email has an account: it signs in to accept. Without one, accepting makes it.')
+
+
+class InvitationRequest(Model):
+    email: str
+    role: Literal['owner', 'admin', 'editor', 'viewer'] | str = Field(description='Only an owner invites an owner.')
+
+
+class InvitationResponse(Model):
+    id: str
+    email: str
+    role: Literal['owner', 'admin', 'editor', 'viewer'] | str
+    invited_by: UserResponse | None = Field(default=None, description='Who invited; null for an API key, or an account that is gone.')
+    created_at: datetime
+    expires_at: datetime = Field(description='The link works until then (a week).')
+
+
+class InvitationTokenRequest(Model):
+    token: str = Field(description='The part of the invitation link after `#`.')
+
+
 class JobListResponse(Model):
     total: int
     offset: int
@@ -380,6 +424,15 @@ class MeResponse(Model):
     role: Literal['owner', 'admin', 'editor', 'viewer'] | str | None = Field(default=None, description="The signed-in user's role in the workspace.")
 
 
+class MemberResponse(Model):
+    id: int = Field(description="The user's id.")
+    email: str
+    name: str
+    role: Literal['owner', 'admin', 'editor', 'viewer'] | str
+    joined_at: datetime
+    last_login_at: datetime | None = Field(default=None)
+
+
 class MessageResponse(Model):
     id: int
     role: Literal['user', 'assistant'] | str
@@ -402,6 +455,20 @@ class ModelShareResponse(Model):
     output_tokens: int
     cost_usd: float = Field(description='Known cost, in US dollars.')
     model: str | None = Field(default=None, description='The language model; null for questions that matched no source, so no model was called.')
+
+
+class PasswordChangeRequest(Model):
+    current_password: str
+    new_password: str = Field(description='At least 10 characters. Only an Argon2 hash is stored.')
+
+
+class PasswordResetConfirmRequest(Model):
+    token: str = Field(description='The part of the reset link after `#`.')
+    password: str = Field(description='At least 10 characters. Only an Argon2 hash is stored.')
+
+
+class PasswordResetRequest(Model):
+    email: str
 
 
 class ProcessRequest(Model):
@@ -469,7 +536,7 @@ class RatedAnswerResponse(Model):
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
-ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'ocr_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'accounts_disabled', 'signup_disabled', 'email_taken', 'workspace_taken', 'login_failed', 'account_locked', 'session_required', 'workspace_not_found', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'ocr_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'accounts_disabled', 'signup_disabled', 'email_taken', 'workspace_taken', 'login_failed', 'account_locked', 'session_required', 'workspace_not_found', 'current_password_wrong', 'member_not_found', 'owner_required', 'last_owner', 'already_member', 'invitation_not_found', 'invitation_invalid', 'invitation_for_someone_else', 'account_details_required', 'password_reset_invalid', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
 
 
 class ReviewCardResponse(Model):
@@ -494,6 +561,10 @@ class ReviewQueueResponse(Model):
 
 class ReviewRequest(Model):
     grade: Literal['again', 'hard', 'good', 'easy'] | str = Field(description='How well the card was remembered: `again` (not at all), `hard`, `good` or `easy`.')
+
+
+class RoleRequest(Model):
+    role: Literal['owner', 'admin', 'editor', 'viewer'] | str = Field(description="Only an owner makes someone an owner, or changes an owner's role.")
 
 
 class SearchFiltersRequest(Model):
@@ -763,5 +834,5 @@ class WorkspaceResponse(Model):
     role: Literal['owner', 'admin', 'editor', 'viewer'] | str
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, AuditUser, BodyUploadData, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, LoginRequest, MeResponse, MessageResponse, Meter, ModelShareResponse, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SessionResponse, SignupRequest, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, UserResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest, WorkspaceRequest, WorkspaceResponse,):
+for _model in (AcceptInvitationRequest, ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, AuditUser, BodyUploadData, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, InvitationCreatedResponse, InvitationPreviewResponse, InvitationRequest, InvitationResponse, InvitationTokenRequest, JobListResponse, JobRequest, JobResponse, KeyPointResponse, LoginRequest, MeResponse, MemberResponse, MessageResponse, Meter, ModelShareResponse, PasswordChangeRequest, PasswordResetConfirmRequest, PasswordResetRequest, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, RoleRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SessionResponse, SignupRequest, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, UserResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest, WorkspaceRequest, WorkspaceResponse,):
     _model.model_rebuild()

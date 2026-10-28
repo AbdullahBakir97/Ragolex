@@ -227,7 +227,9 @@ def operations_module(spec: dict) -> str:
                               f"        return {awaiting}{call}\n")
     code = "\n".join(sync_methods + async_methods)
     defined = {class_name(name) for name in schemas}
-    used = sorted(name for name in set(re.findall(r"\b[A-Z]\w*\b", code)) if name in defined)
+    # In ruff's import order, which ignores case: MemberResponse before MeResponse.
+    used = sorted((name for name in set(re.findall(r"\b[A-Z]\w*\b", code)) if name in defined),
+                  key=str.lower)
     typing_names = ["Any"] + (["Literal"] if "Literal[" in code else [])
     imports = ["from __future__ import annotations\n"]
     if re.search(r"\bdatetime\b", code):

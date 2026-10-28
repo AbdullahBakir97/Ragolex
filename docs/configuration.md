@@ -27,6 +27,13 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `SIGNUP_ENABLED` | `true` | With `AUTH_ENABLED`, let anyone sign up with an email and password and get a workspace of their own. Turn it off for a private server; then `ragolex users add` adds accounts (see [User accounts](api.md#user-accounts)) |
 | `SESSION_DAYS` | `30` | How long a sign-in lasts (1 to 365 days) |
 | `SESSION_COOKIE_SECURE` | `true` | Send the session cookie over HTTPS only. Browsers treat `localhost` as secure, so it works in development; turn it off only to sign in over plain HTTP on another host |
+| `APP_URL` | `"http://localhost:3000"` | Where people open the web app, e.g. `"https://rag.example.com"`: invitation and password reset links start with it |
+| `SMTP_HOST` | `""` | Mail server for invitations and password reset links, e.g. `"smtp.example.com"`. Empty sends no email: invitation links are shown to copy, and `ragolex users reset-password` makes reset links |
+| `SMTP_PORT` | `587` | The mail server's port: usually 587 with `starttls`, 465 with `tls` |
+| `SMTP_SECURITY` | `"starttls"` | `starttls` upgrades the connection, `tls` is encrypted from the start, `none` is plain (only for a relay on the same host or network). Certificates are checked |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | `""` | Sign-in for the mail server; leave empty for one without |
+| `SMTP_FROM` | `""` | The sender, e.g. `"Ragolex <ragolex@example.com>"`; needed with `SMTP_HOST` |
+| `SMTP_TIMEOUT_SECONDS` | `10` | How long to wait for the mail server |
 | `RATE_LIMIT_PER_MINUTE` | `0` | Requests per minute per tenant (`429` beyond it); `0` is unlimited. `ragolex tenants limits` sets a tenant's own |
 | `ANSWERS_PER_MONTH` | `0` | Answers per calendar month (UTC) per tenant; `0` is unlimited |
 | `STORAGE_MB_PER_TENANT` | `0` | Megabytes of uploaded files per tenant; `0` is unlimited |

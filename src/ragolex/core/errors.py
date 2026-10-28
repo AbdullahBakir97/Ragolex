@@ -246,6 +246,76 @@ class WorkspaceNotFound(AppError):
     status_code = HTTPStatus.NOT_FOUND
 
 
+class CurrentPasswordWrong(AppError):
+    """Changing the password needs the current one, and it was not it."""
+
+    signal = ResponseSignal.CURRENT_PASSWORD_WRONG
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class MemberNotFound(AppError):
+    """The workspace has no member with that id."""
+
+    signal = ResponseSignal.MEMBER_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class OwnerRequired(AppError):
+    """Only a signed-in owner may make someone an owner, or change or remove an owner."""
+
+    signal = ResponseSignal.OWNER_REQUIRED
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class LastOwner(AppError):
+    """A workspace keeps at least one owner: the last cannot leave or become less."""
+
+    signal = ResponseSignal.LAST_OWNER
+    status_code = HTTPStatus.CONFLICT
+
+
+class AlreadyMember(AppError):
+    """The email's account is a member of the workspace already."""
+
+    signal = ResponseSignal.ALREADY_MEMBER
+    status_code = HTTPStatus.CONFLICT
+
+
+class InvitationNotFound(AppError):
+    """The workspace has no open invitation with that id."""
+
+    signal = ResponseSignal.INVITATION_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class InvitationInvalid(AppError):
+    """The invitation link is wrong, was used or revoked, or has expired."""
+
+    signal = ResponseSignal.INVITATION_INVALID
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class InvitationForSomeoneElse(AppError):
+    """The invitation is for another email than the signed-in user's."""
+
+    signal = ResponseSignal.INVITATION_FOR_SOMEONE_ELSE
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class AccountDetailsRequired(AppError):
+    """Accepting an invitation without an account needs a name and a password for one."""
+
+    signal = ResponseSignal.ACCOUNT_DETAILS_REQUIRED
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class PasswordResetInvalid(AppError):
+    """The password reset link is wrong, was used, or has expired."""
+
+    signal = ResponseSignal.PASSWORD_RESET_INVALID
+    status_code = HTTPStatus.NOT_FOUND
+
+
 class RateLimited(AppError):
     """The tenant made too many requests this minute; Retry-After says when to try again."""
 
@@ -280,6 +350,10 @@ class CrawlFailed(Exception):
 
 class WebhookFailed(Exception):
     """Sending a webhook failed; the message says how (for the delivery log)."""
+
+
+class MailFailed(Exception):
+    """The mail server did not take an email; the message says why (for the logs)."""
 
 
 class NoTextExtracted(AppError):
