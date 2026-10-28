@@ -22,6 +22,7 @@ import NewProjectDialog from "@/components/NewProjectDialog.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import { useProjects } from "@/composables/useProjects";
 import { useSession } from "@/composables/useSession";
+import { useSite } from "@/composables/useSite";
 import { useToasts } from "@/composables/useToasts";
 
 defineEmits<{ close: [] }>();
@@ -40,6 +41,8 @@ const visible = computed(() => {
 // Signed in with a key: which tenant it opens. Signed in as a user: who, and in which workspace.
 const tenant = ref<string | null>(null);
 const { session, load, signOut, switchWorkspace } = useSession();
+// A workspace's own domain always works in that workspace: no switching there.
+const { site, load: loadSite } = useSite();
 const toasts = useToasts();
 
 async function openWorkspace(event: Event) {
@@ -56,6 +59,7 @@ onMounted(async () => {
   void refresh();
   if (apiKey.value) tenant.value = (await api.me().catch(() => null))?.tenant ?? null;
   else void load();
+  void loadSite();
 });
 </script>
 
@@ -114,7 +118,7 @@ onMounted(async () => {
 
     <div class="foot">
       <div v-if="session" class="user small">
-        <label v-if="session.workspaces.length > 1" class="workspace">
+        <label v-if="session.workspaces.length > 1 && !site?.workspace" class="workspace">
           <span class="visually-hidden">Workspace</span>
           <select class="select" :value="session.workspace.name" @change="openWorkspace">
             <option v-for="w in session.workspaces" :key="w.name" :value="w.name">{{ w.name }} · {{ w.role }}</option>
@@ -124,7 +128,7 @@ onMounted(async () => {
           <RouterLink to="/account" class="account" :title="session.user.email">
             <CircleUser :size="16" />
             <span class="tenant">{{ session.user.name }}</span>
-            <span v-if="session.workspaces.length < 2" class="subtle">· {{ session.workspace.name }}</span>
+            <span v-if="session.workspaces.length < 2 || site?.workspace" class="subtle">· {{ session.workspace.name }}</span>
           </RouterLink>
           <button class="btn btn-ghost btn-icon btn-sm" aria-label="Sign out" title="Sign out" @click="signOut">
             <LogOut :size="14" />

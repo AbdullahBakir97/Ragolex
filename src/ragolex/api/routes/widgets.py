@@ -19,6 +19,7 @@ from ragolex.api.dependencies import (
     LLMDep,
     SessionDep,
     SettingsDep,
+    SiteDep,
     WidgetServiceDep,
     get_answer_service,
     get_search_service,
@@ -133,10 +134,15 @@ async def delete_widget(project_id: ProjectId, widget_id: WidgetIdPath,
 # Visitors' routes.
 
 async def open_widget(widget_id: WidgetIdPath, request: Request, session: SessionDep,
-                      limits: LimitServiceDep, response: Response) -> Widget:
-    """The widget, if the page asking may use it; counted against its tenant's rate limit."""
+                      limits: LimitServiceDep, response: Response, site: SiteDep) -> Widget:
+    """The widget, if the page asking may use it; counted against its tenant's rate limit.
+
+    A workspace's own domain serves only that workspace's widgets.
+    """
     widget = await WidgetService(SqlUnitOfWork(session)).open(
         widget_id, request.headers.get("origin"), request.headers.get("host"))
+    if site is not None and widget.tenant_id != site.tenant_id:
+        raise WidgetNotFound()
     log_context.tenant.set(widget.tenant_name)
     response.headers.update(rate_headers(await limits.count_request(widget.tenant_id)))
     return widget

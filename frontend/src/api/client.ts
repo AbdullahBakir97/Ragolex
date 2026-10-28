@@ -36,12 +36,14 @@ import type {
   AuditEvent,
   CreatedApiKey,
   CreatedInvitation,
+  Domain,
   EvaluationRun,
   Invitation,
   InvitationPreview,
   Member,
   MemberRole,
   Session,
+  Site,
   Scope,
   Card,
   Deck,
@@ -284,6 +286,13 @@ export const api = {
   invitations: () => get<Invitation[]>("/invitations"),
   invite: (email: string, role: MemberRole) => post<CreatedInvitation>("/invitations", { email, role }),
   revokeInvitation: (invitationId: string) => remove(`/invitations/${encodeURIComponent(invitationId)}`),
+  /** Which workspace this domain serves, and whether people may sign up here. */
+  site: () => get<Site>("/site"),
+  domains: () => get<Domain[]>("/domains"),
+  addDomain: (domain: string) => post<Domain>("/domains", { domain }),
+  /** Looks the domain's TXT record up now. */
+  verifyDomain: (domainId: string) => post<Domain>(`/domains/${encodeURIComponent(domainId)}/verify`),
+  removeDomain: (domainId: string) => remove(`/domains/${encodeURIComponent(domainId)}`),
   decks: (name: string) => get<Deck[]>(decks(name)),
   createDeck: (name: string, deckName: string, cards: NewCard[]) => post<Deck>(decks(name), { name: deckName, cards }),
   addCards: (name: string, deckId: string, cards: NewCard[]) =>

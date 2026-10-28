@@ -107,6 +107,32 @@ test("a signed-in user changes their password", async ({ page }) => {
   await expect(page).toHaveURL(`${ACCOUNTS_URL}/`);
 });
 
+test("an owner adds a domain, sees its DNS records and checks them", async ({ page }) => {
+  const ada = someone("dom");
+  const domain = `help.${ada.workspace}.example.com`;
+  await signUp(page, "Ada Lovelace", ada.email, ada.workspace);
+
+  await page.goto("/admin");
+  const domains = page.getByRole("region", { name: "Domains" });
+  await domains.getByRole("textbox", { name: "Domain" }).fill(`https://${domain}/`);
+  await domains.getByRole("button", { name: "Add domain" }).click();
+  const card = domains.getByRole("article", { name: domain });
+  await expect(card.getByText("Waiting for its TXT record")).toBeVisible();
+  await expect(card.getByRole("cell", { name: `_ragolex.${domain}` })).toBeVisible();
+
+  // No such record exists: the check says so.
+  await card.getByRole("button", { name: "Check now" }).click();
+  await expect(page.getByText(`${domain} is not verified yet`)).toBeVisible();
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await card.getByRole("button", { name: `Remove ${domain}` }).click();
+  await expect(domains.getByText("No domains yet")).toBeVisible();
+});
+
 test("forgetting a password never says whether an account exists", async ({ page }) => {
   await page.goto("/signin");
   await page.getByRole("link", { name: "Forgot your password?" }).click();

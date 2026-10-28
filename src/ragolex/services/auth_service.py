@@ -44,11 +44,12 @@ class AuthService:
         return Principal(tenant_id=tenant.id, tenant_name=tenant.name,
                          scopes=frozenset(found.scopes), key_id=found.id)
 
-    async def anonymous(self) -> Principal:
-        """With authentication off: the default tenant, with every scope."""
-        tenant = await self.uow.tenants.get_by_name(DEFAULT_TENANT)
+    async def anonymous(self, tenant_name: str = DEFAULT_TENANT) -> Principal:
+        """With authentication off: the default tenant (or the one whose domain the
+        request came to), with every scope."""
+        tenant = await self.uow.tenants.get_by_name(tenant_name)
         if tenant is None:
-            tenant = await self.uow.tenants.get_or_create(DEFAULT_TENANT)
+            tenant = await self.uow.tenants.get_or_create(tenant_name)
             await self.uow.commit()
         return Principal(tenant_id=tenant.id, tenant_name=tenant.name, scopes=frozenset(SCOPES))
 

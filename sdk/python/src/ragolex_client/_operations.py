@@ -29,6 +29,8 @@ from .models import (
     DeckResponse,
     DeliveryListResponse,
     DeliveryResponse,
+    DomainRequest,
+    DomainResponse,
     EvaluationRunListResponse,
     FeedbackListResponse,
     FeedbackRequest,
@@ -66,6 +68,7 @@ from .models import (
     SearchResponse,
     SessionResponse,
     SignupRequest,
+    SiteResponse,
     SourceListResponse,
     SourcePagesResponse,
     SourceRequest,
@@ -520,7 +523,7 @@ class Operations:
     ) -> SessionResponse:
         """Create an account with a workspace of its own, and sign in
 
-        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.
+        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is, and on a workspace's own domain, where people are invited.
         """
         return self._request('POST', '/api/v1/auth/signup', query={}, json=_body(SignupRequest, {'email': email, 'password': password, 'name': name, 'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
@@ -532,7 +535,7 @@ class Operations:
     ) -> SessionResponse:
         """Sign in with an email and password
 
-        Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.
+        Sets the session cookie, working in the first of the user's workspaces, or on a workspace's own domain, in that one. The 10th wrong password in a row locks the account for 15 minutes.
         """
         return self._request('POST', '/api/v1/auth/login', query={}, json=_body(LoginRequest, {'email': email, 'password': password}, optional=False), response=SessionResponse.model_validate)
 
@@ -547,6 +550,8 @@ class Operations:
         self,
     ) -> SessionResponse:
         """The signed-in user and their workspaces
+
+        On a workspace's own domain, the session works in that workspace.
         """
         return self._request('GET', '/api/v1/auth/session', query={}, json=None, response=SessionResponse.model_validate)
 
@@ -556,6 +561,8 @@ class Operations:
         workspace: str,
     ) -> SessionResponse:
         """Work in another of the user's workspaces
+
+        Not on a workspace's own domain, which always works in its own.
         """
         return self._request('PUT', '/api/v1/auth/session/workspace', query={}, json=_body(WorkspaceRequest, {'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
@@ -731,6 +738,64 @@ class Operations:
         Its link stops working at once.
         """
         return self._request('DELETE', f'/api/v1/invitations/{_path(invitation_id)}', query={}, json=None, response=_none)
+
+    def list_domains(
+        self,
+    ) -> list[DomainResponse]:
+        """The workspace's own domains, by name
+        """
+        return self._request('GET', '/api/v1/domains', query={}, json=None, response=_list(DomainResponse))
+
+    def add_domain(
+        self,
+        *,
+        domain: str,
+    ) -> DomainResponse:
+        """Add a domain for the workspace to serve on
+
+        It serves nothing until verified: add the TXT record it returns at the domain's DNS provider, then `POST …/verify`. Point the domain at this server with the CNAME (or an A record).
+        """
+        return self._request('POST', '/api/v1/domains', query={}, json=_body(DomainRequest, {'domain': domain}, optional=False), response=DomainResponse.model_validate)
+
+    def verify_domain(
+        self,
+        domain_id: str,
+    ) -> DomainResponse:
+        """Check the domain's TXT record
+
+        Looks the record up now, without caching. Once found, the domain serves the workspace: requests to it act for it, and invitation links use it.
+        """
+        return self._request('POST', f'/api/v1/domains/{_path(domain_id)}/verify', query={}, json=None, response=DomainResponse.model_validate)
+
+    def remove_domain(
+        self,
+        domain_id: str,
+    ) -> None:
+        """Remove a domain
+
+        It stops serving the workspace at once.
+        """
+        return self._request('DELETE', f'/api/v1/domains/{_path(domain_id)}', query={}, json=None, response=_none)
+
+    def domain_allowed(
+        self,
+        *,
+        domain: str,
+    ) -> dict[str, str]:
+        """Whether a domain is a verified workspace's
+
+        For a reverse proxy's on-demand certificates, such as Caddy's `on_demand_tls` `ask`: `200` for a verified domain, `404` otherwise. Needs no key.
+        """
+        return self._request('GET', '/api/v1/domains/allowed', query={'domain': domain}, json=None, response=_raw)
+
+    def site(
+        self,
+    ) -> SiteResponse:
+        """What this domain serves, for the web app before sign-in
+
+        The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.
+        """
+        return self._request('GET', '/api/v1/site', query={}, json=None, response=SiteResponse.model_validate)
 
     def list_audit_events(
         self,
@@ -1433,7 +1498,7 @@ class AsyncOperations:
     ) -> SessionResponse:
         """Create an account with a workspace of its own, and sign in
 
-        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.
+        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is, and on a workspace's own domain, where people are invited.
         """
         return await self._request('POST', '/api/v1/auth/signup', query={}, json=_body(SignupRequest, {'email': email, 'password': password, 'name': name, 'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
@@ -1445,7 +1510,7 @@ class AsyncOperations:
     ) -> SessionResponse:
         """Sign in with an email and password
 
-        Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.
+        Sets the session cookie, working in the first of the user's workspaces, or on a workspace's own domain, in that one. The 10th wrong password in a row locks the account for 15 minutes.
         """
         return await self._request('POST', '/api/v1/auth/login', query={}, json=_body(LoginRequest, {'email': email, 'password': password}, optional=False), response=SessionResponse.model_validate)
 
@@ -1460,6 +1525,8 @@ class AsyncOperations:
         self,
     ) -> SessionResponse:
         """The signed-in user and their workspaces
+
+        On a workspace's own domain, the session works in that workspace.
         """
         return await self._request('GET', '/api/v1/auth/session', query={}, json=None, response=SessionResponse.model_validate)
 
@@ -1469,6 +1536,8 @@ class AsyncOperations:
         workspace: str,
     ) -> SessionResponse:
         """Work in another of the user's workspaces
+
+        Not on a workspace's own domain, which always works in its own.
         """
         return await self._request('PUT', '/api/v1/auth/session/workspace', query={}, json=_body(WorkspaceRequest, {'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
@@ -1644,6 +1713,64 @@ class AsyncOperations:
         Its link stops working at once.
         """
         return await self._request('DELETE', f'/api/v1/invitations/{_path(invitation_id)}', query={}, json=None, response=_none)
+
+    async def list_domains(
+        self,
+    ) -> list[DomainResponse]:
+        """The workspace's own domains, by name
+        """
+        return await self._request('GET', '/api/v1/domains', query={}, json=None, response=_list(DomainResponse))
+
+    async def add_domain(
+        self,
+        *,
+        domain: str,
+    ) -> DomainResponse:
+        """Add a domain for the workspace to serve on
+
+        It serves nothing until verified: add the TXT record it returns at the domain's DNS provider, then `POST …/verify`. Point the domain at this server with the CNAME (or an A record).
+        """
+        return await self._request('POST', '/api/v1/domains', query={}, json=_body(DomainRequest, {'domain': domain}, optional=False), response=DomainResponse.model_validate)
+
+    async def verify_domain(
+        self,
+        domain_id: str,
+    ) -> DomainResponse:
+        """Check the domain's TXT record
+
+        Looks the record up now, without caching. Once found, the domain serves the workspace: requests to it act for it, and invitation links use it.
+        """
+        return await self._request('POST', f'/api/v1/domains/{_path(domain_id)}/verify', query={}, json=None, response=DomainResponse.model_validate)
+
+    async def remove_domain(
+        self,
+        domain_id: str,
+    ) -> None:
+        """Remove a domain
+
+        It stops serving the workspace at once.
+        """
+        return await self._request('DELETE', f'/api/v1/domains/{_path(domain_id)}', query={}, json=None, response=_none)
+
+    async def domain_allowed(
+        self,
+        *,
+        domain: str,
+    ) -> dict[str, str]:
+        """Whether a domain is a verified workspace's
+
+        For a reverse proxy's on-demand certificates, such as Caddy's `on_demand_tls` `ask`: `200` for a verified domain, `404` otherwise. Needs no key.
+        """
+        return await self._request('GET', '/api/v1/domains/allowed', query={'domain': domain}, json=None, response=_raw)
+
+    async def site(
+        self,
+    ) -> SiteResponse:
+        """What this domain serves, for the web app before sign-in
+
+        The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.
+        """
+        return await self._request('GET', '/api/v1/site', query={}, json=None, response=SiteResponse.model_validate)
 
     async def list_audit_events(
         self,

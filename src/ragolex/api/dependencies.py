@@ -20,11 +20,13 @@ from ragolex.core.errors import (
     EmbeddingNotConfigured,
     LLMNotConfigured,
     ScopeMissing,
+    WrongDomain,
 )
+from ragolex.domain.dns import TxtResolver
 from ragolex.domain.embedder import Embedder
 from ragolex.domain.llm import LLM
 from ragolex.domain.mailer import Mailer
-from ragolex.domain.models import Principal, Scope
+from ragolex.domain.models import Principal, Scope, TenantDomain
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
 from ragolex.ocr.factory import create_ocr
@@ -35,6 +37,7 @@ from ragolex.services.assistant_service import AssistantService
 from ragolex.services.auth_service import AuthService
 from ragolex.services.conversation_service import ConversationService
 from ragolex.services.deletion_service import DeletionService
+from ragolex.services.domain_service import DomainService
 from ragolex.services.indexing_service import IndexingService
 from ragolex.services.job_service import JobService
 from ragolex.services.limit_service import LimitService, rate_headers
@@ -101,6 +104,16 @@ def get_mailer(request: Request) -> Mailer | None:
 MailerDep = Annotated[Mailer | None, Depends(get_mailer)]
 
 
+async def get_site(request: Request, session: SessionDep,
+                   settings: SettingsDep) -> TenantDomain | None:
+    """The workspace whose own domain the request came to; None on the server's own."""
+    return await DomainService(SqlUnitOfWork(session), app_url=settings.APP_URL).site(
+        request.headers.get("host"))
+
+
+SiteDep = Annotated[TenantDomain | None, Depends(get_site)]
+
+
 def get_account_service(session: SessionDep, settings: SettingsDep) -> AccountService:
     return AccountService(SqlUnitOfWork(session), session_days=settings.SESSION_DAYS,
                           app_url=settings.APP_URL)
@@ -110,21 +123,27 @@ AccountServiceDep = Annotated[AccountService, Depends(get_account_service)]
 
 
 async def get_principal(
-    session: SessionDep, settings: SettingsDep, accounts: AccountServiceDep,
+    session: SessionDep, settings: SettingsDep, accounts: AccountServiceDep, site: SiteDep,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer)],
     header_key: Annotated[str | None, Security(key_header)],
     cookie: Annotated[str | None, Security(session_cookie)],
 ) -> Principal:
     """Who the request acts for: an API key's tenant, a signed-in user's workspace, or the
-    default tenant when auth is off. An API key wins over a session cookie."""
+    default tenant when auth is off. An API key wins over a session cookie.
+
+    On a workspace's own domain, everything acts for that workspace: a key of
+    another, or a user who is not a member there, gets WrongDomain.
+    """
     service = AuthService(SqlUnitOfWork(session))
     key = credentials.credentials if credentials else header_key
     if not settings.AUTH_ENABLED:
-        principal = await service.anonymous()
+        principal = await service.anonymous(site.tenant_name) if site else await service.anonymous()
     elif key or not cookie:
         principal = await service.authenticate(key)
+        if site and principal.tenant_id != site.tenant_id:
+            raise WrongDomain()
     else:
-        principal = await accounts.authenticate(cookie)
+        principal = await accounts.authenticate(cookie, site.tenant_id if site else None)
     # The request's log lines name its tenant (RequestContext ends this with the request).
     log_context.tenant.set(principal.tenant_name)
     log_context.actor.set(principal.key_id)
@@ -351,3 +370,15 @@ def get_member_service(uow: UnitOfWorkDep, settings: SettingsDep) -> MemberServi
 
 
 MemberServiceDep = Annotated[MemberService, Depends(get_member_service)]
+
+
+def get_txt_resolver(request: Request) -> TxtResolver:
+    return request.app.state.txt_resolver
+
+
+def get_domain_service(uow: UnitOfWorkDep, settings: SettingsDep,
+                       resolver: Annotated[TxtResolver, Depends(get_txt_resolver)]) -> DomainService:
+    return DomainService(uow, resolver, app_url=settings.APP_URL)
+
+
+DomainServiceDep = Annotated[DomainService, Depends(get_domain_service)]

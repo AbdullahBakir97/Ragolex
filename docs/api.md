@@ -153,6 +153,38 @@ Invitation and reset tokens are sent in request bodies and kept in the link's fr
 | The reset link is wrong, used or expired | `404` | `{"signal": "password_reset_invalid"}` |
 | The current password is wrong | `403` | `{"signal": "current_password_wrong"}` |
 
+### Your own domains
+
+A workspace can serve on domains of its own, such as `help.acme.com`: its web app, its API and its chat widgets, all from the same deployment. An `admin` key, or an owner's or admin's session, manages them:
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/v1/domains` | The workspace's domains, by name |
+| `POST /api/v1/domains` | Adds one: `{"domain": "help.acme.com"}` (`201`), not yet verified |
+| `POST /api/v1/domains/{domain_id}/verify` | Looks its TXT record up now; once found, the domain serves the workspace |
+| `DELETE /api/v1/domains/{domain_id}` | Removes it (`204`): it stops serving at once |
+
+Each domain lists the DNS `records` to add at its DNS provider: a TXT record, `_ragolex.help.acme.com` holding `ragolex-verification=…`, which proves the workspace controls the domain, and a CNAME to this server. Several workspaces may claim a domain, so a claim blocks nobody; only one can have it verified (`409` `domain_taken`).
+
+On a verified domain, every request acts for its workspace:
+
+- **Signing in** works in that workspace (`404` `workspace_not_found` for someone who is not a member), and **signing up** is off: people are invited. A session keeps its user's other workspaces for the server's own domain.
+- **API keys** of other workspaces, and users who are not members, are refused with `403` `wrong_domain`; switching workspace is refused there too.
+- **Chat widgets** answer only if they are the workspace's.
+- **Invitation links** start with `https://help.acme.com`.
+- With authentication off, requests act for the domain's workspace instead of `default`.
+
+Two endpoints need no key: `GET /api/v1/site` says which workspace the request's domain serves, and whether people may sign up there (for the web app's sign-in page); `GET /api/v1/domains/allowed?domain=help.acme.com` answers `200` for a verified domain and `404` otherwise, for a proxy that gets certificates on demand (see [Operations › A domain per workspace](operations.md#a-domain-per-workspace)).
+
+| Case | Status | Response |
+|---|---|---|
+| Not a domain, or the server's own (`APP_URL`) | `422` | `{"signal": "domain_invalid"}` |
+| The workspace has it already | `409` | `{"signal": "domain_exists"}` |
+| Its TXT record was not found | `409` | `{"signal": "domain_not_verified"}` |
+| Another workspace has it verified | `409` | `{"signal": "domain_taken"}` |
+| The DNS servers did not answer | `503` | `{"signal": "dns_lookup_failed"}` |
+| A key or user of another workspace, on this one's domain | `403` | `{"signal": "wrong_domain"}` |
+
 ## Audit log
 
 Administrative actions are recorded in their tenant's audit log, in the same transaction as the action itself, so a recorded action happened and every action that happened is recorded. `GET /api/v1/audit` (`admin` scope) lists them, most recent first; `?action=api_key` or `?action=widget.deleted` keeps the actions that start with it. Operators can read the same log with `ragolex audit --tenant <name>`.
@@ -168,6 +200,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | `tenant.created`, `tenant.limits_changed` | The tenant's name | The new limits (`changes`) |
 | `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`) |
 | `invitation.created`, `invitation.revoked`, `invitation.accepted` | The invited email | The invitation's id and `role` |
+| `domain.added`, `domain.verified`, `domain.removed` | The domain | |
 | `api_key.created`, `api_key.revoked` | The key's id | Name, prefix and scopes, never the key |
 | `webhook.created`, `webhook.deleted` | The webhook's id | Project, URL and events, never the secret |
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
@@ -206,6 +239,7 @@ curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/ap
 | `api_keys.json` | Each key's id, name, prefix, scopes and dates; never the key or its hash |
 | `members.json` | Each member's email, name, role, and when they joined and last signed in; never passwords or sessions |
 | `invitations.json` | Each open invitation's email, role and dates; never its link |
+| `domains.json` | The workspace's own domains, and when each was verified |
 | `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
 | `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
 | `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
@@ -298,6 +332,12 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/api/v1/invitations` | Invitations not accepted yet (`admin`) |
 | `POST` | `/api/v1/invitations` | Invite an email, returning the link once (`admin`) |
 | `DELETE` | `/api/v1/invitations/{invitation_id}` | Revoke an invitation (`admin`) |
+| `GET` | `/api/v1/domains` | The workspace's own domains (`admin`) |
+| `POST` | `/api/v1/domains` | Add a domain; it serves once its TXT record is verified (`admin`) |
+| `POST` | `/api/v1/domains/{domain_id}/verify` | Look the domain's TXT record up now (`admin`) |
+| `DELETE` | `/api/v1/domains/{domain_id}` | Remove a domain (`admin`) |
+| `GET` | `/api/v1/domains/allowed` | Whether a domain is a verified workspace's, for on-demand certificates (no key) |
+| `GET` | `/api/v1/site` | Which workspace this domain serves, and whether people may sign up here (no key) |
 | `GET` | `/api/v1/usage` | The tenant's usage this month, against its limits |
 | `GET` | `/api/v1/usage/history` | The tenant's answers and their cost per day, project and model |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |

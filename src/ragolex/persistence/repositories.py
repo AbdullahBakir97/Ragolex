@@ -33,6 +33,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
@@ -72,6 +73,7 @@ from ragolex.domain.models import (
     StoredCitation,
     TagCount,
     Tenant,
+    TenantDomain,
     TenantUsage,
     UnembeddedChunk,
     UsageHistory,
@@ -91,6 +93,7 @@ from ragolex.domain.repositories import (
     ChunkRepository,
     ConversationRepository,
     DeckRepository,
+    DomainRepository,
     EvaluationRunRepository,
     FileRepository,
     InvitationRepository,
@@ -128,6 +131,7 @@ from .tables import (
     RequestCountRow,
     SourcePageRow,
     SourceRow,
+    TenantDomainRow,
     TenantRow,
     UserRow,
     UserSessionRow,
@@ -635,6 +639,69 @@ class SqlInvitationRepository:
             delete(InvitationRow).where(InvitationRow.id == invitation_id,
                                         InvitationRow.tenant_id == tenant_id,
                                         InvitationRow.accepted_at.is_(None)))
+        return _affected(result) > 0
+
+
+def _tenant_domain(row: TenantDomainRow, tenant_name: str) -> TenantDomain:
+    return TenantDomain(id=row.id, tenant_id=row.tenant_id, tenant_name=tenant_name,
+                        domain=row.domain, token=row.token, created_at=row.created_at,
+                        verified_at=row.verified_at, checked_at=row.checked_at)
+
+
+class SqlDomainRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def add(self, *, tenant_id: int, domain: str, token: str) -> TenantDomain | None:
+        added = await self.session.scalar(
+            pg_insert(TenantDomainRow)
+            .values(id=str(uuid.uuid4()), tenant_id=tenant_id, domain=domain, token=token)
+            .on_conflict_do_nothing(index_elements=["tenant_id", "domain"])
+            .returning(TenantDomainRow.id))
+        return await self.get(tenant_id, added) if added else None
+
+    async def list_for_tenant(self, tenant_id: int) -> list[TenantDomain]:
+        rows = await self.session.execute(
+            select(TenantDomainRow, TenantRow.name).join(TenantRow).where(TenantDomainRow.tenant_id == tenant_id)
+            .order_by(TenantDomainRow.domain))
+        return [_tenant_domain(row, name) for row, name in rows]
+
+    async def get(self, tenant_id: int, domain_id: str) -> TenantDomain | None:
+        row = (await self.session.execute(
+            select(TenantDomainRow, TenantRow.name).join(TenantRow).where(TenantDomainRow.tenant_id == tenant_id,
+                                 TenantDomainRow.id == domain_id))).one_or_none()
+        return _tenant_domain(*row) if row else None
+
+    async def find_verified(self, domain: str) -> TenantDomain | None:
+        row = (await self.session.execute(
+            select(TenantDomainRow, TenantRow.name).join(TenantRow).where(TenantDomainRow.domain == domain,
+                                 TenantDomainRow.verified_at.is_not(None)))).one_or_none()
+        return _tenant_domain(*row) if row else None
+
+    async def checked(self, domain_id: str, *, verified: bool) -> bool:
+        values: dict[str, Any] = {"checked_at": func.now()}
+        if verified:
+            values["verified_at"] = func.coalesce(TenantDomainRow.verified_at, func.now())
+        statement = update(TenantDomainRow).where(TenantDomainRow.id == domain_id).values(values)
+        if not verified:
+            await self.session.execute(statement)
+            return True
+        # The partial unique index refuses a second tenant's verification of the domain.
+        try:
+            async with self.session.begin_nested():
+                await self.session.execute(statement)
+        except IntegrityError:
+            await self.session.execute(
+                update(TenantDomainRow).where(TenantDomainRow.id == domain_id)
+                .values(checked_at=func.now()))
+            return False
+        return True
+
+    async def delete(self, tenant_id: int, domain_id: str) -> bool:
+        result = await self.session.execute(
+            delete(TenantDomainRow).where(TenantDomainRow.tenant_id == tenant_id,
+                                          TenantDomainRow.id == domain_id))
         return _affected(result) > 0
 
 
@@ -1749,6 +1816,7 @@ class SqlUnitOfWork:
         self.user_sessions: UserSessionRepository = SqlUserSessionRepository(session)
         self.invitations: InvitationRepository = SqlInvitationRepository(session)
         self.password_resets: PasswordResetRepository = SqlPasswordResetRepository(session)
+        self.domains: DomainRepository = SqlDomainRepository(session)
         self.usage: UsageRepository = SqlUsageRepository(session)
         self.evaluations: EvaluationRunRepository = SqlEvaluationRunRepository(session)
         self.decks: DeckRepository = SqlDeckRepository(session)

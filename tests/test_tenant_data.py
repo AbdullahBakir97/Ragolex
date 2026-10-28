@@ -42,7 +42,7 @@ def test_the_export_holds_everything_the_tenant_put_in(client, embedder, llm):
     manifest = read_json(zip_file, "manifest.json")
 
     assert manifest["format"] == "ragolex-export" and manifest["tenant"] == "default"
-    assert manifest["counts"] == {"api_keys": 0, "members": 0, "invitations": 0,
+    assert manifest["counts"] == {"api_keys": 0, "members": 0, "invitations": 0, "domains": 0,
                                   "audit_events": 3, "projects": 1, "files": 1,
                                   "conversations": 1}
     assert {"tenant.json", "api_keys.json", "members.json", "invitations.json", "audit.jsonl",

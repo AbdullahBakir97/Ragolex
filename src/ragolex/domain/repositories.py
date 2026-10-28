@@ -38,6 +38,7 @@ from .models import (
     SourcePage,
     TagCount,
     Tenant,
+    TenantDomain,
     TenantUsage,
     UnembeddedChunk,
     UsageHistory,
@@ -220,6 +221,32 @@ class InvitationRepository(Protocol):
     async def delete(self, tenant_id: int, invitation_id: str) -> bool:
         """Whether the tenant had an invitation not accepted yet with that id."""
         ...
+
+
+class DomainRepository(Protocol):
+
+    async def add(self, *, tenant_id: int, domain: str, token: str) -> TenantDomain | None:
+        """The tenant's new, unverified domain; None when the tenant has it already."""
+        ...
+
+    async def list_for_tenant(self, tenant_id: int) -> list[TenantDomain]:
+        """By domain."""
+        ...
+
+    async def get(self, tenant_id: int, domain_id: str) -> TenantDomain | None: ...
+
+    async def find_verified(self, domain: str) -> TenantDomain | None:
+        """The verified domain with that name, whichever tenant has it."""
+        ...
+
+    async def checked(self, domain_id: str, *, verified: bool) -> bool:
+        """Note a lookup of its TXT record; ``verified`` marks it verified (once).
+
+        False when another tenant has the domain verified already, so it stays unverified.
+        """
+        ...
+
+    async def delete(self, tenant_id: int, domain_id: str) -> bool: ...
 
 
 class PasswordResetRepository(Protocol):
@@ -663,6 +690,7 @@ class UnitOfWork(Protocol):
     user_sessions: UserSessionRepository
     invitations: InvitationRepository
     password_resets: PasswordResetRepository
+    domains: DomainRepository
     usage: UsageRepository
     evaluations: EvaluationRunRepository
     decks: DeckRepository

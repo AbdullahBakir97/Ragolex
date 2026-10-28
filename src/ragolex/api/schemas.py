@@ -547,6 +547,7 @@ class DeliveryListResponse(BaseModel):
 
 KeyIdPath = Annotated[UUID, Path(description="The API key's id.")]
 UserIdPath = Annotated[int, Path(ge=1, description="The member's user id.")]
+DomainIdPath = Annotated[UUID, Path(description="The domain's id.")]
 InvitationIdPath = Annotated[UUID, Path(description="The invitation's id.")]
 
 
@@ -661,6 +662,38 @@ class SessionResponse(BaseModel):
     workspaces: list[WorkspaceResponse] = Field(description="Every workspace the user is a "
                                                             "member of, by name.")
     expires_at: datetime = Field(description="When the sign-in ends.")
+
+
+class DomainRequest(BaseModel):
+    domain: str = Field(min_length=3, max_length=253, examples=["help.acme.com"],
+                        description="A host name, without `https://` or a path.")
+
+
+class DnsRecord(BaseModel):
+    type: Literal["TXT", "CNAME"]
+    name: str
+    value: str
+
+
+class DomainResponse(BaseModel):
+    id: str
+    domain: str
+    verified: bool = Field(description="Whether its TXT record was found: only then does it "
+                                       "serve the workspace.")
+    created_at: datetime
+    verified_at: datetime | None
+    checked_at: datetime | None = Field(description="When its TXT record was last looked up.")
+    records: list[DnsRecord] = Field(
+        description="What to add at the domain's DNS provider: the TXT record that proves "
+                    "it, and a CNAME that points it at this server.")
+
+
+class SiteResponse(BaseModel):
+    workspace: str | None = Field(description="The workspace whose own domain this is; null "
+                                              "on the server's own domain.")
+    accounts_enabled: bool = Field(description="Whether people sign in (`AUTH_ENABLED`).")
+    signup_enabled: bool = Field(description="Whether people may sign up here: never on a "
+                                             "workspace's own domain, where they are invited.")
 
 
 MemberRoleField = Literal["owner", "admin", "editor", "viewer"]

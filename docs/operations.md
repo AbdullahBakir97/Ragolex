@@ -183,3 +183,30 @@ Nothing in Ragolex is tied to a host name, so it serves from whichever domain yo
 
 The widgets' allowed origins are the websites that embed them, not this domain. Answers stream as Server-Sent Events, so a proxy must not buffer responses: Caddy does not; for nginx, the API already sends `X-Accel-Buffering: no`.
 
+### A domain per workspace
+
+Each workspace can have domains of its own too, such as `help.acme.com` and `docs.zenith.io`, all served by the same deployment. Its admins add one (`POST /api/v1/domains`, or `ragolex domains add help.acme.com --tenant acme`), prove it with the TXT record it shows, and point it at the server with a CNAME to the host in `APP_URL`. Once verified, every request to that domain acts for the workspace: signing in opens it, other workspaces' keys and members are refused, only its widgets answer, and its invitation links use it. See [API › Your own domains](api.md#your-own-domains).
+
+Certificates for domains you don't know in advance come from Caddy's [on-demand TLS](https://caddyserver.com/docs/automatic-https#on-demand-tls), which first asks the API whether the domain is a workspace's, so it never gets a certificate for a stranger's domain:
+
+```
+{
+    on_demand_tls {
+        ask http://localhost:3000/api/v1/domains/allowed
+    }
+}
+
+rag.example.com {
+    reverse_proxy localhost:3000
+}
+
+https:// {
+    tls {
+        on_demand
+    }
+    reverse_proxy localhost:3000
+}
+```
+
+The proxy must pass the original `Host` header on (Caddy does, and so does the web app's nginx), since that is how the API tells the domains apart. Operators can add a domain they trust without a TXT record: `ragolex domains add help.acme.com --tenant acme --verified`.
+

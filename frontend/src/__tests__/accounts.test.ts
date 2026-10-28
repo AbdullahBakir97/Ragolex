@@ -5,7 +5,9 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { signInNeeded, signInReason } from "@/api/auth";
 import type { Session } from "@/api/types";
 import AdminMembers from "@/components/AdminMembers.vue";
+import AdminDomains from "@/components/AdminDomains.vue";
 import { useSession } from "@/composables/useSession";
+import { useSite } from "@/composables/useSite";
 import { reloadAt } from "@/lib/navigate";
 import AccountView from "@/views/AccountView.vue";
 import AdminView from "@/views/AdminView.vue";
@@ -20,6 +22,7 @@ beforeEach(() => {
   vi.mocked(reloadAt).mockClear();
   useSession().session.value = null;
   useSession().loaded.value = false;
+  useSite().forget();
   sessionStorage.clear();
 });
 
@@ -70,7 +73,10 @@ async function fill(wrapper: ReturnType<typeof mount>, values: Record<string, st
 
 describe("SignInView", () => {
   it("signs in and goes back where the app was", async () => {
-    const fetch = serve({ "POST /auth/login": () => Response.json(SESSION) });
+    const fetch = serve({
+      "POST /auth/login": () => Response.json(SESSION),
+      "GET /site": () => Response.json({ workspace: null, accounts_enabled: true, signup_enabled: true }),
+    });
     signInReason.value = "Your session has ended. Sign in again.";
     const router = routerAt("/signin?next=/projects/docs/ask");
     await router.isReady();
@@ -81,11 +87,21 @@ describe("SignInView", () => {
     await wrapper.find("form").trigger("submit");
     await flushPromises();
 
-    expect(JSON.parse(String(fetch.mock.calls[0]![1]!.body))).toEqual({
-      email: "ada@example.com",
-      password: "correct horse",
-    });
+    const login = fetch.mock.calls.find(([url]) => String(url).endsWith("/auth/login"))!;
+    expect(JSON.parse(String(login[1]!.body))).toEqual({ email: "ada@example.com", password: "correct horse" });
     expect(reloadAt).toHaveBeenCalledWith("/projects/docs/ask");
+    expect(wrapper.text()).toContain("Create an account");
+  });
+
+  it("names the workspace on its own domain, where nobody signs up", async () => {
+    serve({ "GET /site": () => Response.json({ workspace: "acme", accounts_enabled: true, signup_enabled: false }) });
+    const router = routerAt("/signin");
+    await router.isReady();
+    const wrapper = mount(SignInView, { global: { plugins: [router] } });
+    await flushPromises();
+
+    expect(wrapper.find("h1").text()).toBe("Sign in to acme");
+    expect(wrapper.text()).not.toContain("Create an account");
   });
 
   it("says why signing in failed, and never goes to another site", async () => {
@@ -106,8 +122,20 @@ describe("SignInView", () => {
 });
 
 describe("SignUpView", () => {
+  it("says people are invited where nobody signs up", async () => {
+    serve({ "GET /site": () => Response.json({ workspace: "acme", accounts_enabled: true, signup_enabled: false }) });
+    const wrapper = mount(SignUpView, { global: { stubs: { RouterLink: RouterLinkStub } } });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("People join acme by invitation.");
+    expect(wrapper.find("form").exists()).toBe(false);
+  });
+
   it("names the workspace after the email until it is edited", async () => {
-    const fetch = serve({ "POST /auth/signup": () => Response.json(SESSION, { status: 201 }) });
+    const fetch = serve({
+      "POST /auth/signup": () => Response.json(SESSION, { status: 201 }),
+      "GET /site": () => Response.json({ workspace: null, accounts_enabled: true, signup_enabled: true }),
+    });
     const wrapper = mount(SignUpView, { global: { stubs: { RouterLink: RouterLinkStub } } });
     const workspace = wrapper.findAll("input")[2]!;
 
@@ -122,7 +150,8 @@ describe("SignUpView", () => {
     await wrapper.find("form").trigger("submit");
     await flushPromises();
 
-    expect(JSON.parse(String(fetch.mock.calls[0]![1]!.body))).toEqual({
+    const signup = fetch.mock.calls.find(([url]) => String(url).endsWith("/auth/signup"))!;
+    expect(JSON.parse(String(signup[1]!.body))).toEqual({
       name: "Ada",
       email: "ada@other.com",
       workspace: "analytical-engines",
@@ -401,5 +430,71 @@ describe("AdminView", () => {
 
     expect(wrapper.text()).toContain("Signed in as Ada Lovelace (ada@example.com), owner of this workspace.");
     expect(wrapper.findComponent({ name: "AdminMembers" }).props()).toEqual({ myRole: "owner", myUserId: 1 });
+  });
+});
+
+const DOMAIN = {
+  id: "d-1",
+  domain: "help.acme.com",
+  verified: false,
+  created_at: "2026-10-28T10:00:00Z",
+  verified_at: null,
+  checked_at: null,
+  records: [
+    { type: "TXT", name: "_ragolex.help.acme.com", value: "ragolex-verification=abc" },
+    { type: "CNAME", name: "help.acme.com", value: "rag.example.com" },
+  ],
+};
+
+describe("AdminDomains", () => {
+  it("adds a pasted address as its host name, shows its records and checks it", async () => {
+    let state = "none";
+    const fetch = serve({
+      "GET /domains": () =>
+        Response.json(state === "none" ? [] : [{ ...DOMAIN, verified: state === "verified", verified_at: state === "verified" ? DOMAIN.created_at : null }]),
+      "POST /domains": () => {
+        state = "added";
+        return Response.json(DOMAIN, { status: 201 });
+      },
+      "POST /domains/d-1/verify": () => {
+        state = "verified";
+        return Response.json({ ...DOMAIN, verified: true });
+      },
+    });
+    const wrapper = mount(AdminDomains);
+    await flushPromises();
+    expect(wrapper.text()).toContain("No domains yet");
+
+    await wrapper.find("input").setValue("https://help.acme.com/support?x=1");
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    const added = fetch.mock.calls.find(([url, init]) => String(url).endsWith("/domains") && init?.method === "POST")!;
+    expect(JSON.parse(String(added[1]!.body))).toEqual({ domain: "help.acme.com" });
+    expect(wrapper.text()).toContain("Waiting for its TXT record");
+    expect(wrapper.text()).toContain("_ragolex.help.acme.com");
+    expect(wrapper.text()).toContain("ragolex-verification=abc");
+
+    await wrapper.findAll("button").find((b) => b.text().includes("Check now"))!.trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Verified");
+    expect(wrapper.emitted("changed")).toHaveLength(2);
+  });
+
+  it("says when the record is not there yet", async () => {
+    serve({
+      "GET /domains": () => Response.json([DOMAIN]),
+      "POST /domains/d-1/verify": () => Response.json({ signal: "domain_not_verified" }, { status: 409 }),
+    });
+    const { useToasts } = await import("@/composables/useToasts");
+    const wrapper = mount(AdminDomains);
+    await flushPromises();
+
+    await wrapper.findAll("button").find((b) => b.text().includes("Check now"))!.trigger("click");
+    await flushPromises();
+
+    const toast = useToasts().toasts.value.at(-1)!;
+    expect([toast.kind, toast.title]).toEqual(["error", "help.acme.com is not verified yet"]);
+    expect(toast.message).toContain("TXT record was not found");
   });
 });
