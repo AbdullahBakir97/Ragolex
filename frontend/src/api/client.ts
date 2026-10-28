@@ -10,6 +10,8 @@ import type {
   ChatBot,
   ConnectionKind,
   ConnectionList,
+  SsoRole,
+  SsoSettings,
   ChatWidget,
   ChatWidgetSettings,
   Chunk,
@@ -337,6 +339,13 @@ export const api = {
       offset: page.offset ?? 0,
       limit: page.limit ?? 10,
     }),
+  sso: () => get<SsoSettings>("/sso"),
+  /** Without `client_secret`, the one already set is kept. */
+  saveSso: (body: { issuer: string; client_id: string; client_secret?: string; default_role: SsoRole; enabled: boolean }) =>
+    put<SsoSettings>("/sso", body),
+  deleteSso: () => remove("/sso"),
+  /** The workspace that signs this email in, and where to start. */
+  ssoDiscover: (email: string) => post<{ workspace: string; start_url: string }>("/auth/sso/discover", { email }),
   connections: () => get<ConnectionList>("/connections"),
   /** Where to send the admin to sign in; they come back to `returnTo`. */
   startConnection: (kind: ConnectionKind, returnTo: string) =>

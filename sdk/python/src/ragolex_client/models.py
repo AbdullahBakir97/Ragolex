@@ -618,7 +618,7 @@ class RatedAnswerResponse(Model):
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
-ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'ocr_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'accounts_disabled', 'signup_disabled', 'email_taken', 'workspace_taken', 'login_failed', 'account_locked', 'session_required', 'workspace_not_found', 'current_password_wrong', 'member_not_found', 'owner_required', 'last_owner', 'already_member', 'invitation_not_found', 'invitation_invalid', 'invitation_for_someone_else', 'account_details_required', 'password_reset_invalid', 'domain_invalid', 'domain_not_found', 'domain_exists', 'domain_taken', 'domain_not_verified', 'wrong_domain', 'dns_lookup_failed', 'bot_not_found', 'bot_credentials_invalid', 'bot_platform_failed', 'bot_signature_invalid', 'connection_not_found', 'connection_in_use', 'connection_wrong_kind', 'connector_not_configured', 'connection_request_invalid', 'connection_denied', 'connection_failed', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'ocr_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'accounts_disabled', 'signup_disabled', 'email_taken', 'workspace_taken', 'login_failed', 'account_locked', 'session_required', 'workspace_not_found', 'current_password_wrong', 'member_not_found', 'owner_required', 'last_owner', 'already_member', 'invitation_not_found', 'invitation_invalid', 'invitation_for_someone_else', 'account_details_required', 'password_reset_invalid', 'domain_invalid', 'domain_not_found', 'domain_exists', 'domain_taken', 'domain_not_verified', 'wrong_domain', 'dns_lookup_failed', 'bot_not_found', 'bot_credentials_invalid', 'bot_platform_failed', 'bot_signature_invalid', 'connection_not_found', 'connection_in_use', 'connection_wrong_kind', 'connector_not_configured', 'connection_request_invalid', 'connection_denied', 'connection_failed', 'sso_not_configured', 'sso_failed', 'sso_email_not_allowed', 'sso_request_invalid', 'sso_secret_required', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
 
 
 class ReviewCardResponse(Model):
@@ -747,6 +747,38 @@ class SourceResponse(Model):
     last_error: str | None = Field(default=None, description='Why the last sync could not crawl the site; the pages it had are kept meanwhile.')
     tags: list[str] = Field(description='Given to the pages it stores.')
     created_at: datetime
+
+
+class SsoDiscoverRequest(Model):
+    email: str
+
+
+class SsoDiscoverResponse(Model):
+    workspace: str
+    start_url: str = Field(description='Open it in the browser, with `&next=<path>` for the page to open after signing in.')
+
+
+class SsoProviderResponse(Model):
+    issuer: str
+    client_id: str
+    default_role: Literal['admin', 'editor', 'viewer'] | str
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class SsoSettingsRequest(Model):
+    issuer: str = Field(description="The identity provider's issuer URL, whose `/.well-known/openid-configuration` is read.")
+    client_id: str
+    client_secret: str | None = Field(default=None, description='Needed the first time; leave it out to keep the one already set. Stored encrypted and never returned.')
+    default_role: Literal['admin', 'editor', 'viewer'] | str = Field(default='viewer', description='The role of people added by their first sign-in.')
+    enabled: bool = Field(default=True)
+
+
+class SsoSettingsResponse(Model):
+    provider: SsoProviderResponse | None = Field(default=None, description='Null until one is set.')
+    redirect_uri: str = Field(description='The redirect URI to register with the provider.')
+    email_domains: list[str] = Field(description="The workspace's verified domains: only emails on them sign in through the provider. Add the company's email domain (`acme.com`) under domains and prove it with its TXT record.")
 
 
 class StudyRequest(Model):
@@ -924,5 +956,5 @@ class WorkspaceResponse(Model):
     role: Literal['owner', 'admin', 'editor', 'viewer'] | str
 
 
-for _model in (AcceptInvitationRequest, ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, AuditUser, BodyUploadData, BotListResponse, BotRequest, BotResponse, BotUpdateRequest, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConnectionListResponse, ConnectionResponse, ConnectionStartRequest, ConnectionStartResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, DnsRecord, DomainRequest, DomainResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, InvitationCreatedResponse, InvitationPreviewResponse, InvitationRequest, InvitationResponse, InvitationTokenRequest, JobListResponse, JobRequest, JobResponse, KeyPointResponse, LoginRequest, MeResponse, MemberResponse, MessageResponse, Meter, ModelShareResponse, PasswordChangeRequest, PasswordResetConfirmRequest, PasswordResetRequest, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, RoleRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SessionResponse, SignupRequest, SiteResponse, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, UserResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest, WorkspaceRequest, WorkspaceResponse,):
+for _model in (AcceptInvitationRequest, ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, AuditUser, BodyUploadData, BotListResponse, BotRequest, BotResponse, BotUpdateRequest, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConnectionListResponse, ConnectionResponse, ConnectionStartRequest, ConnectionStartResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, DnsRecord, DomainRequest, DomainResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, InvitationCreatedResponse, InvitationPreviewResponse, InvitationRequest, InvitationResponse, InvitationTokenRequest, JobListResponse, JobRequest, JobResponse, KeyPointResponse, LoginRequest, MeResponse, MemberResponse, MessageResponse, Meter, ModelShareResponse, PasswordChangeRequest, PasswordResetConfirmRequest, PasswordResetRequest, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, RoleRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SessionResponse, SignupRequest, SiteResponse, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, SsoDiscoverRequest, SsoDiscoverResponse, SsoProviderResponse, SsoSettingsRequest, SsoSettingsResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, UserResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest, WorkspaceRequest, WorkspaceResponse,):
     _model.model_rebuild()

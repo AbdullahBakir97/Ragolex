@@ -10,6 +10,7 @@ import. It holds what the tenant put in and what was recorded about it:
     invitations.json                    invitations not accepted yet; never their links
     domains.json                        its own domains, and whether each is verified
     connections.json                    its Notion and Google Drive connections; never tokens
+    sso.json                            its single sign-on provider, if any; never the secret
     audit.jsonl                         the audit log, oldest first
     projects/<project>/project.json     the project, and its answer usage added up
     projects/<project>/files.json       each file's name, type, size, checksum and tags
@@ -123,6 +124,11 @@ class TenantDataService:
         export.add_json("connections.json", [
             {"id": c.id, "kind": c.kind, "account": c.account, "created_by": c.created_by,
              "created_at": c.created_at} for c in connections])
+        provider = await self.uow.sso.get(tenant.id)
+        export.add_json("sso.json", {
+            "issuer": provider.issuer, "client_id": provider.client_id,
+            "default_role": provider.default_role, "enabled": provider.enabled,
+            "created_at": provider.created_at} if provider else None)
         export.counts.update(api_keys=len(keys), members=len(members),
                              invitations=len(invitations), domains=len(domains),
                              connections=len(connections), audit_events=len(events))

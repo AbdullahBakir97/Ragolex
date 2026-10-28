@@ -190,7 +190,7 @@ describe("AdminView", () => {
       "GET /me": () => Response.json({ tenant: "acme", scopes: ["admin", "read"], key_id: "k-1", auth_enabled: true }),
       "GET /usage": () => Response.json(usage),
     });
-    const wrapper = mount(AdminView, { global: { stubs: { AdminConnections: true, AdminKeys: true, AdminEvaluations: true, AdminAudit: true } } });
+    const wrapper = mount(AdminView, { global: { stubs: { AdminConnections: true, AdminSso: true, AdminKeys: true, AdminEvaluations: true, AdminAudit: true } } });
     await flushPromises();
 
     const tiles = wrapper.findAll(".tile").map((tile) => tile.text());
@@ -206,7 +206,7 @@ describe("AdminView", () => {
       "GET /me": () => Response.json({ tenant: "acme", scopes: ["read"], key_id: "k-2", auth_enabled: true }),
       "GET /usage": () => Response.json(usage),
     });
-    const wrapper = mount(AdminView, { global: { stubs: { AdminConnections: true, AdminKeys: true, AdminEvaluations: true, AdminAudit: true } } });
+    const wrapper = mount(AdminView, { global: { stubs: { AdminConnections: true, AdminSso: true, AdminKeys: true, AdminEvaluations: true, AdminAudit: true } } });
     await flushPromises();
 
     expect(wrapper.text()).toContain("need the admin scope");

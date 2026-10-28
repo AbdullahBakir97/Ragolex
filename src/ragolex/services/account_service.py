@@ -138,6 +138,10 @@ class AccountService:
             raise WorkspaceNotFound("You are not a member of this workspace")
         return await self._start(user, workspaces[0])
 
+    async def start_session(self, user: User, membership: Membership) -> SignedIn:
+        """A new session for a user someone else vouched for (single sign-on)."""
+        return await self._start(user, membership)
+
     async def _start(self, user: User, membership: Membership) -> SignedIn:
         token = secrets.token_urlsafe(32)
         session = await self.uow.user_sessions.create(

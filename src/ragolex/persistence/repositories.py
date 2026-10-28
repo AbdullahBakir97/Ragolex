@@ -77,6 +77,8 @@ from ragolex.domain.models import (
     Source,
     SourceKind,
     SourcePage,
+    SsoProvider,
+    SsoRequest,
     StoredCitation,
     TagCount,
     Tenant,
@@ -111,6 +113,7 @@ from ragolex.domain.repositories import (
     PasswordResetRepository,
     ProjectRepository,
     SourceRepository,
+    SsoRepository,
     TenantRepository,
     UsageRepository,
     UserRepository,
@@ -145,6 +148,8 @@ from .tables import (
     RequestCountRow,
     SourcePageRow,
     SourceRow,
+    SsoProviderRow,
+    SsoRequestRow,
     TenantDomainRow,
     TenantRow,
     UserRow,
@@ -1708,6 +1713,63 @@ class SqlConnectionRepository:
         return _connection_request(row) if row else None
 
 
+def _sso_provider(row: SsoProviderRow) -> SsoProvider:
+    return SsoProvider(tenant_id=row.tenant_id, issuer=row.issuer, client_id=row.client_id,
+                       client_secret=row.client_secret, default_role=row.default_role,
+                       enabled=row.enabled, created_at=row.created_at,
+                       updated_at=row.updated_at)
+
+
+def _sso_request(row: SsoRequestRow) -> SsoRequest:
+    return SsoRequest(state_hash=row.state_hash, tenant_id=row.tenant_id, nonce=row.nonce,
+                      code_verifier=row.code_verifier, next_url=row.next_url,
+                      browser_hash=row.browser_hash, expires_at=row.expires_at)
+
+
+class SqlSsoRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get(self, tenant_id: int) -> SsoProvider | None:
+        row = await self.session.get(SsoProviderRow, tenant_id, populate_existing=True)
+        return _sso_provider(row) if row else None
+
+    async def save(self, *, tenant_id: int, issuer: str, client_id: str, client_secret: str,
+                   default_role: str, enabled: bool) -> SsoProvider:
+        values = {"issuer": issuer, "client_id": client_id, "client_secret": client_secret,
+                  "default_role": default_role, "enabled": enabled}
+        await self.session.execute(
+            pg_insert(SsoProviderRow).values(tenant_id=tenant_id, **values)
+            .on_conflict_do_update(index_elements=["tenant_id"],
+                                   set_={**values, "updated_at": func.now()}))
+        found = await self.get(tenant_id)
+        assert found is not None
+        return found
+
+    async def delete(self, tenant_id: int) -> bool:
+        result = await self.session.execute(
+            delete(SsoProviderRow).where(SsoProviderRow.tenant_id == tenant_id))
+        return _affected(result) > 0
+
+    async def add_request(self, request: SsoRequest) -> None:
+        await self.session.execute(insert(SsoRequestRow).values(asdict(request)))
+
+    async def find_request(self, state_hash: str) -> SsoRequest | None:
+        row = await self.session.scalar(
+            select(SsoRequestRow).where(SsoRequestRow.state_hash == state_hash,
+                                        SsoRequestRow.expires_at > func.now()))
+        return _sso_request(row) if row else None
+
+    async def take_request(self, state_hash: str) -> SsoRequest | None:
+        await self.session.execute(
+            delete(SsoRequestRow).where(SsoRequestRow.expires_at <= func.now()))
+        row = (await self.session.execute(
+            delete(SsoRequestRow).where(SsoRequestRow.state_hash == state_hash)
+            .returning(SsoRequestRow))).scalar_one_or_none()
+        return _sso_request(row) if row else None
+
+
 def _audit_event(row: AuditEventRow, key_name: str | None,
                  user_email: str | None) -> AuditEvent:
     return AuditEvent(id=row.id, tenant_id=row.tenant_id, action=row.action, target=row.target,
@@ -2043,6 +2105,7 @@ class SqlUnitOfWork:
         self.domains: DomainRepository = SqlDomainRepository(session)
         self.bots: BotRepository = SqlBotRepository(session)
         self.connections: ConnectionRepository = SqlConnectionRepository(session)
+        self.sso: SsoRepository = SqlSsoRepository(session)
         self.usage: UsageRepository = SqlUsageRepository(session)
         self.evaluations: EvaluationRunRepository = SqlEvaluationRunRepository(session)
         self.decks: DeckRepository = SqlDeckRepository(session)

@@ -6591,6 +6591,213 @@
         }
       }
     },
+    "/api/v1/sso": {
+      "get": {
+        "tags": [
+          "single sign-on"
+        ],
+        "summary": "The workspace's single sign-on",
+        "operationId": "get_sso",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoSettingsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "single sign-on"
+        ],
+        "summary": "Set the workspace's OpenID Connect identity provider",
+        "description": "Its discovery document is read first, so a wrong issuer is refused.",
+        "operationId": "set_sso",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoSettingsResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Signal: `sso_failed`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_failed": {
+                    "value": {
+                      "signal": "sso_failed"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `sso_secret_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_secret_required": {
+                    "value": {
+                      "signal": "sso_secret_required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "single sign-on"
+        ],
+        "summary": "Remove the workspace's single sign-on",
+        "description": "Accounts made by it stay, and can set a password with a reset link.",
+        "operationId": "delete_sso",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `sso_not_configured`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_not_configured": {
+                    "value": {
+                      "signal": "sso_not_configured"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/sso/discover": {
+      "post": {
+        "tags": [
+          "single sign-on"
+        ],
+        "summary": "Which workspace signs this email in",
+        "description": "The workspace that verified the email's domain and has single sign-on turned on.",
+        "operationId": "discover",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoDiscoverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoDiscoverResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `sso_not_configured`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_not_configured": {
+                    "value": {
+                      "signal": "sso_not_configured"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "tags": [
@@ -12586,6 +12793,11 @@
           "connection_request_invalid",
           "connection_denied",
           "connection_failed",
+          "sso_not_configured",
+          "sso_failed",
+          "sso_email_not_allowed",
+          "sso_request_invalid",
+          "sso_secret_required",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",
@@ -13397,6 +13609,179 @@
           "created_at"
         ],
         "title": "SourceResponse"
+      },
+      "SsoDiscoverRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "examples": [
+              "ada@acme.com"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "SsoDiscoverRequest"
+      },
+      "SsoDiscoverResponse": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "title": "Workspace"
+          },
+          "start_url": {
+            "type": "string",
+            "title": "Start Url",
+            "description": "Open it in the browser, with `&next=<path>` for the page to open after signing in."
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace",
+          "start_url"
+        ],
+        "title": "SsoDiscoverResponse"
+      },
+      "SsoProviderResponse": {
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "title": "Issuer"
+          },
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "default_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Default Role"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "issuer",
+          "client_id",
+          "default_role",
+          "enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SsoProviderResponse"
+      },
+      "SsoSettingsRequest": {
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "maxLength": 500,
+            "pattern": "^https?://\\S+$",
+            "title": "Issuer",
+            "description": "The identity provider's issuer URL, whose `/.well-known/openid-configuration` is read.",
+            "examples": [
+              "https://login.microsoftonline.com/<tenant id>/v2.0"
+            ]
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret",
+            "description": "Needed the first time; leave it out to keep the one already set. Stored encrypted and never returned."
+          },
+          "default_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Default Role",
+            "description": "The role of people added by their first sign-in.",
+            "default": "viewer"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "issuer",
+          "client_id"
+        ],
+        "title": "SsoSettingsRequest"
+      },
+      "SsoSettingsResponse": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SsoProviderResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until one is set."
+          },
+          "redirect_uri": {
+            "type": "string",
+            "title": "Redirect Uri",
+            "description": "The redirect URI to register with the provider."
+          },
+          "email_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Email Domains",
+            "description": "The workspace's verified domains: only emails on them sign in through the provider. Add the company's email domain (`acme.com`) under domains and prove it with its TXT record."
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "redirect_uri",
+          "email_domains"
+        ],
+        "title": "SsoSettingsResponse"
       },
       "StudyRequest": {
         "properties": {

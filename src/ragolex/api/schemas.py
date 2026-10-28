@@ -644,6 +644,52 @@ class SignupRequest(BaseModel):
                                        "digits, `-` and `_`. You become its owner.")
 
 
+SsoRole = Literal["admin", "editor", "viewer"]
+
+
+class SsoSettingsRequest(BaseModel):
+    issuer: str = Field(max_length=500, pattern=r"^https?://\S+$",
+                        description="The identity provider's issuer URL, whose "
+                                    "`/.well-known/openid-configuration` is read.",
+                        examples=["https://login.microsoftonline.com/<tenant id>/v2.0"])
+    client_id: str = Field(min_length=1, max_length=255)
+    client_secret: str | None = Field(
+        default=None, min_length=1, max_length=1000,
+        description="Needed the first time; leave it out to keep the one already set. "
+                    "Stored encrypted and never returned.")
+    default_role: SsoRole = Field(default="viewer",
+                                  description="The role of people added by their first sign-in.")
+    enabled: bool = True
+
+
+class SsoProviderResponse(BaseModel):
+    issuer: str
+    client_id: str
+    default_role: SsoRole
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class SsoSettingsResponse(BaseModel):
+    provider: SsoProviderResponse | None = Field(description="Null until one is set.")
+    redirect_uri: str = Field(description="The redirect URI to register with the provider.")
+    email_domains: list[str] = Field(
+        description="The workspace's verified domains: only emails on them sign in through "
+                    "the provider. Add the company's email domain (`acme.com`) under domains "
+                    "and prove it with its TXT record.")
+
+
+class SsoDiscoverRequest(BaseModel):
+    email: str = Field(max_length=254, pattern=EMAIL, examples=["ada@acme.com"])
+
+
+class SsoDiscoverResponse(BaseModel):
+    workspace: str
+    start_url: str = Field(description="Open it in the browser, with `&next=<path>` for the "
+                                       "page to open after signing in.")
+
+
 class LoginRequest(BaseModel):
     email: str = Field(max_length=254, examples=["ada@example.com"])
     password: str = Field(min_length=1, max_length=128)

@@ -464,6 +464,26 @@ export type SourceKind = "website" | "feed" | "github" | "notion" | "google_driv
 
 export type ConnectionKind = "notion" | "google_drive";
 
+export type SsoRole = "admin" | "editor" | "viewer";
+
+/** A workspace's OpenID Connect identity provider. Its client secret is never returned. */
+export interface SsoProvider {
+  issuer: string;
+  client_id: string;
+  default_role: SsoRole;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SsoSettings {
+  provider: SsoProvider | null;
+  /** The redirect URI to register with the identity provider. */
+  redirect_uri: string;
+  /** Only emails on these verified domains sign in through the provider. */
+  email_domains: string[];
+}
+
 /** A workspace's sign-in to Notion or Google Drive. Its tokens are never returned. */
 export interface Connection {
   id: string;

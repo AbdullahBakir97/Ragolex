@@ -160,6 +160,9 @@ class Settings(BaseSettings):
     CLAMAV_TIMEOUT_SECONDS: float = Field(default=60, gt=0, le=600)
     # Website sources: crawls reach only public addresses unless allowed.
     CRAWLER_ALLOW_PRIVATE_URLS: bool = False
+    # Single sign-on: let a workspace's identity provider be on this server's
+    # network (a Keycloak on the intranet). Off, it must be a public address.
+    SSO_ALLOW_PRIVATE_URLS: bool = False
     CRAWLER_DELAY_SECONDS: float = Field(default=0.5, ge=0, le=10)
     CRAWLER_TIMEOUT_SECONDS: float = Field(default=15, gt=0, le=120)
     # GitHub sources: a token reads private repositories and raises the

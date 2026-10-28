@@ -34,6 +34,7 @@ from ragolex.api.routes import (
     projects,
     search,
     sources,
+    sso,
     study,
     webhooks,
     widgets,
@@ -46,6 +47,7 @@ from ragolex.core.logging_config import configure_logging
 from ragolex.core.tracing import setup_tracing
 from ragolex.dns.resolver import DnsTxtResolver
 from ragolex.embeddings.factory import create_embedder
+from ragolex.identity.oidc import HttpOidcClient
 from ragolex.llm.factory import create_llm
 from ragolex.mail.factory import create_mailer
 from ragolex.persistence.database import (
@@ -100,6 +102,9 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         sender = create_webhook_sender(settings)
         crawlers = create_crawlers(settings)
         app.state.oauth_providers = providers = create_oauth_providers(settings)
+        app.state.oidc_client = oidc = HttpOidcClient(
+            allow_private=settings.SSO_ALLOW_PRIVATE_URLS,
+            timeout_seconds=settings.CRAWLER_TIMEOUT_SECONDS)
         workers: list[asyncio.Task] = []
         try:
             await _check_embedding_dimensions(engine, settings)
@@ -127,6 +132,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
                 await crawler.aclose()
             for provider in providers.values():
                 await provider.aclose()
+            await oidc.aclose()
             if embedder is not None:
                 await embedder.aclose()
             if llm is not None:
@@ -184,6 +190,8 @@ def create_app() -> FastAPI:
     app.include_router(bots.public_router)
     app.include_router(connections.router)
     app.include_router(connections.public_router)
+    app.include_router(sso.router)
+    app.include_router(sso.public_router)
     app.include_router(audit.router)
     app.include_router(evaluations.router)
     app.include_router(export.router)
