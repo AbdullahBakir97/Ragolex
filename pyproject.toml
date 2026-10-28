@@ -20,22 +20,22 @@ classifiers = [
 # Exact pins: this is an application, so every install gets the tested
 # versions. Dependabot proposes upgrades.
 dependencies = [
-    "fastapi==0.143.3",
+    "fastapi==0.162.0",
     "uvicorn[standard]==0.54.0",
     "python-multipart==0.0.32",
     "python-dotenv==1.2.4",
-    "pydantic-settings==2.16.0",
+    "pydantic-settings==2.16.1",
     "aiofiles==25.1.0",
     "pypdf==6.21.2",
     # Reads the images of scanned PDF pages for OCR.
     "pillow==13.0.0",
-    "sqlalchemy[asyncio]==2.1.5",
+    "sqlalchemy[asyncio]==2.1.6",
     "asyncpg==0.32.0",
-    "alembic==1.20.0",
+    "alembic==1.20.1",
     "pgvector==0.5.1",
-    "openai==3.32.0",
+    "openai==3.37.0",
     # Imported directly by the OpenAI embedder (for its HTTP client type).
-    "httpx2==2.13.1",
+    "httpx2==2.16.0",
     "anyio==4.15.1",
     "prometheus-client==0.26.0",
     # AES-GCM for encryption at rest (ENCRYPTION_KEYS).
@@ -56,7 +56,7 @@ dev = [
     "mypy==2.4.0",
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
-    "ruff==0.17.1",
+    "ruff==0.17.2",
     "types-aiofiles==25.1.0.20260518",
 ]
 
