@@ -42,6 +42,7 @@ from ragolex.domain.models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Bot,
     Card,
     CardSource,
     Chunk,
@@ -90,6 +91,7 @@ from ragolex.domain.repositories import (
     AnswerRepository,
     ApiKeyRepository,
     AuditRepository,
+    BotRepository,
     ChunkRepository,
     ConversationRepository,
     DeckRepository,
@@ -115,6 +117,9 @@ from .tables import (
     AnswerRow,
     ApiKeyRow,
     AuditEventRow,
+    BotChatRow,
+    BotDeliveryRow,
+    BotRow,
     BudgetAlertRow,
     CardRow,
     ChunkRow,
@@ -1493,6 +1498,93 @@ class SqlWidgetRepository:
         return _affected(result) > 0
 
 
+def _bot(row: BotRow, project: ProjectRow, tenant_name: str) -> Bot:
+    return Bot(id=row.id, tenant_id=project.tenant_id, tenant_name=tenant_name,
+               project_id=project.id, project_name=project.name, kind=row.kind, name=row.name,
+               account=row.account, credentials=json.loads(row.credentials),
+               webhook_secret=row.webhook_secret, enabled=row.enabled,
+               created_at=row.created_at, tags=tuple(row.tags),
+               last_message_at=row.last_message_at, last_error=row.last_error,
+               last_error_at=row.last_error_at)
+
+
+class SqlBotRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    def _select(self):
+        return (select(BotRow, ProjectRow, TenantRow.name)
+                .join(ProjectRow, ProjectRow.id == BotRow.project_id)
+                .join(TenantRow, TenantRow.id == ProjectRow.tenant_id))
+
+    async def create(self, *, bot_id: str, project_id: int, kind: str, name: str, account: str,
+                     credentials: Mapping[str, str], webhook_secret: str,
+                     tags: Sequence[str] = ()) -> Bot:
+        await self.session.execute(
+            insert(BotRow).values(id=bot_id, project_id=project_id, kind=kind, name=name,
+                                  account=account, credentials=json.dumps(dict(credentials)),
+                                  webhook_secret=webhook_secret, tags=list(tags)))
+        found = await self.get(bot_id)
+        assert found is not None
+        return found
+
+    async def get(self, bot_id: str) -> Bot | None:
+        found = (await self.session.execute(self._select().where(BotRow.id == bot_id))).first()
+        return _bot(*found) if found else None
+
+    async def list_for_project(self, project_id: int) -> list[Bot]:
+        found = await self.session.execute(
+            self._select().where(BotRow.project_id == project_id)
+            .order_by(BotRow.created_at, BotRow.id))
+        return [_bot(*row) for row in found]
+
+    async def update(self, project_id: int, bot_id: str,
+                     changes: Mapping[str, Any]) -> Bot | None:
+        values = {name: (list(value) if name == "tags" else
+                         json.dumps(dict(value)) if name == "credentials" else value)
+                  for name, value in changes.items()}
+        result = await self.session.execute(
+            update(BotRow).where(BotRow.id == bot_id, BotRow.project_id == project_id)
+            .values(**values))
+        return await self.get(bot_id) if _affected(result) else None
+
+    async def delete(self, project_id: int, bot_id: str) -> bool:
+        result = await self.session.execute(
+            delete(BotRow).where(BotRow.id == bot_id, BotRow.project_id == project_id))
+        return _affected(result) > 0
+
+    async def first_delivery(self, bot_id: str, update_id: str) -> bool:
+        noted = await self.session.scalar(
+            pg_insert(BotDeliveryRow).values(bot_id=bot_id, update_id=update_id)
+            .on_conflict_do_nothing().returning(BotDeliveryRow.bot_id))
+        return noted is not None
+
+    async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
+        return await self.session.scalar(
+            select(BotChatRow.conversation_id)
+            .where(BotChatRow.bot_id == bot_id, BotChatRow.chat_key == chat_key))
+
+    async def set_chat_conversation(self, bot_id: str, chat_key: str,
+                                    conversation_id: str | None) -> None:
+        if conversation_id is None:
+            await self.session.execute(
+                delete(BotChatRow).where(BotChatRow.bot_id == bot_id,
+                                         BotChatRow.chat_key == chat_key))
+            return
+        await self.session.execute(
+            pg_insert(BotChatRow)
+            .values(bot_id=bot_id, chat_key=chat_key, conversation_id=conversation_id)
+            .on_conflict_do_update(index_elements=["bot_id", "chat_key"],
+                                   set_={"conversation_id": conversation_id}))
+
+    async def answered(self, bot_id: str, error: str | None) -> None:
+        values: dict[str, Any] = {"last_message_at": func.now()}
+        if error is not None:
+            values.update(last_error=error, last_error_at=func.now())
+        await self.session.execute(update(BotRow).where(BotRow.id == bot_id).values(values))
+
+
 def _audit_event(row: AuditEventRow, key_name: str | None,
                  user_email: str | None) -> AuditEvent:
     return AuditEvent(id=row.id, tenant_id=row.tenant_id, action=row.action, target=row.target,
@@ -1817,6 +1909,7 @@ class SqlUnitOfWork:
         self.invitations: InvitationRepository = SqlInvitationRepository(session)
         self.password_resets: PasswordResetRepository = SqlPasswordResetRepository(session)
         self.domains: DomainRepository = SqlDomainRepository(session)
+        self.bots: BotRepository = SqlBotRepository(session)
         self.usage: UsageRepository = SqlUsageRepository(session)
         self.evaluations: EvaluationRunRepository = SqlEvaluationRunRepository(session)
         self.decks: DeckRepository = SqlDeckRepository(session)

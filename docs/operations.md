@@ -112,12 +112,13 @@ With `CLAMAV_URL` set, every new upload is scanned by ClamAV before it is kept, 
 
 ## Encryption at rest
 
-With `ENCRYPTION_KEYS` set, uploaded files and webhook signing secrets are encrypted with AES-256-GCM before they are stored. Each file and secret names the key it was encrypted with, and every key in `ENCRYPTION_KEYS` decrypts, so a key can be replaced without losing what the old one encrypted.
+With `ENCRYPTION_KEYS` set, uploaded files, webhook signing secrets and bots' credentials are encrypted with AES-256-GCM before they are stored. Each file and secret names the key it was encrypted with, and every key in `ENCRYPTION_KEYS` decrypts, so a key can be replaced without losing what the old one encrypted.
 
 | Stored | Encrypted |
 |---|---|
 | Uploaded files (`FILES_DIR`) | Yes, as they arrive: the plaintext never reaches the disk. Files are encrypted in 64 KiB segments, so one changed byte, a swapped segment or a file cut short is detected rather than read |
 | Webhook signing secrets | Yes |
+| Bots' credentials (Telegram, Slack and WhatsApp tokens and secrets) | Yes |
 | API keys | Never stored: only their SHA-256 |
 | Chunks, embeddings, conversations, the audit log | No: search needs them as they are. Keep the database on an encrypted disk (most clouds encrypt volumes by default) |
 

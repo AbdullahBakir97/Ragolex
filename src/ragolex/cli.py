@@ -540,7 +540,7 @@ async def _encryption(action: str) -> int:
                 files = Counter(storage.key_id(path) for path in storage.stored_files())
                 secrets = await secret_keys(session)
                 current = keys.current_id if keys else None
-                for label, counts in (("files", files), ("webhook secrets", secrets)):
+                for label, counts in (("files", files), ("secrets", secrets)):
                     parts = [f"{count} with key {kid}" + (" (current)" if kid == current else "")
                              for kid, count in sorted(counts.items(), key=lambda item: str(item))
                              if kid is not None]
@@ -562,8 +562,8 @@ async def _encryption(action: str) -> int:
         return FAILED
     finally:
         await engine.dispose()
-    print(f"Encrypted {files_changed} files and {secrets_changed} webhook secrets with key "
-          f"{keys.current_id}.")
+    print(f"Encrypted {files_changed} files and {secrets_changed} secrets (of webhooks and bots) "
+          f"with key {keys.current_id}.")
     return PASSED
 
 
@@ -987,7 +987,7 @@ def main(argv: list[str] | None = None) -> int:
     audit.add_argument("--action", help="only actions that start with this, e.g. api_key")
     audit.add_argument("--limit", type=_positive, default=50, help="events to show (default 50)")
     encryption = commands.add_parser(
-        "encryption", help="encrypt uploaded files and webhook secrets at rest",
+        "encryption", help="encrypt uploaded files, and webhooks' and bots' secrets, at rest",
         description="Encryption at rest with ENCRYPTION_KEYS: make a key, see what is "
                     "encrypted with which key, and encrypt what is not yet encrypted with the "
                     "first key (after adding a key, or putting a new one first to rotate).")

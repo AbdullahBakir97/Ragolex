@@ -15,12 +15,19 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from itertools import count
 
-from ragolex.core.errors import DnsLookupFailed, EmbeddingFailed, LLMFailed, MailFailed
+from ragolex.core.errors import (
+    BotPlatformFailed,
+    DnsLookupFailed,
+    EmbeddingFailed,
+    LLMFailed,
+    MailFailed,
+)
 from ragolex.domain.llm import Completion, Message, TokenUsage
 from ragolex.domain.models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Bot,
     Card,
     Chunk,
     Conversation,
@@ -910,6 +917,105 @@ class FakeWidgets:
         return True
 
 
+class FakeBots:
+    """Bots of the projects in ``projects`` (the fake has one tenant, id 1)."""
+
+    def __init__(self, projects: FakeProjects):
+        self.projects = projects
+        self.by_id: dict[str, Bot] = {}
+        self.deliveries: set[tuple[str, str]] = set()
+        self.chats: dict[tuple[str, str], str] = {}
+
+    async def create(self, *, bot_id, project_id, kind, name, account, credentials,
+                     webhook_secret, tags=()) -> Bot:
+        project = next(p for p in self.projects.by_name.values() if p.id == project_id)
+        bot = Bot(id=bot_id, tenant_id=project.tenant_id, tenant_name="default",
+                  project_id=project_id, project_name=project.name, kind=kind, name=name,
+                  account=account, credentials=dict(credentials), webhook_secret=webhook_secret,
+                  enabled=True, created_at=datetime.now(UTC), tags=tuple(tags))
+        self.by_id[bot_id] = bot
+        return bot
+
+    async def get(self, bot_id: str) -> Bot | None:
+        return self.by_id.get(bot_id)
+
+    async def list_for_project(self, project_id: int) -> list[Bot]:
+        return [b for b in self.by_id.values() if b.project_id == project_id]
+
+    async def update(self, project_id: int, bot_id: str, changes) -> Bot | None:
+        bot = self.by_id.get(bot_id)
+        if bot is None or bot.project_id != project_id:
+            return None
+        values = {k: tuple(v) if k == "tags" else dict(v) if k == "credentials" else v
+                  for k, v in changes.items()}
+        self.by_id[bot_id] = replace(bot, **values)
+        return self.by_id[bot_id]
+
+    async def delete(self, project_id: int, bot_id: str) -> bool:
+        bot = self.by_id.get(bot_id)
+        if bot is None or bot.project_id != project_id:
+            return False
+        del self.by_id[bot_id]
+        return True
+
+    async def first_delivery(self, bot_id: str, update_id: str) -> bool:
+        if (bot_id, update_id) in self.deliveries:
+            return False
+        self.deliveries.add((bot_id, update_id))
+        return True
+
+    async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
+        return self.chats.get((bot_id, chat_key))
+
+    async def set_chat_conversation(self, bot_id: str, chat_key: str,
+                                    conversation_id: str | None) -> None:
+        if conversation_id is None:
+            self.chats.pop((bot_id, chat_key), None)
+        else:
+            self.chats[bot_id, chat_key] = conversation_id
+
+    async def answered(self, bot_id: str, error: str | None) -> None:
+        bot = self.by_id[bot_id]
+        now = datetime.now(UTC)
+        self.by_id[bot_id] = replace(bot, last_message_at=now,
+                                     **({"last_error": error, "last_error_at": now}
+                                        if error is not None else {}))
+
+
+class FakeChatPlatform:
+    """A chat app: what was sent where, and how the bot was registered."""
+
+    def __init__(self, account: str = "@help_bot"):
+        self.account = account
+        self.sent: list[tuple[dict, str]] = []
+        self.registered: dict[str, str] | None = None
+        self.unregistered = 0
+        self.refuse: str | None = None  # Refuse every call, with this message.
+
+    def _check(self) -> None:
+        if self.refuse:
+            raise BotPlatformFailed(self.refuse)
+
+    async def check(self, credentials) -> str:
+        self._check()
+        return self.account
+
+    async def register(self, credentials, url: str, secret: str) -> None:
+        self._check()
+        self.registered = {"url": url, "secret": secret}
+
+    async def unregister(self, credentials) -> None:
+        self._check()
+        self.unregistered += 1
+
+    async def send(self, credentials, reply_to, text: str) -> None:
+        self._check()
+        self.sent.append((dict(reply_to), text))
+
+    async def aclose(self) -> None:
+        pass
+
+
 class FakeAudit:
 
     def __init__(self):
@@ -1128,6 +1234,7 @@ class FakeUnitOfWork:
         self.invitations = FakeInvitations(self.tenants)
         self.password_resets = FakePasswordResets()
         self.domains = FakeDomains(self.tenants)
+        self.bots = FakeBots(self.projects)
         self.usage = FakeUsage()
         self.evaluations = FakeEvaluationRuns()
         self.decks = FakeDecks()

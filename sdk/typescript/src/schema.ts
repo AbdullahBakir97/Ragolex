@@ -1047,6 +1047,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/bots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's bots, oldest first */
+        get: operations["list_bots"];
+        put?: never;
+        /**
+         * Add a bot that answers in Telegram, Slack or WhatsApp
+         * @description The chat app is asked to accept the credentials first. Telegram is told the webhook URL; for Slack and WhatsApp, paste `webhook_url` (and WhatsApp's `verify_token`) into the app's settings.
+         */
+        post: operations["create_bot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/bots/{bot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A bot */
+        get: operations["get_bot"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a bot
+         * @description Telegram stops sending it messages; its conversations stay with the project.
+         */
+        delete: operations["delete_bot"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a bot
+         * @description Its name, tags, whether it answers, or its credentials (checked with the chat app first).
+         */
+        patch: operations["update_bot"];
+        trace?: never;
+    };
+    "/api/v1/bots/{bot_id}/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * WhatsApp checking the callback URL
+         * @description Echoes `hub.challenge` when `hub.verify_token` is the bot's verify token.
+         */
+        get: operations["bot_webhook_check"];
+        put?: never;
+        /**
+         * Where a chat app delivers a bot's messages
+         * @description Checked with the app's signature (Telegram's secret token, Slack's signing secret, WhatsApp's app secret). Answers at once; the reply is sent to the chat when it is written. A delivery sent again is answered once.
+         */
+        post: operations["bot_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -1702,6 +1772,112 @@ export interface components {
              * @description Comma-separated. Tags: letters, digits and hyphens, up to 32 characters each; they are lowercased, with spaces and underscores turned into hyphens.
              */
             tags?: string | null;
+        };
+        /** BotListResponse */
+        BotListResponse: {
+            /** Items */
+            items: components["schemas"]["BotResponse"][];
+        };
+        /** BotRequest */
+        BotRequest: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "telegram" | "slack" | "whatsapp";
+            /**
+             * Name
+             * @example Help desk
+             */
+            name: string;
+            /**
+             * Credentials
+             * @description Telegram: `token` (from @BotFather). Slack: `bot_token` (xoxb-…) and `signing_secret`. WhatsApp: `access_token`, `phone_number_id` and `app_secret`. Stored encrypted, and never returned.
+             * @example {
+             *       "token": "123456:ABC-…"
+             *     }
+             */
+            credentials: {
+                [key: string]: string;
+            };
+            /**
+             * Tags
+             * @description Answer only from files with any of these tags; empty for all files.
+             * @example [
+             *       "guides",
+             *       "v2"
+             *     ]
+             */
+            tags?: string[];
+        };
+        /** BotResponse */
+        BotResponse: {
+            /** Id */
+            id: string;
+            /** Project */
+            project: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "telegram" | "slack" | "whatsapp";
+            /** Name */
+            name: string;
+            /**
+             * Account
+             * @description The bot in the chat app, such as `@acme_help_bot`.
+             */
+            account: string;
+            /** Tags */
+            tags: string[];
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Webhook Url
+             * @description Where the chat app sends messages: set by API for Telegram; paste it into Slack's Event Subscriptions or WhatsApp's Callback URL.
+             */
+            webhook_url: string;
+            /**
+             * Verify Token
+             * @description WhatsApp only: the Verify token to paste next to the Callback URL.
+             */
+            verify_token: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Message At */
+            last_message_at: string | null;
+            /**
+             * Last Error
+             * @description Why the last message it failed on failed.
+             */
+            last_error: string | null;
+            /** Last Error At */
+            last_error_at: string | null;
+        };
+        /**
+         * BotUpdateRequest
+         * @description Only the fields sent are changed; new `credentials` replace the old ones whole.
+         */
+        BotUpdateRequest: {
+            /** Name */
+            name?: string | null;
+            /**
+             * Tags
+             * @description [] or null for all files.
+             */
+            tags?: string[] | null;
+            /**
+             * Enabled
+             * @description A bot turned off ignores messages.
+             */
+            enabled?: boolean | null;
+            /** Credentials */
+            credentials?: {
+                [key: string]: string;
+            } | null;
         };
         /** CardListResponse */
         CardListResponse: {
@@ -2825,7 +3001,7 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "current_password_wrong" | "member_not_found" | "owner_required" | "last_owner" | "already_member" | "invitation_not_found" | "invitation_invalid" | "invitation_for_someone_else" | "account_details_required" | "password_reset_invalid" | "domain_invalid" | "domain_not_found" | "domain_exists" | "domain_taken" | "domain_not_verified" | "wrong_domain" | "dns_lookup_failed" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "current_password_wrong" | "member_not_found" | "owner_required" | "last_owner" | "already_member" | "invitation_not_found" | "invitation_invalid" | "invitation_for_someone_else" | "account_details_required" | "password_reset_invalid" | "domain_invalid" | "domain_not_found" | "domain_exists" | "domain_taken" | "domain_not_verified" | "wrong_domain" | "dns_lookup_failed" | "bot_not_found" | "bot_credentials_invalid" | "bot_platform_failed" | "bot_signature_invalid" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
         /** ReviewCardResponse */
         ReviewCardResponse: {
             /** Id */
@@ -6678,6 +6854,343 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SiteResponse"];
+                };
+            };
+        };
+    };
+    list_bots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotListResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_bot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `bot_credentials_invalid` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `bot_platform_failed` */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_bot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The bot's id, from its webhook URL. */
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `bot_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_bot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The bot's id, from its webhook URL. */
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Signal: `project_not_found`, `bot_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_bot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name: letters, digits, '_' and '-' (1-64 characters). */
+                project_id: string;
+                /** @description The bot's id, from its webhook URL. */
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotResponse"];
+                };
+            };
+            /** @description Signal: `project_not_found`, `bot_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `bot_credentials_invalid` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `bot_platform_failed` */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    bot_webhook_check: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The bot's id, from its webhook URL. */
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Signal: `bot_signature_invalid` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `bot_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bot_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The bot's id, from its webhook URL. */
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Signal: `bot_signature_invalid` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `bot_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

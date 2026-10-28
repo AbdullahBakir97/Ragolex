@@ -171,6 +171,9 @@ class Settings(BaseSettings):
     OCR_LANGUAGES: str = Field(default="eng", pattern=r"^[A-Za-z_]+(\+[A-Za-z_]+)*$")
     OCR_MODEL: str | None = None
     OCR_TIMEOUT_SECONDS: float = Field(default=120, gt=0, le=600)
+    BOT_TIMEOUT_SECONDS: float = Field(
+        default=15, gt=0, le=60, description="How long Telegram, Slack and WhatsApp have to "
+                                             "answer a bot's call")
     WEBHOOK_TIMEOUT_SECONDS: float = Field(
         default=10, gt=0, le=60, description="How long a webhook's receiver has to answer")
     ENCRYPTION_KEYS: str = Field(

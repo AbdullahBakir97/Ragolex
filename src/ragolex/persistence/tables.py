@@ -399,6 +399,56 @@ class WidgetRow(Base):
     created_at: Mapped[datetime] = _created_at()
 
 
+class BotRow(Base):
+    """A project's assistant in a chat app (Telegram, Slack or WhatsApp)."""
+
+    __tablename__ = "bots"
+    __table_args__ = (
+        CheckConstraint("kind IN ('telegram', 'slack', 'whatsapp')", name="kind"),
+    )
+
+    # Public: it is in the webhook URL the chat app sends messages to.
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str] = mapped_column(String(100))
+    account: Mapped[str] = mapped_column(String(255))
+    # The app's tokens and secrets as JSON, encrypted with ENCRYPTION_KEYS when set.
+    credentials: Mapped[str] = mapped_column(EncryptedString())
+    webhook_secret: Mapped[str] = mapped_column(EncryptedString(255))
+    tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    created_at: Mapped[datetime] = _created_at()
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BotChatRow(Base):
+    """The conversation a chat or thread keeps with a bot, so follow-ups work."""
+
+    __tablename__ = "bot_chats"
+
+    bot_id: Mapped[str] = mapped_column(
+        ForeignKey("bots.id", ondelete="CASCADE"), primary_key=True)
+    chat_key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    # Deleting the conversation starts the chat afresh.
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
+
+
+class BotDeliveryRow(Base):
+    """A message a chat app delivered, so a delivery sent again is answered once."""
+
+    __tablename__ = "bot_deliveries"
+
+    bot_id: Mapped[str] = mapped_column(
+        ForeignKey("bots.id", ondelete="CASCADE"), primary_key=True)
+    update_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    created_at: Mapped[datetime] = _created_at()
+
+
 class ConversationRow(Base):
     __tablename__ = "conversations"
     __table_args__ = (

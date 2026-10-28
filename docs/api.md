@@ -201,6 +201,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`) |
 | `invitation.created`, `invitation.revoked`, `invitation.accepted` | The invited email | The invitation's id and `role` |
 | `domain.added`, `domain.verified`, `domain.removed` | The domain | |
+| `bot.created`, `bot.updated`, `bot.deleted` | The bot's id | Project, kind, name and what changed; never its credentials |
 | `api_key.created`, `api_key.revoked` | The key's id | Name, prefix and scopes, never the key |
 | `webhook.created`, `webhook.deleted` | The webhook's id | Project, URL and events, never the secret |
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
@@ -244,7 +245,7 @@ curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/ap
 | `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
 | `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
 | `projects/<project>/files/<file_id>` | The files, exactly as uploaded |
-| `projects/<project>/sources.json`, `widgets.json`, `webhooks.json` | The project's sources, chat widgets and webhooks; webhooks without their signing secret |
+| `projects/<project>/sources.json`, `widgets.json`, `webhooks.json`, `bots.json` | The project's sources, chat widgets, webhooks and bots; webhooks without their signing secret, bots without their credentials |
 | `projects/<project>/conversations.jsonl` | Each conversation with its questions and answers, their citations and feedback |
 
 Chunks and their embeddings are left out: processing the files again makes them, with whichever embedding model is used then. Each export is recorded in the audit log as `tenant.exported`.
@@ -372,6 +373,13 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/api/v1/projects/{project_id}/widgets/{widget_id}` | A chat widget (`admin`) |
 | `PATCH` | `/api/v1/projects/{project_id}/widgets/{widget_id}` | Change a chat widget's settings (`admin`) |
 | `DELETE` | `/api/v1/projects/{project_id}/widgets/{widget_id}` | Remove a chat widget; its conversations stay (`admin`) |
+| `POST` | `/api/v1/projects/{project_id}/bots` | Add a bot that answers in Telegram, Slack or WhatsApp (`admin`) |
+| `GET` | `/api/v1/projects/{project_id}/bots` | List the project's bots (`admin`) |
+| `GET` | `/api/v1/projects/{project_id}/bots/{bot_id}` | A bot (`admin`) |
+| `PATCH` | `/api/v1/projects/{project_id}/bots/{bot_id}` | Change a bot (`admin`) |
+| `DELETE` | `/api/v1/projects/{project_id}/bots/{bot_id}` | Remove a bot (`admin`) |
+| `POST` | `/api/v1/bots/{bot_id}/webhook` | Where a chat app delivers a bot's messages (signed by the app, no key) |
+| `GET` | `/api/v1/bots/{bot_id}/webhook` | WhatsApp checking the callback URL (no key) |
 | `GET` | `/api/v1/widgets/{widget_id}` | What a widget shows, for its visitors (no key) |
 | `POST` | `/api/v1/widgets/{widget_id}/ask` | Answer a visitor's question, streamed (no key) |
 | `PUT` | `/api/v1/widgets/{widget_id}/conversations/{conversation_id}/messages/{message_id}/feedback` | A visitor rates an answer (no key) |
@@ -771,6 +779,33 @@ The page can also call `window.RagolexWidget.open()` and `.close()`. The widget 
 **What visitors can do.** The widget's id is public: it is in the page. With it, and no API key, a visitor can only see the widget's name, welcome, colour and logo (`GET /api/v1/widgets/{widget_id}`), ask its one project (`POST .../ask`), and rate the answers in their own conversations. Answers stream as Server-Sent Events like [`/ask/{project_id}/stream`](#streaming-the-answer), but the final `answer` event holds only what a visitor needs: the answer, its citations with the document's name, page, section and passage, the `conversation_id` to send with the next question, and the `message_id` to rate it. No file ids, scores, prompt versions or costs. A visitor can continue only conversations started in the same widget (`404` `{"signal": "conversation_not_found"}` otherwise). Widget requests count against the tenant's rate limit and answer quota, and their conversations appear with the project's others, marked with the widget's `widget_id`; removing the widget keeps them.
 
 **Which websites.** Browsers send an `Origin` header with every request a page makes to another site, and a page on a website the widget does not allow is refused with `403` `{"signal": "origin_not_allowed"}`; the widget then stays hidden and says why in the browser console. The widget's routes answer any website's CORS requests (without cookies), so that refusal is readable. Pages on the API's own host, such as the web app's widget preview, may use every widget. The check keeps other websites from embedding your widget; it is not a password, since a client outside a browser can send any `Origin`, which is why a widget can do no more than its visitors could anyway.
+
+## Chat bots: Telegram, Slack and WhatsApp
+
+A bot answers in a chat app what people ask it, from the project's documents, as the chat widget does on a website: each answer ends with the sources its `[n]` markers cite, each chat (or Slack thread) keeps a conversation so follow-up questions work, and a bot with `tags` answers only from the files that have them. Bots need the `admin` scope to manage:
+
+| Endpoint | Does |
+|---|---|
+| `POST /api/v1/projects/{project_id}/bots` | Adds a bot: `{"kind": "telegram", "name": "Help desk", "credentials": {"token": "…"}, "tags": []}` (`201`) |
+| `GET /api/v1/projects/{project_id}/bots` | The project's bots, oldest first |
+| `GET`, `PATCH`, `DELETE /api/v1/projects/{project_id}/bots/{bot_id}` | One bot; change its `name`, `tags`, `enabled` or `credentials`; remove it (its conversations stay) |
+
+The chat app is asked to accept the credentials before the bot is saved, and they are stored encrypted (with `ENCRYPTION_KEYS`) and never returned. A bot shows its `account` in the app, its `webhook_url`, when it last answered, and why it last failed (`last_error`), such as a reply the app refused.
+
+**Telegram.** Talk to [@BotFather](https://t.me/BotFather), send `/newbot`, and give the token it shows as `{"token": "…"}`. The bot sets its webhook with Telegram itself, which needs `APP_URL` to be an `https://` address Telegram can reach. People find the bot by its `@name`; `/start` says what it does and `/new` starts a new conversation. In groups, mention it or reply to it.
+
+**Slack.** Create an app at [api.slack.com/apps](https://api.slack.com/apps). Under *OAuth & Permissions* give the bot the scopes `app_mentions:read`, `chat:write` and `im:history`, and install it to the workspace; under *Event Subscriptions* turn events on, paste the bot's `webhook_url` as the Request URL (Slack checks it at once), and subscribe to the bot events `app_mention` and `message.im`. Give `{"bot_token": "xoxb-…", "signing_secret": "…"}` (the signing secret is under *Basic Information*). People mention the bot in a channel, and it answers in a thread, or message it directly.
+
+**WhatsApp.** In a [Meta app](https://developers.facebook.com/apps) with the WhatsApp product, take the phone number's id and an access token (a system user's permanent token for production) from *API Setup*, and the app secret from *App settings › Basic*: `{"access_token": "…", "phone_number_id": "…", "app_secret": "…"}`. Then, under *WhatsApp › Configuration*, set the Callback URL to the bot's `webhook_url` and the Verify token to its `verify_token`, and subscribe to `messages`.
+
+Chat apps deliver each message to `POST /api/v1/bots/{bot_id}/webhook`, which needs no key: it checks the app's proof instead (Telegram's secret token, Slack's signature with its signing secret, no older than five minutes, and WhatsApp's signature with the app secret). It answers the app at once, since apps wait only seconds, and the reply follows when it is written. A message the app delivers again is answered once. Each answer counts against the workspace's [rate limit, quotas and budget](#rate-limits-and-quotas); over them, the bot says so in the chat.
+
+| Case | Status | Response |
+|---|---|---|
+| Credentials missing, or refused by the chat app | `422` | `{"signal": "bot_credentials_invalid"}` |
+| The chat app failed or could not be reached | `502` | `{"signal": "bot_platform_failed"}` |
+| No such bot | `404` | `{"signal": "bot_not_found"}` |
+| A delivery the app did not sign | `401` | `{"signal": "bot_signature_invalid"}` |
 
 ## Search
 

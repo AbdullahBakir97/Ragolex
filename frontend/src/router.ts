@@ -83,6 +83,12 @@ export const router = createRouter({
           meta: { title: "Chat widget" },
         },
         {
+          path: "bots",
+          name: "bots",
+          component: () => import("@/views/project/BotsView.vue"),
+          meta: { title: "Chat bots" },
+        },
+        {
           path: "webhooks",
           name: "webhooks",
           component: () => import("@/views/project/WebhooksView.vue"),

@@ -52,6 +52,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `CRAWLER_TIMEOUT_SECONDS` | `15` | How long one page may take to arrive (up to 120) |
 | `GITHUB_TOKEN` | unset | A GitHub token for [GitHub sources](api.md#feeds-and-github-repositories): reads private repositories (fine-grained, with *Contents: read*) and raises the rate limit from 60 requests an hour to 5000 |
 | `WEBHOOK_TIMEOUT_SECONDS` | `10` | How long a webhook's receiver has to answer (up to 60) |
+| `BOT_TIMEOUT_SECONDS` | `15` | How long Telegram, Slack and WhatsApp have to answer a [bot](api.md#chat-bots-telegram-slack-and-whatsapp)'s call (up to 60) |
 | `SEARCH_MODE` | `"hybrid"` | `hybrid` ranks chunks by meaning and by the words they share with the question, merged by reciprocal rank fusion; `vector` by meaning only. Scores are the cosine similarity either way |
 | `ANSWER_MIN_SCORE` | `0.3` | Chunks scoring below this cosine similarity are not used for answers; with none left the answer is `no_answer`. The default suits `text-embedding-3-small`; other models may need another value |
 | `RESEARCH_MAX_STEPS` | `3` | Most planning and review steps of [research mode](api.md#research-mode) (1–5), whatever a request asks for. Each step is one model call, and its searches are embedding calls |
@@ -64,7 +65,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `FILE_ALLOWED_TYPES` | Text, Markdown, HTML, PDF, Word (`.docx`) and [source code](api.md#source-code) | MIME types accepted for upload. An upload with no type, or `application/octet-stream`, gets the type of its extension |
 | `FILE_MAX_SIZE` | `10` | Maximum upload size in MB |
 | `FILE_DEFAULT_CHUNK_SIZE` | `512000` | Bytes read per chunk while saving an upload |
-| `ENCRYPTION_KEYS` | `""` | Comma-separated keys from `ragolex encryption new-key`. Set, uploaded files and webhook secrets are encrypted at rest (AES-256-GCM) with the first key, and any of the keys decrypts. Empty, they are stored as they are. Losing a key loses what it encrypted. See [Operations › Encryption at rest](operations.md#encryption-at-rest) |
+| `ENCRYPTION_KEYS` | `""` | Comma-separated keys from `ragolex encryption new-key`. Set, uploaded files, webhook secrets and bots' credentials are encrypted at rest (AES-256-GCM) with the first key, and any of the keys decrypts. Empty, they are stored as they are. Losing a key loses what it encrypted. See [Operations › Encryption at rest](operations.md#encryption-at-rest) |
 
 ## Model providers
 

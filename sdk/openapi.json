@@ -5733,6 +5733,640 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/bots": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Add a bot that answers in Telegram, Slack or WhatsApp",
+        "description": "The chat app is asked to accept the credentials first. Telegram is told the webhook URL; for Slack and WhatsApp, paste `webhook_url` (and WhatsApp's `verify_token`) into the app's settings.",
+        "operationId": "create_bot",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `bot_credentials_invalid`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_credentials_invalid": {
+                    "value": {
+                      "signal": "bot_credentials_invalid"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Signal: `bot_platform_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_platform_failed": {
+                    "value": {
+                      "signal": "bot_platform_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "The project's bots, oldest first",
+        "operationId": "list_bots",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/bots/{bot_id}": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "A bot",
+        "operationId": "get_bot",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Change a bot",
+        "description": "Its name, tags, whether it answers, or its credentials (checked with the chat app first).",
+        "operationId": "update_bot",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `bot_credentials_invalid`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_credentials_invalid": {
+                    "value": {
+                      "signal": "bot_credentials_invalid"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Signal: `bot_platform_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_platform_failed": {
+                    "value": {
+                      "signal": "bot_platform_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Remove a bot",
+        "description": "Telegram stops sending it messages; its conversations stay with the project.",
+        "operationId": "delete_bot",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/webhook": {
+      "post": {
+        "tags": [
+          "bot webhooks"
+        ],
+        "summary": "Where a chat app delivers a bot's messages",
+        "description": "Checked with the app's signature (Telegram's secret token, Slack's signing secret, WhatsApp's app secret). Answers at once; the reply is sent to the chat when it is written. A delivery sent again is answered once.",
+        "operationId": "bot_webhook",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `bot_signature_invalid`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_signature_invalid": {
+                    "value": {
+                      "signal": "bot_signature_invalid"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bot webhooks"
+        ],
+        "summary": "WhatsApp checking the callback URL",
+        "description": "Echoes `hub.challenge` when `hub.verify_token` is the bot's verify token.",
+        "operationId": "bot_webhook_check",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `bot_signature_invalid`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_signature_invalid": {
+                    "value": {
+                      "signal": "bot_signature_invalid"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "tags": [
@@ -8782,6 +9416,266 @@
         ],
         "title": "Body_upload_data"
       },
+      "BotListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BotResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BotListResponse"
+      },
+      "BotRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "telegram",
+              "slack",
+              "whatsapp"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "examples": [
+              "Help desk"
+            ]
+          },
+          "credentials": {
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "type": "object",
+            "title": "Credentials",
+            "description": "Telegram: `token` (from @BotFather). Slack: `bot_token` (xoxb-…) and `signing_secret`. WhatsApp: `access_token`, `phone_number_id` and `app_secret`. Stored encrypted, and never returned.",
+            "examples": [
+              {
+                "token": "123456:ABC-…"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Tags",
+            "description": "Answer only from files with any of these tags; empty for all files.",
+            "examples": [
+              [
+                "guides",
+                "v2"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "credentials"
+        ],
+        "title": "BotRequest"
+      },
+      "BotResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project": {
+            "type": "string",
+            "title": "Project"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "telegram",
+              "slack",
+              "whatsapp"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "The bot in the chat app, such as `@acme_help_bot`."
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "webhook_url": {
+            "type": "string",
+            "title": "Webhook Url",
+            "description": "Where the chat app sends messages: set by API for Telegram; paste it into Slack's Event Subscriptions or WhatsApp's Callback URL."
+          },
+          "verify_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Token",
+            "description": "WhatsApp only: the Verify token to paste next to the Callback URL."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_message_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Message At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error",
+            "description": "Why the last message it failed on failed."
+          },
+          "last_error_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project",
+          "kind",
+          "name",
+          "account",
+          "tags",
+          "enabled",
+          "webhook_url",
+          "verify_token",
+          "created_at",
+          "last_message_at",
+          "last_error",
+          "last_error_at"
+        ],
+        "title": "BotResponse"
+      },
+      "BotUpdateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20,
+                "description": "Tags: letters, digits and hyphens, up to 32 characters each; they are lowercased, with spaces and underscores turned into hyphens.",
+                "examples": [
+                  [
+                    "guides",
+                    "v2"
+                  ]
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "[] or null for all files."
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "A bot turned off ignores messages."
+          },
+          "credentials": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 4096
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credentials"
+          }
+        },
+        "type": "object",
+        "title": "BotUpdateRequest",
+        "description": "Only the fields sent are changed; new `credentials` replace the old ones whole."
+      },
       "CardListResponse": {
         "properties": {
           "total": {
@@ -11299,6 +12193,10 @@
           "domain_not_verified",
           "wrong_domain",
           "dns_lookup_failed",
+          "bot_not_found",
+          "bot_credentials_invalid",
+          "bot_platform_failed",
+          "bot_signature_invalid",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",

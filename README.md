@@ -37,6 +37,7 @@
 
 - **Embed a chat widget** in any website with one `<script>` tag: streamed answers with clickable citations, in the site's colour and with its logo, allowed only on the websites you list, without API keys in the page.
 - **Use the [TypeScript and Python SDKs](sdk/README.md)**, generated from the OpenAPI schema and checked against the API in CI: every endpoint typed, streamed answers, uploads and jobs.
+- **Chat** in Telegram, Slack and WhatsApp: a project's bot answers with its sources, keeps each chat's conversation, and checks every message's signature.
 - **Connect agents** through a built-in MCP server (`/api/v1/mcp`) with `list_projects`, `search_knowledge` and `ask` tools, or the same tools as function-calling schemas.
 - **Automate** with signed webhooks: uploads, deletions, finished jobs and budget alerts are sent to n8n, Make, Zapier or any URL, retried for a day until received.
 - **Rely on a stable API**: `/api/v1` only grows, CI fails on breaking changes, and retired endpoints announce their end in headers at least six months ahead.
@@ -59,7 +60,7 @@
 - **Deploy** automatically: every merge runs on staging and every release tag on production, from images built once, going back to the previous release on its own when a deployment isn't healthy.
 - **Tested** by more than 1,200 backend tests with a 95% coverage threshold, Vitest unit tests, and Playwright end-to-end and accessibility checks of every page; dependencies and secrets are scanned in CI.
 
-Next on the [roadmap](docs/roadmap.md): OAuth connectors for Notion and Google Drive, and Telegram, Slack and WhatsApp bots.
+Next on the [roadmap](docs/roadmap.md): OAuth connectors for Notion and Google Drive.
 
 ## Web app
 

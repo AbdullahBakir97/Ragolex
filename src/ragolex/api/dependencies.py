@@ -1,10 +1,10 @@
 """Dependency wiring: how the API builds the objects that routes use."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import Depends, Request, Response, Security
+from fastapi import Depends, FastAPI, Request, Response, Security
 from fastapi.security import (
     APIKeyCookie,
     APIKeyHeader,
@@ -22,6 +22,7 @@ from ragolex.core.errors import (
     ScopeMissing,
     WrongDomain,
 )
+from ragolex.domain.chat_platform import ChatPlatform
 from ragolex.domain.dns import TxtResolver
 from ragolex.domain.embedder import Embedder
 from ragolex.domain.llm import LLM
@@ -35,6 +36,7 @@ from ragolex.services.account_service import AccountService
 from ragolex.services.answer_service import AnswerService
 from ragolex.services.assistant_service import AssistantService
 from ragolex.services.auth_service import AuthService
+from ragolex.services.bot_service import BotService
 from ragolex.services.conversation_service import ConversationService
 from ragolex.services.deletion_service import DeletionService
 from ragolex.services.domain_service import DomainService
@@ -382,3 +384,32 @@ def get_domain_service(uow: UnitOfWorkDep, settings: SettingsDep,
 
 
 DomainServiceDep = Annotated[DomainService, Depends(get_domain_service)]
+
+
+def get_chat_platforms(request: Request) -> Mapping[str, ChatPlatform]:
+    return request.app.state.chat_platforms
+
+
+def get_bot_service(uow: UnitOfWorkDep, settings: SettingsDep,
+                    platforms: Annotated[Mapping[str, ChatPlatform], Depends(get_chat_platforms)],
+                    ) -> BotService:
+    return BotService(uow, platforms, app_url=settings.APP_URL)
+
+
+BotServiceDep = Annotated[BotService, Depends(get_bot_service)]
+
+
+def background_answer_service(app: FastAPI, uow: UnitOfWork, settings: Settings,
+                              limits: LimitService) -> AnswerService:
+    """An AnswerService outside a request, as get_answer_service makes one in it: for bots,
+    which answer after their webhook's response."""
+    if app.state.embedder is None:
+        raise EmbeddingNotConfigured()
+    if app.state.llm is None:
+        raise LLMNotConfigured()
+    search = SearchService(uow=uow, embedder=app.state.embedder, mode=settings.SEARCH_MODE,
+                           reranker=app.state.reranker,
+                           rerank_candidates=settings.RERANK_CANDIDATES)
+    return AnswerService(search=search, llm=app.state.llm, uow=uow,
+                         min_score=settings.ANSWER_MIN_SCORE, prices=settings.llm_prices,
+                         limits=limits, max_research_steps=settings.RESEARCH_MAX_STEPS)

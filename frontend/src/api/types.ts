@@ -160,6 +160,27 @@ export interface Domain {
   records: DnsRecord[];
 }
 
+export type BotKind = "telegram" | "slack" | "whatsapp";
+
+/** A project's assistant in a chat app. Its credentials are never returned. */
+export interface ChatBot {
+  id: string;
+  project: string;
+  kind: BotKind;
+  name: string;
+  /** The bot in the chat app, such as @acme_help_bot. */
+  account: string;
+  tags: string[];
+  enabled: boolean;
+  webhook_url: string;
+  /** WhatsApp only. */
+  verify_token: string | null;
+  created_at: string;
+  last_message_at: string | null;
+  last_error: string | null;
+  last_error_at: string | null;
+}
+
 export type MemberRole = "owner" | "admin" | "editor" | "viewer";
 export const MEMBER_ROLES: MemberRole[] = ["owner", "admin", "editor", "viewer"];
 

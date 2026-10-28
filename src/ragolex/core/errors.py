@@ -363,6 +363,32 @@ class DnsLookupFailed(AppError):
     status_code = HTTPStatus.SERVICE_UNAVAILABLE
 
 
+class BotNotFound(AppError):
+    signal = ResponseSignal.BOT_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class BotCredentialsInvalid(AppError):
+    """A bot's credentials lack what its chat app needs, or the app refused them."""
+
+    signal = ResponseSignal.BOT_CREDENTIALS_INVALID
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class BotPlatformFailed(AppError):
+    """The chat app refused a call or could not be reached; the message says how."""
+
+    signal = ResponseSignal.BOT_PLATFORM_FAILED
+    status_code = HTTPStatus.BAD_GATEWAY
+
+
+class BotSignatureInvalid(AppError):
+    """A webhook delivery that the chat app did not sign, or not with the bot's secret."""
+
+    signal = ResponseSignal.BOT_SIGNATURE_INVALID
+    status_code = HTTPStatus.UNAUTHORIZED
+
+
 class RateLimited(AppError):
     """The tenant made too many requests this minute; Retry-After says when to try again."""
 
