@@ -39,7 +39,7 @@ jobs:
       TEST_DATABASE_URL: postgresql+asyncpg://ragolex:ragolex@localhost:5432/ragolex_test
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
