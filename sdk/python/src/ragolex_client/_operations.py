@@ -16,11 +16,18 @@ from .models import (
     AssistantResponse,
     AssistantUpdateRequest,
     AuditListResponse,
+    BotListResponse,
+    BotRequest,
+    BotResponse,
+    BotUpdateRequest,
     CardListResponse,
     CardRequest,
     CardResponse,
     CardsRequest,
     ChunkListResponse,
+    ConnectionListResponse,
+    ConnectionStartRequest,
+    ConnectionStartResponse,
     ConversationCreateRequest,
     ConversationDetailResponse,
     ConversationListResponse,
@@ -29,6 +36,8 @@ from .models import (
     DeckResponse,
     DeliveryListResponse,
     DeliveryResponse,
+    DomainRequest,
+    DomainResponse,
     EvaluationRunListResponse,
     FeedbackListResponse,
     FeedbackRequest,
@@ -66,10 +75,15 @@ from .models import (
     SearchResponse,
     SessionResponse,
     SignupRequest,
+    SiteResponse,
     SourceListResponse,
     SourcePagesResponse,
     SourceRequest,
     SourceResponse,
+    SsoDiscoverRequest,
+    SsoDiscoverResponse,
+    SsoSettingsRequest,
+    SsoSettingsResponse,
     StudyRequest,
     StudyResponse,
     TagListResponse,
@@ -297,17 +311,18 @@ class Operations:
         self,
         project_id: str,
         *,
-        url: str,
-        kind: Literal['website', 'feed', 'github'] | str | Unset = UNSET,
+        kind: Literal['website', 'feed', 'github', 'notion', 'google_drive'] | str | Unset = UNSET,
+        url: str | None | Unset = UNSET,
+        connection_id: str | None | Unset = UNSET,
         max_pages: int | Unset = UNSET,
         sync_interval_hours: int | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
     ) -> SourceResponse:
-        """Keep a website's pages, a feed's entries or a GitHub repository's documents
+        """Keep a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files
 
-        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
+        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched; Notion pages and Google Drive files are read through one of the workspace's connections. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
         """
-        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'connection_id': connection_id, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
 
     def list_sources(
         self,
@@ -520,7 +535,7 @@ class Operations:
     ) -> SessionResponse:
         """Create an account with a workspace of its own, and sign in
 
-        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.
+        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is, and on a workspace's own domain, where people are invited.
         """
         return self._request('POST', '/api/v1/auth/signup', query={}, json=_body(SignupRequest, {'email': email, 'password': password, 'name': name, 'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
@@ -532,7 +547,7 @@ class Operations:
     ) -> SessionResponse:
         """Sign in with an email and password
 
-        Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.
+        Sets the session cookie, working in the first of the user's workspaces, or on a workspace's own domain, in that one. The 10th wrong password in a row locks the account for 15 minutes.
         """
         return self._request('POST', '/api/v1/auth/login', query={}, json=_body(LoginRequest, {'email': email, 'password': password}, optional=False), response=SessionResponse.model_validate)
 
@@ -547,6 +562,8 @@ class Operations:
         self,
     ) -> SessionResponse:
         """The signed-in user and their workspaces
+
+        On a workspace's own domain, the session works in that workspace.
         """
         return self._request('GET', '/api/v1/auth/session', query={}, json=None, response=SessionResponse.model_validate)
 
@@ -556,6 +573,8 @@ class Operations:
         workspace: str,
     ) -> SessionResponse:
         """Work in another of the user's workspaces
+
+        Not on a workspace's own domain, which always works in its own.
         """
         return self._request('PUT', '/api/v1/auth/session/workspace', query={}, json=_body(WorkspaceRequest, {'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
@@ -731,6 +750,217 @@ class Operations:
         Its link stops working at once.
         """
         return self._request('DELETE', f'/api/v1/invitations/{_path(invitation_id)}', query={}, json=None, response=_none)
+
+    def list_domains(
+        self,
+    ) -> list[DomainResponse]:
+        """The workspace's own domains, by name
+        """
+        return self._request('GET', '/api/v1/domains', query={}, json=None, response=_list(DomainResponse))
+
+    def add_domain(
+        self,
+        *,
+        domain: str,
+    ) -> DomainResponse:
+        """Add a domain for the workspace to serve on
+
+        It serves nothing until verified: add the TXT record it returns at the domain's DNS provider, then `POST …/verify`. Point the domain at this server with the CNAME (or an A record).
+        """
+        return self._request('POST', '/api/v1/domains', query={}, json=_body(DomainRequest, {'domain': domain}, optional=False), response=DomainResponse.model_validate)
+
+    def verify_domain(
+        self,
+        domain_id: str,
+    ) -> DomainResponse:
+        """Check the domain's TXT record
+
+        Looks the record up now, without caching. Once found, the domain serves the workspace: requests to it act for it, and invitation links use it.
+        """
+        return self._request('POST', f'/api/v1/domains/{_path(domain_id)}/verify', query={}, json=None, response=DomainResponse.model_validate)
+
+    def remove_domain(
+        self,
+        domain_id: str,
+    ) -> None:
+        """Remove a domain
+
+        It stops serving the workspace at once.
+        """
+        return self._request('DELETE', f'/api/v1/domains/{_path(domain_id)}', query={}, json=None, response=_none)
+
+    def domain_allowed(
+        self,
+        *,
+        domain: str,
+    ) -> dict[str, str]:
+        """Whether a domain is a verified workspace's
+
+        For a reverse proxy's on-demand certificates, such as Caddy's `on_demand_tls` `ask`: `200` for a verified domain, `404` otherwise. Needs no key.
+        """
+        return self._request('GET', '/api/v1/domains/allowed', query={'domain': domain}, json=None, response=_raw)
+
+    def site(
+        self,
+    ) -> SiteResponse:
+        """What this domain serves, for the web app before sign-in
+
+        The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.
+        """
+        return self._request('GET', '/api/v1/site', query={}, json=None, response=SiteResponse.model_validate)
+
+    def create_bot(
+        self,
+        project_id: str,
+        *,
+        kind: Literal['telegram', 'slack', 'whatsapp'] | str,
+        name: str,
+        credentials: dict[str, str],
+        tags: list[str] | Unset = UNSET,
+    ) -> BotResponse:
+        """Add a bot that answers in Telegram, Slack or WhatsApp
+
+        The chat app is asked to accept the credentials first. Telegram is told the webhook URL; for Slack and WhatsApp, paste `webhook_url` (and WhatsApp's `verify_token`) into the app's settings.
+        """
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/bots', query={}, json=_body(BotRequest, {'kind': kind, 'name': name, 'credentials': credentials, 'tags': tags}, optional=False), response=BotResponse.model_validate)
+
+    def list_bots(
+        self,
+        project_id: str,
+    ) -> BotListResponse:
+        """The project's bots, oldest first
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/bots', query={}, json=None, response=BotListResponse.model_validate)
+
+    def get_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+    ) -> BotResponse:
+        """A bot
+        """
+        return self._request('GET', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=None, response=BotResponse.model_validate)
+
+    def update_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+        *,
+        name: str | None | Unset = UNSET,
+        tags: list[str] | None | Unset = UNSET,
+        enabled: bool | None | Unset = UNSET,
+        credentials: dict[str, str] | None | Unset = UNSET,
+    ) -> BotResponse:
+        """Change a bot
+
+        Its name, tags, whether it answers, or its credentials (checked with the chat app first).
+        """
+        return self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=_body(BotUpdateRequest, {'name': name, 'tags': tags, 'enabled': enabled, 'credentials': credentials}, optional=False), response=BotResponse.model_validate)
+
+    def delete_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+    ) -> None:
+        """Remove a bot
+
+        Telegram stops sending it messages; its conversations stay with the project.
+        """
+        return self._request('DELETE', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=None, response=_none)
+
+    def bot_webhook(
+        self,
+        bot_id: str,
+    ) -> None:
+        """Where a chat app delivers a bot's messages
+
+        Checked with the app's signature (Telegram's secret token, Slack's signing secret, WhatsApp's app secret). Answers at once; the reply is sent to the chat when it is written. A delivery sent again is answered once.
+        """
+        return self._request('POST', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_none)
+
+    def bot_webhook_check(
+        self,
+        bot_id: str,
+    ) -> bytes:
+        """WhatsApp checking the callback URL
+
+        Echoes `hub.challenge` when `hub.verify_token` is the bot's verify token.
+        """
+        return self._request('GET', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_bytes)
+
+    def list_connections(
+        self,
+    ) -> ConnectionListResponse:
+        """The workspace's connections, oldest first
+
+        With the services this server can connect, and the redirect URI to register with their OAuth apps.
+        """
+        return self._request('GET', '/api/v1/connections', query={}, json=None, response=ConnectionListResponse.model_validate)
+
+    def start_connection(
+        self,
+        *,
+        kind: Literal['notion', 'google_drive'] | str,
+        return_to: str | None | Unset = UNSET,
+    ) -> ConnectionStartResponse:
+        """Start connecting Notion or Google Drive
+
+        Send the person to `authorize_url`, in the browser that made this request: it keeps a cookie that finishing the sign-in needs. Once they sign in and allow reading, they come back to `return_to` with `connected=<id>`, or with `connection_error=<signal>`.
+        """
+        return self._request('POST', '/api/v1/connections', query={}, json=_body(ConnectionStartRequest, {'kind': kind, 'return_to': return_to}, optional=False), response=ConnectionStartResponse.model_validate)
+
+    def delete_connection(
+        self,
+        connection_id: str,
+    ) -> None:
+        """Remove a connection
+
+        Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.
+        """
+        return self._request('DELETE', f'/api/v1/connections/{_path(connection_id)}', query={}, json=None, response=_none)
+
+    def get_sso(
+        self,
+    ) -> SsoSettingsResponse:
+        """The workspace's single sign-on
+        """
+        return self._request('GET', '/api/v1/sso', query={}, json=None, response=SsoSettingsResponse.model_validate)
+
+    def set_sso(
+        self,
+        *,
+        issuer: str,
+        client_id: str,
+        client_secret: str | None | Unset = UNSET,
+        default_role: Literal['admin', 'editor', 'viewer'] | str | Unset = UNSET,
+        enabled: bool | Unset = UNSET,
+        required: bool | Unset = UNSET,
+    ) -> SsoSettingsResponse:
+        """Set the workspace's OpenID Connect identity provider
+
+        Its discovery document is read first, so a wrong issuer is refused.
+        """
+        return self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled, 'required': required}, optional=False), response=SsoSettingsResponse.model_validate)
+
+    def delete_sso(
+        self,
+    ) -> None:
+        """Remove the workspace's single sign-on
+
+        Accounts made by it stay, and can set a password with a reset link.
+        """
+        return self._request('DELETE', '/api/v1/sso', query={}, json=None, response=_none)
+
+    def discover(
+        self,
+        *,
+        email: str,
+    ) -> SsoDiscoverResponse:
+        """Which workspace signs this email in
+
+        The workspace that verified the email's domain and has single sign-on turned on.
+        """
+        return self._request('POST', '/api/v1/auth/sso/discover', query={}, json=_body(SsoDiscoverRequest, {'email': email}, optional=False), response=SsoDiscoverResponse.model_validate)
 
     def list_audit_events(
         self,
@@ -1210,17 +1440,18 @@ class AsyncOperations:
         self,
         project_id: str,
         *,
-        url: str,
-        kind: Literal['website', 'feed', 'github'] | str | Unset = UNSET,
+        kind: Literal['website', 'feed', 'github', 'notion', 'google_drive'] | str | Unset = UNSET,
+        url: str | None | Unset = UNSET,
+        connection_id: str | None | Unset = UNSET,
         max_pages: int | Unset = UNSET,
         sync_interval_hours: int | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
     ) -> SourceResponse:
-        """Keep a website's pages, a feed's entries or a GitHub repository's documents
+        """Keep a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files
 
-        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
+        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched; Notion pages and Google Drive files are read through one of the workspace's connections. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
         """
-        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'connection_id': connection_id, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
 
     async def list_sources(
         self,
@@ -1433,7 +1664,7 @@ class AsyncOperations:
     ) -> SessionResponse:
         """Create an account with a workspace of its own, and sign in
 
-        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.
+        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is, and on a workspace's own domain, where people are invited.
         """
         return await self._request('POST', '/api/v1/auth/signup', query={}, json=_body(SignupRequest, {'email': email, 'password': password, 'name': name, 'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
@@ -1445,7 +1676,7 @@ class AsyncOperations:
     ) -> SessionResponse:
         """Sign in with an email and password
 
-        Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.
+        Sets the session cookie, working in the first of the user's workspaces, or on a workspace's own domain, in that one. The 10th wrong password in a row locks the account for 15 minutes.
         """
         return await self._request('POST', '/api/v1/auth/login', query={}, json=_body(LoginRequest, {'email': email, 'password': password}, optional=False), response=SessionResponse.model_validate)
 
@@ -1460,6 +1691,8 @@ class AsyncOperations:
         self,
     ) -> SessionResponse:
         """The signed-in user and their workspaces
+
+        On a workspace's own domain, the session works in that workspace.
         """
         return await self._request('GET', '/api/v1/auth/session', query={}, json=None, response=SessionResponse.model_validate)
 
@@ -1469,6 +1702,8 @@ class AsyncOperations:
         workspace: str,
     ) -> SessionResponse:
         """Work in another of the user's workspaces
+
+        Not on a workspace's own domain, which always works in its own.
         """
         return await self._request('PUT', '/api/v1/auth/session/workspace', query={}, json=_body(WorkspaceRequest, {'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
@@ -1644,6 +1879,217 @@ class AsyncOperations:
         Its link stops working at once.
         """
         return await self._request('DELETE', f'/api/v1/invitations/{_path(invitation_id)}', query={}, json=None, response=_none)
+
+    async def list_domains(
+        self,
+    ) -> list[DomainResponse]:
+        """The workspace's own domains, by name
+        """
+        return await self._request('GET', '/api/v1/domains', query={}, json=None, response=_list(DomainResponse))
+
+    async def add_domain(
+        self,
+        *,
+        domain: str,
+    ) -> DomainResponse:
+        """Add a domain for the workspace to serve on
+
+        It serves nothing until verified: add the TXT record it returns at the domain's DNS provider, then `POST …/verify`. Point the domain at this server with the CNAME (or an A record).
+        """
+        return await self._request('POST', '/api/v1/domains', query={}, json=_body(DomainRequest, {'domain': domain}, optional=False), response=DomainResponse.model_validate)
+
+    async def verify_domain(
+        self,
+        domain_id: str,
+    ) -> DomainResponse:
+        """Check the domain's TXT record
+
+        Looks the record up now, without caching. Once found, the domain serves the workspace: requests to it act for it, and invitation links use it.
+        """
+        return await self._request('POST', f'/api/v1/domains/{_path(domain_id)}/verify', query={}, json=None, response=DomainResponse.model_validate)
+
+    async def remove_domain(
+        self,
+        domain_id: str,
+    ) -> None:
+        """Remove a domain
+
+        It stops serving the workspace at once.
+        """
+        return await self._request('DELETE', f'/api/v1/domains/{_path(domain_id)}', query={}, json=None, response=_none)
+
+    async def domain_allowed(
+        self,
+        *,
+        domain: str,
+    ) -> dict[str, str]:
+        """Whether a domain is a verified workspace's
+
+        For a reverse proxy's on-demand certificates, such as Caddy's `on_demand_tls` `ask`: `200` for a verified domain, `404` otherwise. Needs no key.
+        """
+        return await self._request('GET', '/api/v1/domains/allowed', query={'domain': domain}, json=None, response=_raw)
+
+    async def site(
+        self,
+    ) -> SiteResponse:
+        """What this domain serves, for the web app before sign-in
+
+        The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.
+        """
+        return await self._request('GET', '/api/v1/site', query={}, json=None, response=SiteResponse.model_validate)
+
+    async def create_bot(
+        self,
+        project_id: str,
+        *,
+        kind: Literal['telegram', 'slack', 'whatsapp'] | str,
+        name: str,
+        credentials: dict[str, str],
+        tags: list[str] | Unset = UNSET,
+    ) -> BotResponse:
+        """Add a bot that answers in Telegram, Slack or WhatsApp
+
+        The chat app is asked to accept the credentials first. Telegram is told the webhook URL; for Slack and WhatsApp, paste `webhook_url` (and WhatsApp's `verify_token`) into the app's settings.
+        """
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/bots', query={}, json=_body(BotRequest, {'kind': kind, 'name': name, 'credentials': credentials, 'tags': tags}, optional=False), response=BotResponse.model_validate)
+
+    async def list_bots(
+        self,
+        project_id: str,
+    ) -> BotListResponse:
+        """The project's bots, oldest first
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/bots', query={}, json=None, response=BotListResponse.model_validate)
+
+    async def get_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+    ) -> BotResponse:
+        """A bot
+        """
+        return await self._request('GET', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=None, response=BotResponse.model_validate)
+
+    async def update_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+        *,
+        name: str | None | Unset = UNSET,
+        tags: list[str] | None | Unset = UNSET,
+        enabled: bool | None | Unset = UNSET,
+        credentials: dict[str, str] | None | Unset = UNSET,
+    ) -> BotResponse:
+        """Change a bot
+
+        Its name, tags, whether it answers, or its credentials (checked with the chat app first).
+        """
+        return await self._request('PATCH', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=_body(BotUpdateRequest, {'name': name, 'tags': tags, 'enabled': enabled, 'credentials': credentials}, optional=False), response=BotResponse.model_validate)
+
+    async def delete_bot(
+        self,
+        project_id: str,
+        bot_id: str,
+    ) -> None:
+        """Remove a bot
+
+        Telegram stops sending it messages; its conversations stay with the project.
+        """
+        return await self._request('DELETE', f'/api/v1/projects/{_path(project_id)}/bots/{_path(bot_id)}', query={}, json=None, response=_none)
+
+    async def bot_webhook(
+        self,
+        bot_id: str,
+    ) -> None:
+        """Where a chat app delivers a bot's messages
+
+        Checked with the app's signature (Telegram's secret token, Slack's signing secret, WhatsApp's app secret). Answers at once; the reply is sent to the chat when it is written. A delivery sent again is answered once.
+        """
+        return await self._request('POST', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_none)
+
+    async def bot_webhook_check(
+        self,
+        bot_id: str,
+    ) -> bytes:
+        """WhatsApp checking the callback URL
+
+        Echoes `hub.challenge` when `hub.verify_token` is the bot's verify token.
+        """
+        return await self._request('GET', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_bytes)
+
+    async def list_connections(
+        self,
+    ) -> ConnectionListResponse:
+        """The workspace's connections, oldest first
+
+        With the services this server can connect, and the redirect URI to register with their OAuth apps.
+        """
+        return await self._request('GET', '/api/v1/connections', query={}, json=None, response=ConnectionListResponse.model_validate)
+
+    async def start_connection(
+        self,
+        *,
+        kind: Literal['notion', 'google_drive'] | str,
+        return_to: str | None | Unset = UNSET,
+    ) -> ConnectionStartResponse:
+        """Start connecting Notion or Google Drive
+
+        Send the person to `authorize_url`, in the browser that made this request: it keeps a cookie that finishing the sign-in needs. Once they sign in and allow reading, they come back to `return_to` with `connected=<id>`, or with `connection_error=<signal>`.
+        """
+        return await self._request('POST', '/api/v1/connections', query={}, json=_body(ConnectionStartRequest, {'kind': kind, 'return_to': return_to}, optional=False), response=ConnectionStartResponse.model_validate)
+
+    async def delete_connection(
+        self,
+        connection_id: str,
+    ) -> None:
+        """Remove a connection
+
+        Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.
+        """
+        return await self._request('DELETE', f'/api/v1/connections/{_path(connection_id)}', query={}, json=None, response=_none)
+
+    async def get_sso(
+        self,
+    ) -> SsoSettingsResponse:
+        """The workspace's single sign-on
+        """
+        return await self._request('GET', '/api/v1/sso', query={}, json=None, response=SsoSettingsResponse.model_validate)
+
+    async def set_sso(
+        self,
+        *,
+        issuer: str,
+        client_id: str,
+        client_secret: str | None | Unset = UNSET,
+        default_role: Literal['admin', 'editor', 'viewer'] | str | Unset = UNSET,
+        enabled: bool | Unset = UNSET,
+        required: bool | Unset = UNSET,
+    ) -> SsoSettingsResponse:
+        """Set the workspace's OpenID Connect identity provider
+
+        Its discovery document is read first, so a wrong issuer is refused.
+        """
+        return await self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled, 'required': required}, optional=False), response=SsoSettingsResponse.model_validate)
+
+    async def delete_sso(
+        self,
+    ) -> None:
+        """Remove the workspace's single sign-on
+
+        Accounts made by it stay, and can set a password with a reset link.
+        """
+        return await self._request('DELETE', '/api/v1/sso', query={}, json=None, response=_none)
+
+    async def discover(
+        self,
+        *,
+        email: str,
+    ) -> SsoDiscoverResponse:
+        """Which workspace signs this email in
+
+        The workspace that verified the email's domain and has single sign-on turned on.
+        """
+        return await self._request('POST', '/api/v1/auth/sso/discover', query={}, json=_body(SsoDiscoverRequest, {'email': email}, optional=False), response=SsoDiscoverResponse.model_validate)
 
     async def list_audit_events(
         self,

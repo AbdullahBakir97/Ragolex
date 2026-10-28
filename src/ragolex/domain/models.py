@@ -215,7 +215,8 @@ class Membership:
 class UserSession:
     """A signed-in browser: its user and the workspace it works in.
 
-    Only a hash of its token is stored, as for API keys.
+    Only a hash of its token is stored, as for API keys. ``sso_tenant_id`` is
+    the workspace whose identity provider signed it in; None for a password.
     """
 
     id: str
@@ -223,6 +224,26 @@ class UserSession:
     tenant_id: int
     created_at: datetime
     expires_at: datetime
+    sso_tenant_id: int | None = None
+
+
+@dataclass(frozen=True)
+class TenantDomain:
+    """A domain a workspace serves on, such as help.acme.com.
+
+    A workspace proves it owns the domain with a TXT record holding ``token``;
+    until then (``verified_at`` None) the domain serves nothing. Only one
+    workspace can have a domain verified.
+    """
+
+    id: str
+    tenant_id: int
+    tenant_name: str
+    domain: str
+    token: str
+    created_at: datetime
+    verified_at: datetime | None = None
+    checked_at: datetime | None = None  # When its TXT record was last looked up.
 
 
 @dataclass(frozen=True)
@@ -497,15 +518,19 @@ class Widget:
     logo_url: str | None = None
 
 
-SourceKind = Literal["website", "feed", "github"]
+SourceKind = Literal["website", "feed", "github", "notion", "google_drive"]
+# The kinds of source that read through a workspace's connection (its OAuth sign-in).
+CONNECTED_SOURCE_KINDS = ("notion", "google_drive")
 
 
 @dataclass(frozen=True)
 class Source:
-    """Where a project's documents come from and are kept in sync with: a website.
+    """Where a project's documents come from and are kept in sync with: a website, a feed,
+    a repository, Notion pages or a Google Drive folder.
 
     It is synced every ``sync_interval_hours`` (0: only when asked), and
-    ``syncing`` while a worker crawls it.
+    ``syncing`` while a worker crawls it. Notion and Google Drive sources read
+    through ``connection_id``, the workspace's sign-in to them.
     """
 
     id: str
@@ -524,6 +549,115 @@ class Source:
     last_error: str | None = None
     # Given to the pages it stores.
     tags: tuple[str, ...] = ()
+    connection_id: str | None = None
+
+
+ConnectionKind = Literal["notion", "google_drive"]
+CONNECTION_KINDS: tuple[ConnectionKind, ...] = ("notion", "google_drive")
+
+
+@dataclass(frozen=True)
+class Connection:
+    """A workspace's sign-in to Notion or Google Drive, which its sources read through.
+
+    ``account`` names what was connected (a Notion workspace, a Google
+    account's email). Its tokens are kept apart, encrypted, and never shown.
+    ``last_error`` is why its tokens were last refused, until they work again.
+    """
+
+    id: str
+    tenant_id: int
+    kind: ConnectionKind
+    account: str
+    created_at: datetime
+    created_by: str | None = None
+    sources_count: int = 0
+    last_error: str | None = None
+    last_error_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ConnectionTokens:
+    """What a connection reads with. ``expires_at`` is None for a token that does not
+    expire; ``refresh_token`` gets a new one when it does."""
+
+    access_token: str
+    refresh_token: str | None = None
+    expires_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class OAuthGrant:
+    """What signing in to a provider gave: the tokens, and the account they are for."""
+
+    tokens: ConnectionTokens
+    account: str
+
+
+@dataclass(frozen=True)
+class ConnectionRequest:
+    """A sign-in to a provider that was started and not finished yet.
+
+    The provider sends people back with its ``state``, which is kept only as
+    a hash; ``code_verifier`` proves the code is ours (PKCE); ``return_to`` is
+    where the web app is. ``browser_hash`` is the hash of a cookie given to
+    the browser that started it: only that browser can finish it, so nobody
+    can have someone else connect their account to the wrong workspace.
+    """
+
+    state_hash: str
+    tenant_id: int
+    kind: ConnectionKind
+    code_verifier: str
+    return_to: str
+    expires_at: datetime
+    browser_hash: str
+    user_id: int | None = None
+
+
+@dataclass(frozen=True)
+class SsoProvider:
+    """A workspace's OpenID Connect identity provider (Entra ID, Google, Okta, Keycloak…).
+
+    People whose email is on one of the workspace's verified domains sign in
+    through it; a first sign-in makes their account, or adds it to the
+    workspace, with ``default_role``. ``client_secret`` is stored encrypted.
+    With ``required`` (and ``enabled``), its members other than owners work
+    in it only through the provider: not with a password, nor by invitation.
+    """
+
+    tenant_id: int
+    issuer: str
+    client_id: str
+    client_secret: str
+    default_role: str
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+    required: bool = False
+
+    @property
+    def enforced(self) -> bool:
+        return self.enabled and self.required
+
+
+@dataclass(frozen=True)
+class SsoRequest:
+    """A sign-in through a workspace's identity provider, started and not finished yet.
+
+    Like a connection's: the ``state`` is kept as a hash, ``code_verifier`` is
+    PKCE's, ``nonce`` ties the ID token to this sign-in, and only the browser
+    holding the cookie behind ``browser_hash`` can finish it. ``next_url`` is
+    where the web app opens after.
+    """
+
+    state_hash: str
+    tenant_id: int
+    nonce: str
+    code_verifier: str
+    next_url: str
+    browser_hash: str
+    expires_at: datetime
 
 
 @dataclass(frozen=True)
@@ -559,6 +693,53 @@ class AuditEvent:
     created_at: datetime
     actor_user_id: int | None = None
     actor_user_email: str | None = None
+
+
+BOT_KINDS = ("telegram", "slack", "whatsapp")
+BotKind = Literal["telegram", "slack", "whatsapp"]
+
+
+@dataclass(frozen=True)
+class Bot:
+    """A project's assistant in a chat app: people ask it in Telegram, Slack or WhatsApp.
+
+    ``id`` is public, in the webhook URL the chat app sends messages to.
+    ``credentials`` are the app's tokens and secrets, stored encrypted and
+    never shown again; ``webhook_secret`` checks that a message came from
+    the app (Telegram's secret token, WhatsApp's verify token).
+    """
+
+    id: str
+    tenant_id: int
+    tenant_name: str
+    project_id: int
+    project_name: str
+    kind: str
+    name: str
+    account: str  # The bot's name in the chat app, such as @acme_help_bot.
+    credentials: Mapping[str, str]
+    webhook_secret: str
+    enabled: bool
+    created_at: datetime
+    tags: tuple[str, ...] = ()
+    last_message_at: datetime | None = None
+    last_error: str | None = None
+    last_error_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class IncomingMessage:
+    """A message someone sent a bot: what to answer, and where to send the answer.
+
+    ``update_id`` tells a delivery sent again apart from a new message;
+    ``chat_key`` names the chat or thread, which keeps one conversation;
+    ``reply_to`` is what the chat app needs to answer in the same place.
+    """
+
+    update_id: str
+    chat_key: str
+    text: str
+    reply_to: Mapping[str, str]
 
 
 DeliveryStatus = Literal["pending", "delivered", "failed"]

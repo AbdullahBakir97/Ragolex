@@ -166,6 +166,32 @@ class UserSessionRow(Base):
     created_at: Mapped[datetime] = _created_at()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The workspace whose identity provider signed it in; null for a password.
+    sso_tenant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tenants.id", ondelete="SET NULL"), index=True)
+
+
+class TenantDomainRow(Base):
+    """A domain a tenant serves on, once a TXT record proves the tenant owns it."""
+
+    __tablename__ = "tenant_domains"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "domain"),
+        # Several tenants may claim a domain; only one can have it verified.
+        Index("uq_tenant_domains_verified_domain", "domain", unique=True,
+              postgresql_where=text("verified_at IS NOT NULL")),
+    )
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    # In lower case, without a trailing dot.
+    domain: Mapped[str] = mapped_column(String(253))
+    # What the TXT record must hold; public once it is in DNS, so not a secret.
+    token: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = _created_at()
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class InvitationRow(Base):
@@ -203,6 +229,87 @@ class PasswordResetRow(Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ConnectionRow(Base):
+    """A tenant's sign-in to Notion or Google Drive, which its sources read through."""
+
+    __tablename__ = "connections"
+    __table_args__ = (
+        CheckConstraint("kind IN ('notion', 'google_drive')", name="kind"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    # The Notion workspace's name, or the Google account's email.
+    account: Mapped[str] = mapped_column(String(255))
+    # The access and refresh tokens as JSON, encrypted with ENCRYPTION_KEYS when set.
+    credentials: Mapped[str] = mapped_column(EncryptedString())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    created_at: Mapped[datetime] = _created_at()
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ConnectionRequestRow(Base):
+    """A sign-in to Notion or Google Drive that was started, for minutes, until it comes back."""
+
+    __tablename__ = "connection_requests"
+
+    # SHA-256 of the state sent to the provider.
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"),
+                                                index=True)
+    # Useless without the code, which only the provider's redirect carries.
+    code_verifier: Mapped[str] = mapped_column(String(128))
+    return_to: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # SHA-256 of the cookie of the browser that started it, which must finish it.
+    browser_hash: Mapped[str] = mapped_column(String(64))
+
+
+class SsoProviderRow(Base):
+    """A workspace's OpenID Connect identity provider, which its people sign in through."""
+
+    __tablename__ = "sso_providers"
+    __table_args__ = (
+        CheckConstraint("default_role IN ('admin', 'editor', 'viewer')", name="default_role"),
+    )
+
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    issuer: Mapped[str] = mapped_column(Text)
+    client_id: Mapped[str] = mapped_column(String(255))
+    # Encrypted with ENCRYPTION_KEYS when set.
+    client_secret: Mapped[str] = mapped_column(EncryptedString())
+    default_role: Mapped[str] = mapped_column(String(16))
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    # Members other than owners sign in only through it.
+    required: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = _created_at()
+
+
+class SsoRequestRow(Base):
+    """A sign-in through a workspace's identity provider, for minutes, until it comes back."""
+
+    __tablename__ = "sso_requests"
+
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    nonce: Mapped[str] = mapped_column(String(64))
+    code_verifier: Mapped[str] = mapped_column(String(128))
+    next_url: Mapped[str] = mapped_column(Text)
+    browser_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class SourceRow(Base):
     """A website a project's documents are crawled from and kept in sync with."""
 
@@ -228,6 +335,10 @@ class SourceRow(Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    # Notion and Google Drive sources read through a connection, which cannot be
+    # removed while they do (checked at the end of a statement, so deleting a
+    # tenant removes both).
+    connection_id: Mapped[str | None] = mapped_column(ForeignKey("connections.id"), index=True)
 
 
 class SourcePageRow(Base):
@@ -373,6 +484,63 @@ class WidgetRow(Base):
     allowed_origins: Mapped[list[str]] = mapped_column(ARRAY(String(255)))
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
     logo_url: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created_at()
+
+
+class BotRow(Base):
+    """A project's assistant in a chat app (Telegram, Slack or WhatsApp)."""
+
+    __tablename__ = "bots"
+    __table_args__ = (
+        CheckConstraint("kind IN ('telegram', 'slack', 'whatsapp')", name="kind"),
+    )
+
+    # Public: it is in the webhook URL the chat app sends messages to.
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str] = mapped_column(String(100))
+    account: Mapped[str] = mapped_column(String(255))
+    # The app's tokens and secrets as JSON, encrypted with ENCRYPTION_KEYS when set.
+    credentials: Mapped[str] = mapped_column(EncryptedString())
+    webhook_secret: Mapped[str] = mapped_column(EncryptedString(255))
+    tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    created_at: Mapped[datetime] = _created_at()
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BotChatRow(Base):
+    """The conversation a chat or thread keeps with a bot, so follow-ups work."""
+
+    __tablename__ = "bot_chats"
+
+    bot_id: Mapped[str] = mapped_column(
+        ForeignKey("bots.id", ondelete="CASCADE"), primary_key=True)
+    chat_key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    # Deleting the conversation starts the chat afresh.
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
+
+
+class BotDeliveryRow(Base):
+    """A message a chat app delivered, so a delivery sent again is answered once, and a
+    chat that sends too many is slowed down. Kept for a week."""
+
+    __tablename__ = "bot_deliveries"
+    __table_args__ = (
+        # Counting a chat's recent messages, and forgetting old deliveries.
+        Index("ix_bot_deliveries_chat", "bot_id", "chat_key", "created_at"),
+        Index("ix_bot_deliveries_created_at", "created_at"),
+    )
+
+    bot_id: Mapped[str] = mapped_column(
+        ForeignKey("bots.id", ondelete="CASCADE"), primary_key=True)
+    update_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    chat_key: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = _created_at()
 
 

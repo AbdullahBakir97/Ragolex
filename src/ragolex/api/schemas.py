@@ -18,6 +18,8 @@ from pydantic import (
 )
 
 from ragolex.connectors.github import parse_repository
+from ragolex.connectors.google_drive import folder_id
+from ragolex.connectors.notion import is_notion_url
 from ragolex.core.errors import AppError
 from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
 from ragolex.domain.models import ReviewGrade, SearchFilters
@@ -547,6 +549,7 @@ class DeliveryListResponse(BaseModel):
 
 KeyIdPath = Annotated[UUID, Path(description="The API key's id.")]
 UserIdPath = Annotated[int, Path(ge=1, description="The member's user id.")]
+DomainIdPath = Annotated[UUID, Path(description="The domain's id.")]
 InvitationIdPath = Annotated[UUID, Path(description="The invitation's id.")]
 
 
@@ -641,6 +644,58 @@ class SignupRequest(BaseModel):
                                        "digits, `-` and `_`. You become its owner.")
 
 
+SsoRole = Literal["admin", "editor", "viewer"]
+
+
+class SsoSettingsRequest(BaseModel):
+    issuer: str = Field(max_length=500, pattern=r"^https?://\S+$",
+                        description="The identity provider's issuer URL, whose "
+                                    "`/.well-known/openid-configuration` is read.",
+                        examples=["https://login.microsoftonline.com/<tenant id>/v2.0"])
+    client_id: str = Field(min_length=1, max_length=255)
+    client_secret: str | None = Field(
+        default=None, min_length=1, max_length=1000,
+        description="Needed the first time; leave it out to keep the one already set. "
+                    "Stored encrypted and never returned.")
+    default_role: SsoRole = Field(default="viewer",
+                                  description="The role of people added by their first sign-in.")
+    enabled: bool = True
+    required: bool = Field(
+        default=False,
+        description="Members other than owners sign in only through the provider: not with a "
+                    "password, nor by invitation. Only an owner changes it, and it needs a "
+                    "verified domain.")
+
+
+class SsoProviderResponse(BaseModel):
+    issuer: str
+    client_id: str
+    default_role: SsoRole
+    enabled: bool
+    required: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class SsoSettingsResponse(BaseModel):
+    provider: SsoProviderResponse | None = Field(description="Null until one is set.")
+    redirect_uri: str = Field(description="The redirect URI to register with the provider.")
+    email_domains: list[str] = Field(
+        description="The workspace's verified domains: only emails on them sign in through "
+                    "the provider. Add the company's email domain (`acme.com`) under domains "
+                    "and prove it with its TXT record.")
+
+
+class SsoDiscoverRequest(BaseModel):
+    email: str = Field(max_length=254, pattern=EMAIL, examples=["ada@acme.com"])
+
+
+class SsoDiscoverResponse(BaseModel):
+    workspace: str
+    start_url: str = Field(description="Open it in the browser, with `&next=<path>` for the "
+                                       "page to open after signing in.")
+
+
 class LoginRequest(BaseModel):
     email: str = Field(max_length=254, examples=["ada@example.com"])
     password: str = Field(min_length=1, max_length=128)
@@ -661,6 +716,38 @@ class SessionResponse(BaseModel):
     workspaces: list[WorkspaceResponse] = Field(description="Every workspace the user is a "
                                                             "member of, by name.")
     expires_at: datetime = Field(description="When the sign-in ends.")
+
+
+class DomainRequest(BaseModel):
+    domain: str = Field(min_length=3, max_length=253, examples=["help.acme.com"],
+                        description="A host name, without `https://` or a path.")
+
+
+class DnsRecord(BaseModel):
+    type: Literal["TXT", "CNAME"]
+    name: str
+    value: str
+
+
+class DomainResponse(BaseModel):
+    id: str
+    domain: str
+    verified: bool = Field(description="Whether its TXT record was found: only then does it "
+                                       "serve the workspace.")
+    created_at: datetime
+    verified_at: datetime | None
+    checked_at: datetime | None = Field(description="When its TXT record was last looked up.")
+    records: list[DnsRecord] = Field(
+        description="What to add at the domain's DNS provider: the TXT record that proves "
+                    "it, and a CNAME that points it at this server.")
+
+
+class SiteResponse(BaseModel):
+    workspace: str | None = Field(description="The workspace whose own domain this is; null "
+                                              "on the server's own domain.")
+    accounts_enabled: bool = Field(description="Whether people sign in (`AUTH_ENABLED`).")
+    signup_enabled: bool = Field(description="Whether people may sign up here: never on a "
+                                             "workspace's own domain, where they are invited.")
 
 
 MemberRoleField = Literal["owner", "admin", "editor", "viewer"]
@@ -892,6 +979,71 @@ class WidgetListResponse(BaseModel):
     items: list[WidgetResponse]
 
 
+BotIdPath = Annotated[str, Path(pattern=r"^bot_[A-Za-z0-9_-]{22}$",
+                                description="The bot's id, from its webhook URL.")]
+BOT_NAME: Any = Field(min_length=1, max_length=100, examples=["Help desk"])
+BOT_TAGS: Any = Field(default_factory=list, description="Answer only from files with any of these "
+                                                   "tags; empty for all files.")
+CREDENTIALS: Any = Field(
+    examples=[{"token": "123456:ABC-…"}],
+    description="Telegram: `token` (from @BotFather). Slack: `bot_token` (xoxb-…) and "
+                "`signing_secret`. WhatsApp: `access_token`, `phone_number_id` and "
+                "`app_secret`. Stored encrypted, and never returned.")
+
+
+class BotRequest(BaseModel):
+    kind: Literal["telegram", "slack", "whatsapp"]
+    name: str = BOT_NAME
+    credentials: dict[str, Annotated[str, Field(max_length=4096)]] = CREDENTIALS
+    tags: Tags = BOT_TAGS
+
+    @field_validator("name")
+    @classmethod
+    def name_must_contain_text(cls, name: str) -> str:
+        if not name.strip():
+            raise ValueError("name must not be blank")
+        return name
+
+
+class BotUpdateRequest(BaseModel):
+    """Only the fields sent are changed; new `credentials` replace the old ones whole."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    tags: Tags | None = Field(default=None, description="[] or null for all files.")
+    enabled: bool | None = Field(default=None, description="A bot turned off ignores messages.")
+    credentials: dict[str, Annotated[str, Field(max_length=4096)]] | None = None
+
+    @model_validator(mode="after")
+    def required_fields_not_null(self) -> "BotUpdateRequest":
+        for name in ("name", "enabled", "credentials"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+class BotResponse(BaseModel):
+    id: str
+    project: str
+    kind: Literal["telegram", "slack", "whatsapp"]
+    name: str
+    account: str = Field(description="The bot in the chat app, such as `@acme_help_bot`.")
+    tags: list[str]
+    enabled: bool
+    webhook_url: str = Field(description="Where the chat app sends messages: set by API for "
+                                         "Telegram; paste it into Slack's Event Subscriptions "
+                                         "or WhatsApp's Callback URL.")
+    verify_token: str | None = Field(description="WhatsApp only: the Verify token to paste "
+                                                 "next to the Callback URL.")
+    created_at: datetime
+    last_message_at: datetime | None
+    last_error: str | None = Field(description="Why the last message it failed on failed.")
+    last_error_at: datetime | None
+
+
+class BotListResponse(BaseModel):
+    items: list[BotResponse]
+
+
 class WidgetConfigResponse(BaseModel):
     """What the widget shows; nothing about the tenant or its project."""
 
@@ -938,7 +1090,12 @@ class WidgetAnswer(BaseModel):
 SourceIdPath = Annotated[UUID, Path(description="The source's id.")]
 
 
-SourceKind = Literal["website", "feed", "github"]
+SourceKind = Literal["website", "feed", "github", "notion", "google_drive"]
+ConnectionKind = Literal["notion", "google_drive"]
+ConnectionId = Annotated[str, Field(pattern=r"^con_[A-Za-z0-9_-]{22}$")]
+# What a Notion or Google Drive source reads when it is given no URL.
+DEFAULT_CONNECTED_URLS = {"notion": "https://www.notion.so/",
+                          "google_drive": "https://drive.google.com/drive/my-drive"}
 
 
 class SourceRequest(BaseModel):
@@ -947,11 +1104,21 @@ class SourceRequest(BaseModel):
         description="`website`: the site's pages under the URL's folder, found by following "
                     "their links. `feed`: an RSS or Atom feed's entries. `github`: the "
                     "documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one "
-                    "folder of it.")
-    url: AnyHttpUrl = Field(description="The website's start page, the feed's address, or the "
-                                        "repository's: `https://github.com/owner/repo`, "
-                                        "optionally with `/tree/<branch>/<folder>`.",
-                            examples=["https://docs.example.com/guide/"])
+                    "folder of it. `notion`: the Notion pages a connection can read, or one "
+                    "page and the pages under it. `google_drive`: the files of a Google Drive "
+                    "folder and its subfolders. Notion and Google Drive sources need a "
+                    "`connection_id`.")
+    url: AnyHttpUrl | None = Field(
+        default=None,
+        description="The website's start page, the feed's address, or the repository's: "
+                    "`https://github.com/owner/repo`, optionally with "
+                    "`/tree/<branch>/<folder>`. For Notion, a page's address (omit it for "
+                    "every page the connection can read); for Google Drive, a folder's "
+                    "address (omit it for all of My Drive). Required for the other kinds.",
+        examples=["https://docs.example.com/guide/"])
+    connection_id: ConnectionId | None = Field(
+        default=None, description="The workspace's connection a Notion or Google Drive source "
+                                  "reads through, from `GET /api/v1/connections`.")
     max_pages: int = Field(default=50, ge=1, le=1000, description="Most pages to keep.")
     sync_interval_hours: int = Field(
         default=24, ge=0, le=24 * 30,
@@ -960,14 +1127,30 @@ class SourceRequest(BaseModel):
 
     @field_validator("url")
     @classmethod
-    def check_length(cls, url: AnyHttpUrl) -> AnyHttpUrl:
-        if len(str(url)) > 2000:
+    def check_length(cls, url: AnyHttpUrl | None) -> AnyHttpUrl | None:
+        if url is not None and len(str(url)) > 2000:
             raise ValueError("the URL is longer than 2000 characters")
         return url
 
     @model_validator(mode="after")
-    def check_repository(self) -> "SourceRequest":
-        if self.kind == "github" and parse_repository(str(self.url)) is None:
+    def check_kind(self) -> "SourceRequest":
+        url = str(self.url) if self.url is not None else None
+        if self.kind in DEFAULT_CONNECTED_URLS:
+            if self.connection_id is None:
+                raise ValueError(f"a {self.kind} source needs a connection_id")
+            if url is None:
+                self.url = AnyHttpUrl(DEFAULT_CONNECTED_URLS[self.kind])
+            elif self.kind == "notion" and not is_notion_url(url):
+                raise ValueError("a notion source's url must be a page on notion.so")
+            elif self.kind == "google_drive" and folder_id(url) is None:
+                raise ValueError("a google_drive source's url must be a folder: "
+                                 "https://drive.google.com/drive/folders/<id>")
+            return self
+        if self.connection_id is not None:
+            raise ValueError("only notion and google_drive sources take a connection_id")
+        if url is None:
+            raise ValueError(f"a {self.kind} source needs a url")
+        if self.kind == "github" and parse_repository(url) is None:
             raise ValueError("a github source's url must be https://github.com/<owner>/<repo>, "
                              "optionally with /tree/<branch>/<folder>")
         return self
@@ -977,6 +1160,8 @@ class SourceResponse(BaseModel):
     id: str
     kind: SourceKind
     url: str
+    connection_id: str | None = Field(description="The connection a Notion or Google Drive "
+                                                  "source reads through.")
     max_pages: int
     sync_interval_hours: int
     pages_count: int = Field(description="Pages stored by the last syncs.")
@@ -988,6 +1173,43 @@ class SourceResponse(BaseModel):
                                                "the pages it had are kept meanwhile.")
     tags: list[str] = Field(description="Given to the pages it stores.")
     created_at: datetime
+
+
+ConnectionIdPath = Annotated[str, Path(pattern=r"^con_[A-Za-z0-9_-]{22}$",
+                                       description="The connection's id.")]
+
+
+class ConnectionStartRequest(BaseModel):
+    kind: ConnectionKind
+    return_to: str | None = Field(
+        default=None, max_length=2000,
+        description="The web app page to come back to after signing in, on this server or "
+                    "one of the workspace's verified domains; the Admin page otherwise. "
+                    "`connected=<id>` or `connection_error=<signal>` is added to it.")
+
+
+class ConnectionStartResponse(BaseModel):
+    authorize_url: str = Field(description="Send the person here to sign in and allow "
+                                           "reading; it is valid for 15 minutes, once.")
+
+
+class ConnectionResponse(BaseModel):
+    id: str
+    kind: ConnectionKind
+    account: str = Field(description="The Notion workspace, or the Google account's email.")
+    created_by: str | None = Field(description="The email of who connected it.")
+    sources_count: int = Field(description="Sources that read through it.")
+    created_at: datetime
+    last_error: str | None = Field(description="Why the service last refused its tokens; "
+                                               "connect again to fix it.")
+    last_error_at: datetime | None
+
+
+class ConnectionListResponse(BaseModel):
+    items: list[ConnectionResponse]
+    available: list[ConnectionKind] = Field(
+        description="The services this server can connect (it has an OAuth app with them).")
+    redirect_uri: str = Field(description="The redirect URI to register with each OAuth app.")
 
 
 class SourceListResponse(BaseModel):

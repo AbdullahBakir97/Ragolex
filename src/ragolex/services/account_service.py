@@ -21,8 +21,10 @@ from ragolex.core.errors import (
     LoginFailed,
     PasswordResetInvalid,
     SessionRequired,
+    SsoRequired,
     WorkspaceNotFound,
     WorkspaceTaken,
+    WrongDomain,
 )
 from ragolex.core.passwords import hash_password, needs_rehash, verify_password
 from ragolex.domain.models import (
@@ -109,8 +111,12 @@ class AccountService:
         await self.uow.users.logged_in(user.id)
         return await self._start(user, membership)
 
-    async def sign_in(self, email: str, password: str) -> SignedIn:
-        """A new session for the account; raises LoginFailed or AccountLocked."""
+    async def sign_in(self, email: str, password: str, tenant_id: int | None = None) -> SignedIn:
+        """A new session for the account; raises LoginFailed or AccountLocked.
+
+        It works in ``tenant_id`` (a workspace's own domain) when given, and
+        raises WorkspaceNotFound if the user is not a member there.
+        """
         login = await self.uow.users.login(normalise_email(email))
         if login and login.locked_until and login.locked_until > datetime.now(UTC):
             raise AccountLocked()
@@ -126,28 +132,67 @@ class AccountService:
             await self.uow.users.set_password(user.id, hash_password(password))
         await self.uow.users.logged_in(user.id)
         workspaces = await self.uow.memberships.list_for_user(user.id)
+        if tenant_id is not None:
+            workspaces = [m for m in workspaces if m.tenant_id == tenant_id]
         if not workspaces:
             await self.uow.commit()
-            raise WorkspaceNotFound("You are not a member of any workspace")
-        return await self._start(user, workspaces[0])
+            raise WorkspaceNotFound("You are not a member of this workspace")
+        # A password works only in workspaces that do not require their identity provider.
+        allowed = [m for m in workspaces if await self._allows(m, sso_tenant_id=None)]
+        if not allowed:
+            await self.uow.commit()
+            raise SsoRequired()
+        return await self._start(user, allowed[0])
 
-    async def _start(self, user: User, membership: Membership) -> SignedIn:
+    async def start_session(self, user: User, membership: Membership) -> SignedIn:
+        """A new session for a user the workspace's identity provider vouched for."""
+        return await self._start(user, membership, sso_tenant_id=membership.tenant_id)
+
+    async def _allows(self, membership: Membership, *, sso_tenant_id: int | None) -> bool:
+        """Whether a session signed in this way (through which workspace's identity provider,
+        or None for a password) may work in the membership's workspace.
+
+        A workspace that requires its provider lets its members in only through it;
+        its owners also with a password, so a broken provider cannot lock it.
+        """
+        if membership.role == "owner" or sso_tenant_id == membership.tenant_id:
+            return True
+        provider = await self.uow.sso.get(membership.tenant_id)
+        return provider is None or not provider.enforced
+
+    async def _start(self, user: User, membership: Membership, *,
+                     sso_tenant_id: int | None = None) -> SignedIn:
         token = secrets.token_urlsafe(32)
         session = await self.uow.user_sessions.create(
             user_id=user.id, tenant_id=membership.tenant_id, token_hash=hash_key(token),
-            expires_at=datetime.now(UTC) + self.session_length)
+            expires_at=datetime.now(UTC) + self.session_length, sso_tenant_id=sso_tenant_id)
         workspaces = await self.uow.memberships.list_for_user(user.id)
         await self.uow.commit()
         return SignedIn(user=user, session=session, workspace=membership,
                         workspaces=workspaces, token=token)
 
-    async def _session(self, token: str | None) -> tuple[UserSession, User, Membership]:
+    async def _session(self, token: str | None, tenant_id: int | None = None
+                       ) -> tuple[UserSession, User, Membership]:
+        """The session, its user, and their membership of the workspace it works in.
+
+        With ``tenant_id`` (a workspace's own domain), that workspace instead;
+        a user who is not a member there gets WrongDomain.
+        """
         session = await self.uow.user_sessions.find_active(hash_key(token)) if token else None
         user = await self.uow.users.get(session.user_id) if session else None
-        membership = (await self.uow.memberships.get(user.id, session.tenant_id)
-                      if session and user else None)
-        if session is None or user is None or membership is None:
+        if session is None or user is None:
             raise SessionRequired()
+        if tenant_id is not None and tenant_id != session.tenant_id:
+            membership = await self.uow.memberships.get(user.id, tenant_id)
+            if membership is None:
+                raise WrongDomain()
+        else:
+            membership = await self.uow.memberships.get(user.id, session.tenant_id)
+            if membership is None:
+                raise SessionRequired()
+        if not await self._allows(membership, sso_tenant_id=session.sso_tenant_id):
+            # Required since this session signed in: it signs in again, through the provider.
+            raise SessionRequired("This workspace signs its members in through single sign-on")
         return session, user, membership
 
     async def _session_or_none(self, token: str | None
@@ -157,18 +202,19 @@ class AccountService:
         except SessionRequired:
             return None
 
-    async def authenticate(self, token: str | None) -> Principal:
-        """Who a session acts for: its user, with their role in its workspace."""
-        session, user, membership = await self._session(token)
+    async def authenticate(self, token: str | None, tenant_id: int | None = None) -> Principal:
+        """Who a session acts for: its user, with their role in its workspace (or in
+        ``tenant_id``, a workspace's own domain)."""
+        session, user, membership = await self._session(token, tenant_id)
         await self.uow.user_sessions.touch(session.id)
         await self.uow.commit()
         return Principal(tenant_id=membership.tenant_id, tenant_name=membership.tenant_name,
                          scopes=ROLE_SCOPES[membership.role], user_id=user.id,
                          role=membership.role)
 
-    async def current(self, token: str | None) -> SignedIn:
+    async def current(self, token: str | None, tenant_id: int | None = None) -> SignedIn:
         """The session's user and workspaces (its token is not returned again)."""
-        session, user, membership = await self._session(token)
+        session, user, membership = await self._session(token, tenant_id)
         return SignedIn(user=user, session=session, workspace=membership,
                         workspaces=await self.uow.memberships.list_for_user(user.id), token="")
 
@@ -179,6 +225,8 @@ class AccountService:
         target = next((m for m in workspaces if m.tenant_name == workspace), None)
         if target is None:
             raise WorkspaceNotFound()
+        if not await self._allows(target, sso_tenant_id=session.sso_tenant_id):
+            raise SsoRequired()
         await self.uow.user_sessions.switch_tenant(session.id, target.tenant_id)
         await self.uow.commit()
         return SignedIn(user=user, session=session, workspace=target, workspaces=workspaces,
@@ -237,6 +285,9 @@ class AccountService:
         invitation = await self.uow.invitations.find_pending(hash_key(token))
         if invitation is None:
             raise InvitationInvalid()
+        provider = await self.uow.sso.get(invitation.tenant_id)
+        if provider is not None and provider.enforced:
+            raise SsoRequired("This workspace's members join through single sign-on")
         current = await self._session_or_none(session_token)
         if current is not None:
             session, user, _ = current

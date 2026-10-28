@@ -51,7 +51,13 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `CRAWLER_DELAY_SECONDS` | `0.5` | Pause between a crawl's requests (0–10); a site's robots.txt `Crawl-delay` can make it longer |
 | `CRAWLER_TIMEOUT_SECONDS` | `15` | How long one page may take to arrive (up to 120) |
 | `GITHUB_TOKEN` | unset | A GitHub token for [GitHub sources](api.md#feeds-and-github-repositories): reads private repositories (fine-grained, with *Contents: read*) and raises the rate limit from 60 requests an hour to 5000 |
+| `SSO_ALLOW_PRIVATE_URLS` | `false` | Let a workspace's [single sign-on](api.md#single-sign-on) provider be on this server's network (a Keycloak on the intranet). Off, it must be a public address |
+| `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | unset | This server's Notion public integration, so workspaces can connect Notion for [Notion sources](api.md#notion-and-google-drive); see [below](#notion-and-google-drive) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | This server's Google OAuth client, so workspaces can connect Google Drive for [Drive sources](api.md#notion-and-google-drive); see [below](#notion-and-google-drive) |
+| `WEB_CONCURRENCY` | `1` | API processes uvicorn starts; raise it towards the number of CPU cores (see [Operations › Capacity](operations.md#capacity-and-load-testing)) |
+| `BOT_CHAT_MESSAGES_PER_MINUTE` | `10` | The most messages one chat may send a [bot](api.md#chat-bots-telegram-slack-and-whatsapp) in a minute; past it, the bot asks once to slow down and ignores the rest of the minute. `0`: no limit |
 | `WEBHOOK_TIMEOUT_SECONDS` | `10` | How long a webhook's receiver has to answer (up to 60) |
+| `BOT_TIMEOUT_SECONDS` | `15` | How long Telegram, Slack and WhatsApp have to answer a [bot](api.md#chat-bots-telegram-slack-and-whatsapp)'s call (up to 60) |
 | `SEARCH_MODE` | `"hybrid"` | `hybrid` ranks chunks by meaning and by the words they share with the question, merged by reciprocal rank fusion; `vector` by meaning only. Scores are the cosine similarity either way |
 | `ANSWER_MIN_SCORE` | `0.3` | Chunks scoring below this cosine similarity are not used for answers; with none left the answer is `no_answer`. The default suits `text-embedding-3-small`; other models may need another value |
 | `RESEARCH_MAX_STEPS` | `3` | Most planning and review steps of [research mode](api.md#research-mode) (1–5), whatever a request asks for. Each step is one model call, and its searches are embedding calls |
@@ -64,7 +70,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `FILE_ALLOWED_TYPES` | Text, Markdown, HTML, PDF, Word (`.docx`) and [source code](api.md#source-code) | MIME types accepted for upload. An upload with no type, or `application/octet-stream`, gets the type of its extension |
 | `FILE_MAX_SIZE` | `10` | Maximum upload size in MB |
 | `FILE_DEFAULT_CHUNK_SIZE` | `512000` | Bytes read per chunk while saving an upload |
-| `ENCRYPTION_KEYS` | `""` | Comma-separated keys from `ragolex encryption new-key`. Set, uploaded files and webhook secrets are encrypted at rest (AES-256-GCM) with the first key, and any of the keys decrypts. Empty, they are stored as they are. Losing a key loses what it encrypted. See [Operations › Encryption at rest](operations.md#encryption-at-rest) |
+| `ENCRYPTION_KEYS` | `""` | Comma-separated keys from `ragolex encryption new-key`. Set, uploaded files, webhook secrets and bots' credentials are encrypted at rest (AES-256-GCM) with the first key, and any of the keys decrypts. Empty, they are stored as they are. Losing a key loses what it encrypted. See [Operations › Encryption at rest](operations.md#encryption-at-rest) |
 
 ## Model providers
 
@@ -127,6 +133,20 @@ For example `WEB_PORT=3001` serves the web app on http://localhost:3001. Inside 
 Every setting has a default, so `.env` only needs what you change, typically the model settings above. Settings are validated when the app starts: an invalid value stops it with a message naming the setting. Values are never printed in these messages, so secrets such as `OPENAI_API_KEY` or the database password cannot end up in logs.
 
 `.env` holds secrets and is git-ignored; never commit it. The values in `.env.example` are for local development only.
+
+## Notion and Google Drive
+
+Workspaces connect Notion and Google Drive by signing in to them, through an OAuth app that this server's operator registers once with each service. Its redirect URI is `APP_URL` followed by `/api/v1/connections/callback`, e.g. `https://ragolex.example.com/api/v1/connections/callback`; `GET /api/v1/connections` shows it too. A service without its two settings is not offered.
+
+**Notion.** At [notion.so/my-integrations](https://www.notion.so/my-integrations), create an integration of type *Public*, with the *Read content* capability only, and add the redirect URI. Its OAuth client ID and secret are `NOTION_CLIENT_ID` and `NOTION_CLIENT_SECRET`. Whoever connects picks the pages the integration may read; they can share more pages with it later in Notion, under a page's *Connections*.
+
+**Google Drive.** In the [Google Cloud console](https://console.cloud.google.com/), in a project with the *Google Drive API* enabled:
+
+1. Set up the OAuth consent screen, with the scope `https://www.googleapis.com/auth/drive.readonly`. For a Google Workspace organisation, make it *Internal*. An *External* app with this scope shows an "unverified app" warning, and is limited to 100 users, until Google verifies it.
+2. Create an OAuth client ID of type *Web application* with the redirect URI.
+3. Set its client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+Connections only read, and their tokens are stored encrypted when `ENCRYPTION_KEYS` is set ([Operations › Encryption at rest](operations.md#encryption-at-rest)).
 
 ## Reading scanned PDFs
 

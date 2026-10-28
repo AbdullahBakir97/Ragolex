@@ -1,15 +1,29 @@
 <script setup lang="ts">
-import { BookOpen, FolderOpen, KeyRound, LayoutGrid, LogOut, Plus, Search, ShieldCheck, X } from "@lucide/vue";
+import {
+  BookOpen,
+  CircleUser,
+  FolderOpen,
+  KeyRound,
+  LayoutGrid,
+  LogOut,
+  Plus,
+  Search,
+  ShieldCheck,
+  X,
+} from "@lucide/vue";
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
-import { apiKey, setApiKey } from "@/api/auth";
-import { api } from "@/api/client";
+import { apiKey } from "@/api/auth";
+import { ApiError, api } from "@/api/client";
 import BrandMark from "@/components/BrandMark.vue";
 import HealthStatus from "@/components/HealthStatus.vue";
 import NewProjectDialog from "@/components/NewProjectDialog.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import { useProjects } from "@/composables/useProjects";
+import { useSession } from "@/composables/useSession";
+import { useSite } from "@/composables/useSite";
+import { useToasts } from "@/composables/useToasts";
 
 defineEmits<{ close: [] }>();
 
@@ -24,17 +38,28 @@ const visible = computed(() => {
   return query ? names.value.filter((name) => name.toLowerCase().includes(query)) : names.value;
 });
 
-// Signed in with a key: which tenant it opens.
+// Signed in with a key: which tenant it opens. Signed in as a user: who, and in which workspace.
 const tenant = ref<string | null>(null);
+const { session, load, signOut, switchWorkspace } = useSession();
+// A workspace's own domain always works in that workspace: no switching there.
+const { site, load: loadSite } = useSite();
+const toasts = useToasts();
 
-function signOut() {
-  setApiKey(null);
-  window.location.assign("/");
+async function openWorkspace(event: Event) {
+  const select = event.target as HTMLSelectElement;
+  try {
+    await switchWorkspace(select.value);
+  } catch (caught) {
+    select.value = session.value?.workspace.name ?? "";
+    toasts.error("The workspace could not be opened", caught instanceof ApiError ? caught.message : undefined);
+  }
 }
 
 onMounted(async () => {
   void refresh();
   if (apiKey.value) tenant.value = (await api.me().catch(() => null))?.tenant ?? null;
+  else void load();
+  void loadSite();
 });
 </script>
 
@@ -92,7 +117,25 @@ onMounted(async () => {
     <button class="btn new" @click="dialog?.open()"><Plus :size="16" /> New project</button>
 
     <div class="foot">
-      <div v-if="apiKey" class="signed-in small">
+      <div v-if="session" class="user small">
+        <label v-if="session.workspaces.length > 1 && !site?.workspace" class="workspace">
+          <span class="visually-hidden">Workspace</span>
+          <select class="select" :value="session.workspace.name" @change="openWorkspace">
+            <option v-for="w in session.workspaces" :key="w.name" :value="w.name">{{ w.name }} · {{ w.role }}</option>
+          </select>
+        </label>
+        <div class="signed-in">
+          <RouterLink to="/account" class="account" :title="session.user.email">
+            <CircleUser :size="16" />
+            <span class="tenant">{{ session.user.name }}</span>
+            <span v-if="session.workspaces.length < 2 || site?.workspace" class="subtle">· {{ session.workspace.name }}</span>
+          </RouterLink>
+          <button class="btn btn-ghost btn-icon btn-sm" aria-label="Sign out" title="Sign out" @click="signOut">
+            <LogOut :size="14" />
+          </button>
+        </div>
+      </div>
+      <div v-else-if="apiKey" class="signed-in small">
         <KeyRound :size="14" class="subtle" />
         <span class="tenant" :title="tenant ?? undefined">{{ tenant ?? "Signed in" }}</span>
         <button class="btn btn-ghost btn-sm" title="Forget the API key in this browser" @click="signOut">
@@ -120,6 +163,32 @@ onMounted(async () => {
   gap: 6px;
   padding: 0 4px;
   color: var(--text-2);
+}
+
+.user {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.account:hover .tenant {
+  text-decoration: underline;
+}
+
+.workspace .select {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 13px;
 }
 
 .signed-in .tenant {

@@ -316,6 +316,181 @@ class PasswordResetInvalid(AppError):
     status_code = HTTPStatus.NOT_FOUND
 
 
+class DomainInvalid(AppError):
+    """Not a domain a workspace can have: a host name with a dot, not this server's own."""
+
+    signal = ResponseSignal.DOMAIN_INVALID
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class DomainNotFound(AppError):
+    signal = ResponseSignal.DOMAIN_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class DomainExists(AppError):
+    """The workspace has this domain already."""
+
+    signal = ResponseSignal.DOMAIN_EXISTS
+    status_code = HTTPStatus.CONFLICT
+
+
+class DomainTaken(AppError):
+    """Another workspace has this domain verified."""
+
+    signal = ResponseSignal.DOMAIN_TAKEN
+    status_code = HTTPStatus.CONFLICT
+
+
+class DomainNotVerified(AppError):
+    """The domain's TXT record was not found, or does not hold the token (yet)."""
+
+    signal = ResponseSignal.DOMAIN_NOT_VERIFIED
+    status_code = HTTPStatus.CONFLICT
+
+
+class WrongDomain(AppError):
+    """The request came to another workspace's domain than the key's or the user's."""
+
+    signal = ResponseSignal.WRONG_DOMAIN
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class DnsLookupFailed(AppError):
+    """The DNS servers did not answer; the message says how (for the logs)."""
+
+    signal = ResponseSignal.DNS_LOOKUP_FAILED
+    status_code = HTTPStatus.SERVICE_UNAVAILABLE
+
+
+class BotNotFound(AppError):
+    signal = ResponseSignal.BOT_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class BotCredentialsInvalid(AppError):
+    """A bot's credentials lack what its chat app needs, or the app refused them."""
+
+    signal = ResponseSignal.BOT_CREDENTIALS_INVALID
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class BotPlatformFailed(AppError):
+    """The chat app refused a call or could not be reached; the message says how."""
+
+    signal = ResponseSignal.BOT_PLATFORM_FAILED
+    status_code = HTTPStatus.BAD_GATEWAY
+
+
+class BotSignatureInvalid(AppError):
+    """A webhook delivery that the chat app did not sign, or not with the bot's secret."""
+
+    signal = ResponseSignal.BOT_SIGNATURE_INVALID
+    status_code = HTTPStatus.UNAUTHORIZED
+
+
+class ConnectionNotFound(AppError):
+    signal = ResponseSignal.CONNECTION_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class ConnectionInUse(AppError):
+    """Sources still read through the connection: remove them first."""
+
+    signal = ResponseSignal.CONNECTION_IN_USE
+    status_code = HTTPStatus.CONFLICT
+
+
+class ConnectionWrongKind(AppError):
+    """A source was given a connection to another service (Google Drive for Notion)."""
+
+    signal = ResponseSignal.CONNECTION_WRONG_KIND
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class ConnectorNotConfigured(AppError):
+    """The server has no OAuth app for this service: its client id and secret are unset."""
+
+    signal = ResponseSignal.CONNECTOR_NOT_CONFIGURED
+    status_code = HTTPStatus.CONFLICT
+
+
+class ConnectionRequestInvalid(AppError):
+    """A sign-in came back with a state that is unknown, used already or expired."""
+
+    signal = ResponseSignal.CONNECTION_REQUEST_INVALID
+    status_code = HTTPStatus.BAD_REQUEST
+
+
+class ConnectionDenied(AppError):
+    """The person declined, at the provider, to let the workspace read."""
+
+    signal = ResponseSignal.CONNECTION_DENIED
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class ConnectionFailed(AppError):
+    """The provider refused a code or a refresh token, or could not be reached; the message
+    says how."""
+
+    signal = ResponseSignal.CONNECTION_FAILED
+    status_code = HTTPStatus.BAD_GATEWAY
+
+
+class SsoNotConfigured(AppError):
+    """The workspace (or the email's domain) has no single sign-on set up and turned on."""
+
+    signal = ResponseSignal.SSO_NOT_CONFIGURED
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class SsoFailed(AppError):
+    """The identity provider could not be reached, refused the code, or sent back something
+    that is not valid OpenID Connect; the message says what."""
+
+    signal = ResponseSignal.SSO_FAILED
+    status_code = HTTPStatus.BAD_GATEWAY
+
+
+class SsoEmailNotAllowed(AppError):
+    """The identity provider vouched for an email outside the workspace's verified domains,
+    or one it has not verified itself."""
+
+    signal = ResponseSignal.SSO_EMAIL_NOT_ALLOWED
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class SsoSecretRequired(AppError):
+    """A workspace's first identity provider needs its client secret."""
+
+    signal = ResponseSignal.SSO_SECRET_REQUIRED
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class SsoRequestInvalid(AppError):
+    """A sign-in came back with a state that is unknown, used, expired, or from another
+    browser."""
+
+    signal = ResponseSignal.SSO_REQUEST_INVALID
+    status_code = HTTPStatus.BAD_REQUEST
+
+
+class SsoRequired(AppError):
+    """The workspace signs its members in only through its identity provider: not with a
+    password, nor by invitation."""
+
+    signal = ResponseSignal.SSO_REQUIRED
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class SsoNeedsDomain(AppError):
+    """Single sign-on can be required only once the workspace has a verified domain, or no
+    one but its owners could sign in."""
+
+    signal = ResponseSignal.SSO_NEEDS_DOMAIN
+    status_code = HTTPStatus.CONFLICT
+
+
 class RateLimited(AppError):
     """The tenant made too many requests this minute; Retry-After says when to try again."""
 

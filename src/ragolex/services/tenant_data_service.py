@@ -8,6 +8,9 @@ import. It holds what the tenant put in and what was recorded about it:
     api_keys.json                       names, prefixes and scopes; never keys or their hashes
     members.json                        the people with accounts in it, and their roles
     invitations.json                    invitations not accepted yet; never their links
+    domains.json                        its own domains, and whether each is verified
+    connections.json                    its Notion and Google Drive connections; never tokens
+    sso.json                            its single sign-on provider, if any; never the secret
     audit.jsonl                         the audit log, oldest first
     projects/<project>/project.json     the project, and its answer usage added up
     projects/<project>/files.json       each file's name, type, size, checksum and tags
@@ -15,6 +18,7 @@ import. It holds what the tenant put in and what was recorded about it:
     projects/<project>/sources.json     websites and other sources it syncs from
     projects/<project>/widgets.json     chat widgets
     projects/<project>/webhooks.json    webhooks, without their signing secrets
+    projects/<project>/bots.json        Telegram, Slack and WhatsApp bots, without credentials
     projects/<project>/conversations.jsonl  questions and answers, with citations and feedback
 
 Chunks and their embeddings are left out: processing the files again makes
@@ -112,8 +116,23 @@ class TenantDataService:
              "expires_at": i.expires_at} for i in invitations])
         events = [event async for event in self._audit(tenant.id)]
         export.add_lines("audit.jsonl", [_plain(event, keep={"id"}) for event in reversed(events)])
+        domains = await self.uow.domains.list_for_tenant(tenant.id)
+        export.add_json("domains.json", [
+            {"domain": d.domain, "created_at": d.created_at, "verified_at": d.verified_at}
+            for d in domains])
+        connections = await self.uow.connections.list_for_tenant(tenant.id)
+        export.add_json("connections.json", [
+            {"id": c.id, "kind": c.kind, "account": c.account, "created_by": c.created_by,
+             "created_at": c.created_at} for c in connections])
+        provider = await self.uow.sso.get(tenant.id)
+        export.add_json("sso.json", {
+            "issuer": provider.issuer, "client_id": provider.client_id,
+            "default_role": provider.default_role, "enabled": provider.enabled,
+            "required": provider.required, "created_at": provider.created_at}
+            if provider else None)
         export.counts.update(api_keys=len(keys), members=len(members),
-                             invitations=len(invitations), audit_events=len(events))
+                             invitations=len(invitations), domains=len(domains),
+                             connections=len(connections), audit_events=len(events))
 
         projects = [project async for project in self._projects()]
         export.counts["projects"] = len(projects)
@@ -154,6 +173,10 @@ class TenantDataService:
         webhooks = await self.uow.webhooks.list_for_project(project.id, offset=0, limit=1000)
         export.add_json(f"{folder}/webhooks.json",
                         [_plain(webhook, keep={"id"}) for webhook in webhooks])
+        export.add_json(f"{folder}/bots.json", [
+            {"id": bot.id, "kind": bot.kind, "name": bot.name, "account": bot.account,
+             "tags": list(bot.tags), "enabled": bot.enabled, "created_at": bot.created_at}
+            for bot in await self.uow.bots.list_for_project(project.id)])
 
         conversations = []
         offset = 0

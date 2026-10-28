@@ -24,6 +24,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 | 3. Automate | 4 Ingestion and automation, 5 Agents | Connected sources stay in sync without manual steps |
 | 4. Improve | 6 Retrieval quality, 7 Study mode | Evaluation scores improve over the stage 1 baseline |
 | 5. Harden | 8 Security, 9 Production, 10 Web app | New tenants can onboard themselves |
+| 6. Grow | 11 Enterprise sign-in, 12 Self-serve plans, 13 More sources, 14 Scale | An organisation signs in with its identity provider and pays for a plan on its own |
 
 ### Phase 1: Answer generation
 
@@ -51,7 +52,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] TypeScript and Python SDKs generated from the OpenAPI schema, checked in CI against the API.
 - [x] An embeddable chat widget: one `<script>` tag, streaming answers, clickable citations; a name, colour, welcome text and allowed website origins per widget.
 - [x] **White-label:** a logo for the widget; an assistant name and instructions per project; serving it all from your own domain (see [Operations](operations.md#your-own-domain)).
-- [ ] Several brands on one deployment: a custom domain per tenant, mapped to its projects and widgets.
+- [x] Several brands on one deployment: domains of a workspace's own, proven by a TXT record, serving its projects, sign-in and widgets ([API › Your own domains](api.md#your-own-domains)).
 - [x] **Collections and tags:** tag files (at upload, by hand, or per website source), list them by tag, and limit search, answers, chat widgets and the MCP tools to some tags.
 - [x] A [versioning policy](versioning.md) for `/api/v1`: the API only grows within it, CI fails on breaking changes, and deprecated endpoints announce their sunset in headers, at least six months ahead.
 
@@ -63,9 +64,9 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] OCR for scanned PDFs, with Tesseract or a vision model.
 - [x] A website connector: crawled within its site and folder, obeying robots.txt, synced on a schedule, adding, replacing and removing pages.
 - [x] RSS and Atom feeds, and GitHub repositories' documents, as sources synced like websites.
-- [ ] Connectors that need each user's sign-in (OAuth): Notion, Google Drive.
+- [x] Notion and Google Drive sources, read through a workspace's sign-in to them (OAuth), with tokens refreshed and encrypted ([API › Notion and Google Drive](api.md#notion-and-google-drive)).
 - [x] Signed outgoing webhooks for automation tools such as n8n, Make and Zapier.
-- [ ] Telegram, Slack and WhatsApp bots.
+- [x] Telegram, Slack and WhatsApp bots that answer from a project's documents, with sources and follow-up questions ([API › Chat bots](api.md#chat-bots-telegram-slack-and-whatsapp)).
 
 ### Phase 5: Agents
 
@@ -88,7 +89,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 ### Phase 8: Security and privacy
 
-- [ ] User accounts with roles per tenant: sign-up, sign-in, roles, members, invitations and password resets are done ([API › User accounts](api.md#user-accounts)); the web app's pages are next.
+- [x] User accounts with roles per tenant: sign-up, sign-in, members, invitations and password resets, in the API ([API › User accounts](api.md#user-accounts)) and the web app ([Web app](web.md)).
 - [x] File type checked from content, not the declared type; optional malware scanning with ClamAV.
 - [x] Prompt-injection test cases.
 - [x] Encryption at rest of uploaded files and webhook secrets, with key rotation (`ENCRYPTION_KEYS`, `ragolex encryption`).
@@ -114,5 +115,34 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] Document management with upload, job status and website sources.
 - [x] An admin dashboard for keys, usage, cost and evaluation scores ([Web app](web.md)).
 - [x] Accessible, responsive, tested end to end with Playwright.
+
+### Phase 11: Enterprise sign-in
+
+- [x] Single sign-on with OpenID Connect per workspace (Microsoft Entra ID, Google Workspace, Okta, Keycloak): sign-in through the organisation's identity provider, accounts made on first sign-in for its verified email domain, with a default role ([API › Single sign-on](api.md#single-sign-on)).
+- [ ] SAML 2.0 for identity providers without OpenID Connect.
+- [x] Workspaces that require single sign-on: passwords and invitations off for their members, owners exempt so a broken provider cannot lock a workspace ([API › Single sign-on](api.md#single-sign-on)).
+- [ ] Two-factor authentication (TOTP) for password accounts, with recovery codes, and an option for owners to require it.
+- [ ] SCIM 2.0 provisioning: members added, changed and removed by the identity provider.
+
+### Phase 12: Self-serve plans
+
+- [ ] Plans that set a workspace's limits (answers, storage, rate limit, budget, members).
+- [ ] Stripe Checkout to start or change a plan, the customer portal for invoices and payment methods, and Stripe's webhooks keeping the plan in step.
+- [ ] A free trial, and what happens when a payment fails (a grace period, then the free plan's limits).
+- [ ] Billing off by default: a self-hosted server keeps setting limits by hand.
+
+### Phase 13: More sources
+
+- [ ] Confluence pages and SharePoint/OneDrive files, read through the workspace's sign-in, like Notion and Google Drive.
+- [ ] Dropbox folders and S3-compatible buckets.
+- [ ] Incremental syncs: Google Drive's changes feed and Notion's edit times read only what changed since the last sync.
+- [ ] A source's permissions kept with its pages, so answers use only what the asking person may read.
+
+### Phase 14: Scale
+
+- [ ] Answers cached per project and question, cleared when the project's documents change.
+- [ ] Multilingual retrieval: a question in one language finds passages in another, measured on a multilingual evaluation set.
+- [ ] Separate job workers that scale on the queue's length, and read replicas for searches.
+- [ ] A load test in CI that fails when search or answer latency regresses.
 
 Ideas and feedback are welcome in [issues](https://github.com/AbdullahBakir97/Ragolex/issues).

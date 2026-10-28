@@ -66,8 +66,9 @@ class GitHubCrawler:
         self._headers = headers
         self._client = http_client or httpx2.AsyncClient(timeout=timeout_seconds)
 
-    async def crawl(self, start_url: str,
-                    max_pages: int) -> AsyncIterator[CrawledPage | UnreachablePage]:
+    async def crawl(self, start_url: str, max_pages: int,
+                    access_token: str | None = None,
+                    ) -> AsyncIterator[CrawledPage | UnreachablePage]:
         repository = parse_repository(start_url)
         if repository is None:
             raise CrawlFailed(f"{start_url} is not a GitHub repository's address")

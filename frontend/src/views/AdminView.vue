@@ -5,13 +5,18 @@ import { computed, onMounted, ref } from "vue";
 import { ApiError, api } from "@/api/client";
 import type { Me, TenantUsage } from "@/api/types";
 import AdminAudit from "@/components/AdminAudit.vue";
+import AdminConnections from "@/components/AdminConnections.vue";
+import AdminDomains from "@/components/AdminDomains.vue";
 import AdminEvaluations from "@/components/AdminEvaluations.vue";
 import AdminKeys from "@/components/AdminKeys.vue";
+import AdminMembers from "@/components/AdminMembers.vue";
+import AdminSso from "@/components/AdminSso.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { formatBytes, formatCost, formatNumber } from "@/lib/format";
 
-// The tenant at a glance: this month's usage against its limits, its API keys,
-// its evaluation scores and its audit log. Everything but usage needs an admin key.
+// The tenant at a glance: this month's usage against its limits, its members,
+// domains, connections, API keys, evaluation scores and audit log. Everything but usage needs the admin
+// scope: an admin key, or an owner's or admin's sign-in.
 const me = ref<Me | null>(null);
 const audit = ref<InstanceType<typeof AdminAudit> | null>(null);
 const usage = ref<TenantUsage | null>(null);
@@ -26,6 +31,14 @@ onMounted(async () => {
 });
 
 const isAdmin = computed(() => me.value?.scopes.includes("admin") ?? false);
+
+const signedInAs = computed(() => {
+  const m = me.value;
+  if (!m) return "";
+  if (!m.auth_enabled) return "Authentication is off: every request acts for the default tenant.";
+  if (m.user) return `Signed in as ${m.user.name} (${m.user.email}), ${m.role} of this workspace.`;
+  return `Signed in with a key with the scopes ${m.scopes.join(", ")}.`;
+});
 
 const tiles = computed(() => {
   const u = usage.value;
@@ -52,11 +65,9 @@ function ratio(used: number, limit: number | null): number | null {
 
 <template>
   <div class="page">
-    <PageHeader title="Admin" :subtitle="me ? `Tenant ${me.tenant}: usage, API keys, evaluation scores and the audit log.` : 'Usage, API keys, evaluation scores and the audit log.'">
+    <PageHeader title="Admin" :subtitle="me ? `Workspace ${me.tenant}: usage, members, domains, connections, API keys, evaluation scores and the audit log.` : 'Usage, members, domains, connections, API keys, evaluation scores and the audit log.'">
       <template v-if="me" #meta>
-        <p class="subtle small">
-          {{ me.auth_enabled ? `Signed in with a key with the scopes ${me.scopes.join(", ")}.` : "Authentication is off: every request acts for the default tenant." }}
-        </p>
+        <p class="subtle small">{{ signedInAs }}</p>
       </template>
     </PageHeader>
 
@@ -79,9 +90,13 @@ function ratio(used: number, limit: number | null): number | null {
 
     <div v-if="me && !isAdmin" class="alert">
       <ShieldAlert :size="18" class="subtle" />
-      <span class="muted">API keys, evaluation scores and the audit log need a key with the <strong>admin</strong> scope.</span>
+      <span class="muted">Members, domains, connections, API keys, evaluation scores and the audit log need the <strong>admin</strong> scope: an owner's or an admin's role, or a key with it.</span>
     </div>
     <template v-else-if="me">
+      <AdminMembers v-if="me.auth_enabled" :my-role="me.role ?? null" :my-user-id="me.user?.id ?? null" @changed="audit?.refresh()" />
+      <AdminDomains @changed="audit?.refresh()" />
+      <AdminSso v-if="me.auth_enabled" :my-role="me.role ?? null" @changed="audit?.refresh()" />
+      <AdminConnections @changed="audit?.refresh()" />
       <AdminKeys :current-key-id="me.key_id" @changed="audit?.refresh()" />
       <AdminEvaluations />
       <AdminAudit ref="audit" />

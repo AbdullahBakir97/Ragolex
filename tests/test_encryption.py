@@ -243,13 +243,13 @@ def test_the_command_encrypts_what_was_stored_before_and_rotates_keys(
     assert "files: 1 not encrypted" in capsys.readouterr().out
     assert cli.main(["encryption", "encrypt"]) == cli.PASSED
     first_id = ring(first).current_id
-    assert f"Encrypted 1 files and 1 webhook secrets with key {first_id}" in (
+    assert f"Encrypted 1 files and 1 secrets (of webhooks, bots and connections) with key {first_id}" in (
         capsys.readouterr().out)
     [(stored,)] = query("SELECT secret FROM webhooks")
     assert stored.startswith(f"enc:v1:{first_id}:")
     # Once more, nothing is left to do.
     cli.main(["encryption", "encrypt"])
-    assert "Encrypted 0 files and 0 webhook secrets" in capsys.readouterr().out
+    assert "Encrypted 0 files and 0 secrets" in capsys.readouterr().out
 
     # Rotating: the new key first, the old one kept to read what it encrypted.
     use_keys(monkeypatch, second, first)
@@ -258,7 +258,7 @@ def test_the_command_encrypts_what_was_stored_before_and_rotates_keys(
     assert cli.main(["encryption", "status"]) == cli.PASSED
     status = capsys.readouterr().out
     assert f"files: 1 with key {second_id} (current)" in status
-    assert f"webhook secrets: 1 with key {second_id} (current)" in status
+    assert f"secrets: 1 with key {second_id} (current)" in status
     # Without the old key now, everything still reads.
     use_keys(monkeypatch, second)
     assert ring(second).decrypt_value(query("SELECT secret FROM webhooks")[0][0]) == secret

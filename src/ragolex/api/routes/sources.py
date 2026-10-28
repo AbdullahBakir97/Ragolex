@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from ragolex.api.dependencies import READ, WRITE, SourceServiceDep
+from ragolex.api.dependencies import READ, WRITE, PrincipalDep, SourceServiceDep
 from ragolex.api.schemas import (
     Pagination,
     ProjectId,
@@ -14,7 +14,14 @@ from ragolex.api.schemas import (
     SourceResponse,
     error_responses,
 )
-from ragolex.core.errors import ProjectNotFound, SourceNotFound, SourceUrlNotAllowed
+from ragolex.core.errors import (
+    ConnectionNotFound,
+    ConnectionWrongKind,
+    ProjectNotFound,
+    ScopeMissing,
+    SourceNotFound,
+    SourceUrlNotAllowed,
+)
 from ragolex.domain.models import Source
 
 router = APIRouter(prefix="/api/v1/projects", tags=["sources"])
@@ -22,7 +29,7 @@ router = APIRouter(prefix="/api/v1/projects", tags=["sources"])
 
 def _source(source: Source) -> SourceResponse:
     return SourceResponse(id=source.id, kind=source.kind, url=source.url,
-                          max_pages=source.max_pages,
+                          connection_id=source.connection_id, max_pages=source.max_pages,
                           sync_interval_hours=source.sync_interval_hours,
                           pages_count=source.pages_count, syncing=source.syncing,
                           last_synced_at=source.last_synced_at, next_sync_at=source.next_sync_at,
@@ -32,20 +39,27 @@ def _source(source: Source) -> SourceResponse:
 
 @router.post(
     "/{project_id}/sources", dependencies=[WRITE], status_code=status.HTTP_201_CREATED,
-    summary="Keep a website's pages, a feed's entries or a GitHub repository's documents",
+    summary="Keep a website's pages, a feed's entries, a GitHub repository's documents, "
+            "Notion pages or a Google Drive folder's files",
     description="A website's pages under the URL's folder are crawled, following their links "
                 "(robots.txt is obeyed); a feed's entries are read; a GitHub repository's "
-                "documents are listed and fetched. Each page is stored as a file and processed "
+                "documents are listed and fetched; Notion pages and Google Drive files are "
+                "read through one of the workspace's connections. Each page is stored as a file and processed "
                 "and indexed in the background; then again every `sync_interval_hours`, adding "
                 "new pages, replacing changed ones and deleting the ones that are gone (a "
                 "feed's older entries stay). The first sync starts at once. The project is "
                 "created if it has no files yet.",
-    responses=error_responses(SourceUrlNotAllowed))
-async def create_source(project_id: ProjectId, request: SourceRequest,
+    responses=error_responses(SourceUrlNotAllowed, ConnectionNotFound, ConnectionWrongKind,
+                              ScopeMissing))
+async def create_source(project_id: ProjectId, request: SourceRequest, principal: PrincipalDep,
                         service: SourceServiceDep) -> SourceResponse:
+    # A connection reads whatever its admin's account can (all of their Drive): only admins
+    # choose what it reads.
+    if request.connection_id is not None and "admin" not in principal.scopes:
+        raise ScopeMissing("Notion and Google Drive sources need the admin scope")
     return _source(await service.create(project_id, str(request.url), request.max_pages,
                                         request.sync_interval_hours, request.tags,
-                                        request.kind))
+                                        request.kind, request.connection_id))
 
 
 @router.get("/{project_id}/sources", dependencies=[READ], summary="List a project's sources",

@@ -116,7 +116,7 @@ A workspace's owners and admins (and API keys with the `admin` scope) manage its
 | `GET /api/v1/invitations` | Invitations not accepted yet, newest first (expired ones too) |
 | `DELETE /api/v1/invitations/{invitation_id}` | Revokes an invitation: its link stops working (`204`) |
 
-Inviting answers with a `link` to send, shown only then, such as `http://localhost:3000/invite#Xq2v…`; with `SMTP_HOST` set it is emailed too (`"emailed": true`). The link works once, for a week, and only for the email invited; inviting the address again replaces it. The web app opens it, or a client does it with the token after `#`:
+Inviting answers with a `link` to send, shown only then, such as `http://localhost:3000/invite#Xq2v…`; with `SMTP_HOST` set it is emailed too (`"emailed": true`). Links start with `APP_URL`, even for a workspace with [its own domain](#your-own-domains), as password reset links do: a domain may later pass to someone else. The link works once, for a week, and only for the email invited; inviting the address again replaces it. The web app opens it, or a client does it with the token after `#`:
 
 | Endpoint | Does |
 |---|---|
@@ -153,6 +153,57 @@ Invitation and reset tokens are sent in request bodies and kept in the link's fr
 | The reset link is wrong, used or expired | `404` | `{"signal": "password_reset_invalid"}` |
 | The current password is wrong | `403` | `{"signal": "current_password_wrong"}` |
 
+### Single sign-on
+
+A workspace can have people sign in with their organisation's account, through any OpenID Connect identity provider: Microsoft Entra ID, Google Workspace, Okta, Keycloak and others.
+
+1. Add the organisation's email domain, such as `acme.com`, under [your own domains](#your-own-domains) and verify it with its TXT record. A workspace's provider signs in only emails on its verified domains, so no workspace can sign in someone else's account.
+2. Register an app (a "web" client) with the provider, with the redirect URI that `GET /api/v1/sso` shows (`APP_URL` + `/api/v1/auth/sso/callback`) and the scopes `openid email profile`.
+3. `PUT /api/v1/sso` (`admin`) with `{"issuer": "https://login.microsoftonline.com/<tenant>/v2.0", "client_id": "…", "client_secret": "…", "default_role": "viewer"}`. The provider's discovery document is read first, so a wrong issuer is refused (`502` `{"signal": "sso_failed"}`); the first time needs `client_secret` (`422` `{"signal": "sso_secret_required"}`); later, leaving it out keeps it. It is stored encrypted and never returned. `"enabled": false` turns it off; `DELETE` removes it.
+
+People then choose **Sign in with single sign-on** in the web app and give their email: `POST /api/v1/auth/sso/discover` finds the workspace that verified its domain (`404` `{"signal": "sso_not_configured"}` when none has single sign-on on), and the browser goes through the provider and back to the callback, which signs them in and opens the page they were going to. Their first sign-in makes their account (named as the provider names them), or adds an existing account with that email to the workspace, with `default_role`; members keep their roles. Accounts made this way can set a password with a reset link.
+
+The sign-in uses the authorization code flow with PKCE, a single-use state and a nonce, and only the browser that started it can finish it. The ID token's signature is checked with the provider's published keys (never with the client secret, nor unsigned), as are its issuer, audience, expiry and nonce. An email the provider marks unverified, or one outside the workspace's verified domains, is refused (`sso_email_not_allowed`). With Entra ID, the sign-in name (`preferred_username`) counts as the email when there is no `email` claim. Errors come back to the sign-in page as `?sso_error=<signal>`. The provider must be on a public address, unless `SSO_ALLOW_PRIVATE_URLS` is on (a Keycloak on the server's own network). Single sign-on needs `AUTH_ENABLED`.
+
+**Requiring it.** With `"required": true`, the workspace's members sign in only through its provider:
+
+- A password no longer signs them in there (`403` `{"signal": "sso_required"}`; the web app then offers single sign-on), and sessions they started with a password end (`401`). A password still works in their other workspaces, and a session that came through this workspace's provider cannot be switched into another workspace that requires its own (`403` `sso_required`).
+- Invitations are off: new ones, and accepting ones sent before (`403` `sso_required`). People join through the provider.
+- **Owners keep their passwords**, so a broken provider cannot lock the workspace. Turning the provider off (`"enabled": false`), or removing it, lifts the requirement.
+
+Only an owner turns it on or off (`403` `{"signal": "owner_required"}` for an admin or an API key), and it needs a verified domain (`409` `{"signal": "sso_needs_domain"}`), or no one but owners could sign in.
+
+### Your own domains
+
+A workspace can serve on domains of its own, such as `help.acme.com`: its web app, its API and its chat widgets, all from the same deployment. An `admin` key, or an owner's or admin's session, manages them:
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/v1/domains` | The workspace's domains, by name |
+| `POST /api/v1/domains` | Adds one: `{"domain": "help.acme.com"}` (`201`), not yet verified |
+| `POST /api/v1/domains/{domain_id}/verify` | Looks its TXT record up now; once found, the domain serves the workspace |
+| `DELETE /api/v1/domains/{domain_id}` | Removes it (`204`): it stops serving at once |
+
+Each domain lists the DNS `records` to add at its DNS provider: a TXT record, `_ragolex.help.acme.com` holding `ragolex-verification=…`, which proves the workspace controls the domain, and a CNAME to this server. Several workspaces may claim a domain, so a claim blocks nobody; only one can have it verified (`409` `domain_taken`).
+
+On a verified domain, every request acts for its workspace:
+
+- **Signing in** works in that workspace (`404` `workspace_not_found` for someone who is not a member), and **signing up** is off: people are invited. A session keeps its user's other workspaces for the server's own domain.
+- **API keys** of other workspaces, and users who are not members, are refused with `403` `wrong_domain`; switching workspace is refused there too.
+- **Chat widgets** answer only if they are the workspace's.
+- With authentication off, requests act for the domain's workspace instead of `default`.
+
+Two endpoints need no key: `GET /api/v1/site` says which workspace the request's domain serves, and whether people may sign up there (for the web app's sign-in page); `GET /api/v1/domains/allowed?domain=help.acme.com` answers `200` for a verified domain and `404` otherwise, for a proxy that gets certificates on demand (see [Operations › A domain per workspace](operations.md#a-domain-per-workspace)).
+
+| Case | Status | Response |
+|---|---|---|
+| Not a domain, or the server's own (`APP_URL`) | `422` | `{"signal": "domain_invalid"}` |
+| The workspace has it already | `409` | `{"signal": "domain_exists"}` |
+| Its TXT record was not found | `409` | `{"signal": "domain_not_verified"}` |
+| Another workspace has it verified | `409` | `{"signal": "domain_taken"}` |
+| The DNS servers did not answer | `503` | `{"signal": "dns_lookup_failed"}` |
+| A key or user of another workspace, on this one's domain | `403` | `{"signal": "wrong_domain"}` |
+
 ## Audit log
 
 Administrative actions are recorded in their tenant's audit log, in the same transaction as the action itself, so a recorded action happened and every action that happened is recorded. `GET /api/v1/audit` (`admin` scope) lists them, most recent first; `?action=api_key` or `?action=widget.deleted` keeps the actions that start with it. Operators can read the same log with `ragolex audit --tenant <name>`.
@@ -166,8 +217,12 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | Action | Target | Details |
 |---|---|---|
 | `tenant.created`, `tenant.limits_changed` | The tenant's name | The new limits (`changes`) |
-| `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`) |
+| `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`); `"via": "sso"` for someone added by their first single sign-on |
+| `sso.configured`, `sso.removed` | The identity provider's issuer | Its client id, default role, whether it is on and whether it is required; never the secret |
 | `invitation.created`, `invitation.revoked`, `invitation.accepted` | The invited email | The invitation's id and `role` |
+| `domain.added`, `domain.verified`, `domain.removed` | The domain | |
+| `bot.created`, `bot.updated`, `bot.deleted` | The bot's id | Project, kind, name and what changed; never its credentials |
+| `connection.created`, `connection.renewed`, `connection.deleted` | The connection's id | Its kind and account; never its tokens |
 | `api_key.created`, `api_key.revoked` | The key's id | Name, prefix and scopes, never the key |
 | `webhook.created`, `webhook.deleted` | The webhook's id | Project, URL and events, never the secret |
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
@@ -206,11 +261,14 @@ curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/ap
 | `api_keys.json` | Each key's id, name, prefix, scopes and dates; never the key or its hash |
 | `members.json` | Each member's email, name, role, and when they joined and last signed in; never passwords or sessions |
 | `invitations.json` | Each open invitation's email, role and dates; never its link |
+| `domains.json` | The workspace's own domains, and when each was verified |
+| `connections.json` | Its Notion and Google Drive connections: kind, account, who connected it and when; never their tokens |
+| `sso.json` | Its single sign-on provider (issuer, client id, default role, on or off, required or not), or `null`; never the secret |
 | `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
 | `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
 | `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
 | `projects/<project>/files/<file_id>` | The files, exactly as uploaded |
-| `projects/<project>/sources.json`, `widgets.json`, `webhooks.json` | The project's sources, chat widgets and webhooks; webhooks without their signing secret |
+| `projects/<project>/sources.json`, `widgets.json`, `webhooks.json`, `bots.json` | The project's sources, chat widgets, webhooks and bots; webhooks without their signing secret, bots without their credentials |
 | `projects/<project>/conversations.jsonl` | Each conversation with its questions and answers, their citations and feedback |
 
 Chunks and their embeddings are left out: processing the files again makes them, with whichever embedding model is used then. Each export is recorded in the audit log as `tenant.exported`.
@@ -290,6 +348,8 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `POST` | `/api/v1/auth/invitation` | What an invitation link offers (the token in the body) |
 | `POST` | `/api/v1/auth/invitation/accept` | Accept an invitation, making the account if it has none, and work in its workspace |
 | `POST` | `/api/v1/auth/password-reset` | Email a link to choose a new password (always `202`) |
+| `POST` | `/api/v1/auth/sso/discover` | Which workspace signs an email in with single sign-on, and where to start |
+| `GET`, `PUT`, `DELETE` | `/api/v1/sso` | The workspace's OpenID Connect identity provider (`admin`) |
 | `POST` | `/api/v1/auth/password-reset/confirm` | Choose a new password with a reset link |
 | `PUT` | `/api/v1/auth/password` | Change the signed-in user's password |
 | `GET` | `/api/v1/members` | The workspace's members (`admin`) |
@@ -298,6 +358,12 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/api/v1/invitations` | Invitations not accepted yet (`admin`) |
 | `POST` | `/api/v1/invitations` | Invite an email, returning the link once (`admin`) |
 | `DELETE` | `/api/v1/invitations/{invitation_id}` | Revoke an invitation (`admin`) |
+| `GET` | `/api/v1/domains` | The workspace's own domains (`admin`) |
+| `POST` | `/api/v1/domains` | Add a domain; it serves once its TXT record is verified (`admin`) |
+| `POST` | `/api/v1/domains/{domain_id}/verify` | Look the domain's TXT record up now (`admin`) |
+| `DELETE` | `/api/v1/domains/{domain_id}` | Remove a domain (`admin`) |
+| `GET` | `/api/v1/domains/allowed` | Whether a domain is a verified workspace's, for on-demand certificates (no key) |
+| `GET` | `/api/v1/site` | Which workspace this domain serves, and whether people may sign up here (no key) |
 | `GET` | `/api/v1/usage` | The tenant's usage this month, against its limits |
 | `GET` | `/api/v1/usage/history` | The tenant's answers and their cost per day, project and model |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |
@@ -315,7 +381,10 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/api/v1/projects/{project_id}/jobs` | List jobs, most recent first (paged; `?status=` filters) |
 | `GET` | `/api/v1/projects/{project_id}/jobs/{job_id}` | A job's status and progress |
 | `POST` | `/api/v1/projects/{project_id}/jobs/{job_id}/retry` | Queue a failed job again |
-| `POST` | `/api/v1/projects/{project_id}/sources` | Keep a website's pages in the project, synced on a schedule (`write`) |
+| `GET` | `/api/v1/connections` | The workspace's Notion and Google Drive connections, and which services this server can connect (`admin`) |
+| `POST` | `/api/v1/connections` | Start connecting Notion or Google Drive: where to send the person to sign in (`admin`) |
+| `DELETE` | `/api/v1/connections/{connection_id}` | Remove a connection no source uses (`admin`) |
+| `POST` | `/api/v1/projects/{project_id}/sources` | Keep a website's pages, a feed, a GitHub repository, Notion pages or a Google Drive folder in the project, synced on a schedule (`write`) |
 | `GET` | `/api/v1/projects/{project_id}/sources` | List the project's sources |
 | `GET` | `/api/v1/projects/{project_id}/sources/{source_id}` | A source: pages, last and next sync, last error |
 | `GET` | `/api/v1/projects/{project_id}/sources/{source_id}/pages` | The pages a source stored (paged) |
@@ -332,6 +401,13 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/api/v1/projects/{project_id}/widgets/{widget_id}` | A chat widget (`admin`) |
 | `PATCH` | `/api/v1/projects/{project_id}/widgets/{widget_id}` | Change a chat widget's settings (`admin`) |
 | `DELETE` | `/api/v1/projects/{project_id}/widgets/{widget_id}` | Remove a chat widget; its conversations stay (`admin`) |
+| `POST` | `/api/v1/projects/{project_id}/bots` | Add a bot that answers in Telegram, Slack or WhatsApp (`admin`) |
+| `GET` | `/api/v1/projects/{project_id}/bots` | List the project's bots (`admin`) |
+| `GET` | `/api/v1/projects/{project_id}/bots/{bot_id}` | A bot (`admin`) |
+| `PATCH` | `/api/v1/projects/{project_id}/bots/{bot_id}` | Change a bot (`admin`) |
+| `DELETE` | `/api/v1/projects/{project_id}/bots/{bot_id}` | Remove a bot (`admin`) |
+| `POST` | `/api/v1/bots/{bot_id}/webhook` | Where a chat app delivers a bot's messages (signed by the app, no key) |
+| `GET` | `/api/v1/bots/{bot_id}/webhook` | WhatsApp checking the callback URL (no key) |
 | `GET` | `/api/v1/widgets/{widget_id}` | What a widget shows, for its visitors (no key) |
 | `POST` | `/api/v1/widgets/{widget_id}/ask` | Answer a visitor's question, streamed (no key) |
 | `PUT` | `/api/v1/widgets/{widget_id}/conversations/{conversation_id}/messages/{message_id}/feedback` | A visitor rates an answer (no key) |
@@ -491,7 +567,7 @@ curl http://localhost:8000/api/v1/projects/demo1/tags
 {"items": [{"tag": "handbook", "files": 12}, {"tag": "v2", "files": 3}]}
 ```
 
-`PUT .../tags` replaces the file's tags (`[]` removes them) and returns the file, with its `tags`; every file listed carries its `tags`. Tags are given at upload too, and a [source](#sources-websites-feeds-and-github-repositories) gives its own to the pages it stores. Limit a search or an answer to files with any of some tags with the `tags` [filter](#filters); a [chat widget](#chat-widget) with tags answers its visitors only from those files. An invalid tag in a body is a validation error (`422`); in `?tag=` or an upload's `tags`, it is `422` `{"signal": "tag_invalid"}`.
+`PUT .../tags` replaces the file's tags (`[]` removes them) and returns the file, with its `tags`; every file listed carries its `tags`. Tags are given at upload too, and a [source](#sources-websites-feeds-github-notion-and-google-drive) gives its own to the pages it stores. Limit a search or an answer to files with any of some tags with the `tags` [filter](#filters); a [chat widget](#chat-widget) with tags answers its visitors only from those files. An invalid tag in a body is a validation error (`422`); in `?tag=` or an upload's `tags`, it is `422` `{"signal": "tag_invalid"}`.
 
 ## Delete files and projects
 
@@ -558,9 +634,9 @@ A job is `queued`, then `running` (`stage` is `processing`, then `indexing`, whi
 | No such project, file or job | `404` | `{"signal": "project_not_found"}` / `{"signal": "file_not_found"}` / `{"signal": "job_not_found"}` |
 | Options not valid, such as `overlap_size` not smaller than `chunk_size` | `422` | Validation error details |
 
-## Sources: websites, feeds and GitHub repositories
+## Sources: websites, feeds, GitHub, Notion and Google Drive
 
-A source keeps a website's pages, a feed's entries or a GitHub repository's documents in a project: they are fetched, stored as files and indexed, then synced again on a schedule. `kind` says which (default `website`); the rest of this section describes websites, and [feeds and repositories](#feeds-and-github-repositories) below.
+A source keeps a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files in a project: they are fetched, stored as files and indexed, then synced again on a schedule. `kind` says which (default `website`); the rest of this section describes websites, with [feeds and repositories](#feeds-and-github-repositories) and [Notion and Google Drive](#notion-and-google-drive) below.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/projects/demo1/sources \
@@ -596,6 +672,30 @@ curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Typ
 - **`github`:** `https://github.com/<owner>/<repo>`, at its default branch, or `.../tree/<branch or tag>/<folder>` for one branch and folder. Its Markdown, text, reStructuredText, HTML and PDF files are kept, top-level ones first, up to `max_pages`; hidden and vendored folders (`.github`, `node_modules`, `vendor`) are skipped. Each is a page at its `github.com/.../blob/...` address, so answers cite it, and files deleted from the repository are removed from the project. `GITHUB_TOKEN` reads private repositories and raises GitHub's rate limit from 60 requests an hour to 5000: a sync makes two requests, plus one per file. A repository that cannot be read (not found, rate limited) fails the sync with `last_error` and keeps every page.
 
 Any other `kind`, or a `github` URL that is not a repository's, is refused with `422`.
+
+### Notion and Google Drive
+
+Notion pages and Google Drive files are private, so these sources read through a **connection**: an admin signs the workspace in to the service once, choosing what it may read, and its sources use that sign-in. The server needs an OAuth app with each service; see [Configuration › Notion and Google Drive](configuration.md#notion-and-google-drive).
+
+```bash
+# Start connecting: send the person to authorize_url.
+curl -X POST http://localhost:8000/api/v1/connections -H "Content-Type: application/json" \
+  -d '{"kind": "notion", "return_to": "http://localhost:3000/projects/demo1/documents"}'
+# {"authorize_url": "https://api.notion.com/v1/oauth/authorize?client_id=…&state=…"}
+
+# Once they come back with ?connected=con_…, add sources that read through it.
+curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Type: application/json" \
+  -d '{"kind": "notion", "connection_id": "con_V1StGXR8_Z5jdHi6B-myT1", "sync_interval_hours": 6}'
+curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Type: application/json" \
+  -d '{"kind": "google_drive", "connection_id": "con_…", "url": "https://drive.google.com/drive/folders/1AbC…"}'
+```
+
+- **Connecting.** `POST /api/v1/connections` (`admin`) with a `kind` returns an `authorize_url`, valid once for 15 minutes. At the service, the person signs in and allows reading (in Notion, they pick the pages to share); the service sends them to `/api/v1/connections/callback`, which keeps the connection and redirects to `return_to` with `?connected=<id>`, or with `?connection_error=<signal>`: `connection_denied` (they declined), `connection_failed` (the service refused the code) or `connection_request_invalid` (the link was used or expired). `return_to` must be on this server's web app or one of the workspace's [verified domains](#your-own-domains); otherwise they land on the Admin page. Open `authorize_url` in the browser that made the request: the response gives it a cookie that finishing the sign-in needs, so nobody can send someone else the link and have their account connected to another workspace (the web app does both). A service the server has no OAuth app with is `409` `{"signal": "connector_not_configured"}`.
+- **Connections.** `GET /api/v1/connections` (`admin`) lists them, oldest first, with their `account` (the Notion workspace, or the Google account's email), who connected them, how many sources use each and `last_error`, and says which services the server can connect (`available`) and the `redirect_uri` to register. Tokens are stored encrypted when `ENCRYPTION_KEYS` is set and are never returned. Google's last an hour: they are refreshed before a sync that needs them, and a refused refresh (the access was revoked) fails the sync with `last_error`, also noted on the connection. Connecting the same account again renews that connection, and its sources carry on. `DELETE /api/v1/connections/{connection_id}` (`admin`) forgets it, once no source uses it (`409` `{"signal": "connection_in_use"}` otherwise); revoke the access at the service too.
+- **`notion`:** with no `url`, every page the connection can read, most recently edited first; with a page's `url` (`https://www.notion.so/…-<id>`), that page and the pages and database entries under it. Each page becomes Markdown (`# Title`, then its headings, paragraphs, lists, to-dos, quotes, callouts, code, tables and equations, with bold, italics and links), at its `notion.so` address, so answers cite it. Pages no longer shared, or deleted, are removed from the project. Notion's rate limit is waited out.
+- **`google_drive`:** with no `url`, all of My Drive; with a folder's `url` (`https://drive.google.com/drive/folders/<id>`, shared drives too), that folder and the folders in it. Google Docs are read as Markdown and Slides as text; PDF, Word, Markdown, HTML and text files as they are; spreadsheets, images and other files are skipped, as are files over `FILE_MAX_SIZE`. Each is a page at its Drive address, and files moved out, deleted or trashed are removed from the project.
+- A `notion` or `google_drive` source needs a `connection_id` (`422` without one) and the `admin` scope (`403` `{"signal": "api_key_scope_missing"}` otherwise): a connection reads whatever its account can, such as all of a Google Drive, so only admins choose what it reads. A connection of the workspace's other service is `422` `{"signal": "connection_wrong_kind"}`, and an unknown one `404` `{"signal": "connection_not_found"}`. Other kinds take none.
+- Sources that share a connection sync one at a time, which keeps a workspace within the service's rate limit.
 
 ## Webhooks
 
@@ -731,6 +831,33 @@ The page can also call `window.RagolexWidget.open()` and `.close()`. The widget 
 **What visitors can do.** The widget's id is public: it is in the page. With it, and no API key, a visitor can only see the widget's name, welcome, colour and logo (`GET /api/v1/widgets/{widget_id}`), ask its one project (`POST .../ask`), and rate the answers in their own conversations. Answers stream as Server-Sent Events like [`/ask/{project_id}/stream`](#streaming-the-answer), but the final `answer` event holds only what a visitor needs: the answer, its citations with the document's name, page, section and passage, the `conversation_id` to send with the next question, and the `message_id` to rate it. No file ids, scores, prompt versions or costs. A visitor can continue only conversations started in the same widget (`404` `{"signal": "conversation_not_found"}` otherwise). Widget requests count against the tenant's rate limit and answer quota, and their conversations appear with the project's others, marked with the widget's `widget_id`; removing the widget keeps them.
 
 **Which websites.** Browsers send an `Origin` header with every request a page makes to another site, and a page on a website the widget does not allow is refused with `403` `{"signal": "origin_not_allowed"}`; the widget then stays hidden and says why in the browser console. The widget's routes answer any website's CORS requests (without cookies), so that refusal is readable. Pages on the API's own host, such as the web app's widget preview, may use every widget. The check keeps other websites from embedding your widget; it is not a password, since a client outside a browser can send any `Origin`, which is why a widget can do no more than its visitors could anyway.
+
+## Chat bots: Telegram, Slack and WhatsApp
+
+A bot answers in a chat app what people ask it, from the project's documents, as the chat widget does on a website: each answer ends with the sources its `[n]` markers cite, each chat (or Slack thread) keeps a conversation so follow-up questions work, and a bot with `tags` answers only from the files that have them. Bots need the `admin` scope to manage:
+
+| Endpoint | Does |
+|---|---|
+| `POST /api/v1/projects/{project_id}/bots` | Adds a bot: `{"kind": "telegram", "name": "Help desk", "credentials": {"token": "…"}, "tags": []}` (`201`) |
+| `GET /api/v1/projects/{project_id}/bots` | The project's bots, oldest first |
+| `GET`, `PATCH`, `DELETE /api/v1/projects/{project_id}/bots/{bot_id}` | One bot; change its `name`, `tags`, `enabled` or `credentials`; remove it (its conversations stay) |
+
+The chat app is asked to accept the credentials before the bot is saved, and they are stored encrypted (with `ENCRYPTION_KEYS`) and never returned. A bot shows its `account` in the app, its `webhook_url`, when it last answered, and why it last failed (`last_error`), such as a reply the app refused.
+
+**Telegram.** Talk to [@BotFather](https://t.me/BotFather), send `/newbot`, and give the token it shows as `{"token": "…"}`. The bot sets its webhook with Telegram itself, which needs `APP_URL` to be an `https://` address Telegram can reach. People find the bot by its `@name`; `/start` says what it does and `/new` starts a new conversation. In groups, mention it or reply to it.
+
+**Slack.** Create an app at [api.slack.com/apps](https://api.slack.com/apps). Under *OAuth & Permissions* give the bot the scopes `app_mentions:read`, `chat:write` and `im:history`, and install it to the workspace; under *Event Subscriptions* turn events on, paste the bot's `webhook_url` as the Request URL (Slack checks it at once), and subscribe to the bot events `app_mention` and `message.im`. Give `{"bot_token": "xoxb-…", "signing_secret": "…"}` (the signing secret is under *Basic Information*). People mention the bot in a channel, and it answers in a thread, or message it directly.
+
+**WhatsApp.** In a [Meta app](https://developers.facebook.com/apps) with the WhatsApp product, take the phone number's id and an access token (a system user's permanent token for production) from *API Setup*, and the app secret from *App settings › Basic*: `{"access_token": "…", "phone_number_id": "…", "app_secret": "…"}`. Then, under *WhatsApp › Configuration*, set the Callback URL to the bot's `webhook_url` and the Verify token to its `verify_token`, and subscribe to `messages`.
+
+Chat apps deliver each message to `POST /api/v1/bots/{bot_id}/webhook`, which needs no key: it checks the app's proof instead (Telegram's secret token, Slack's signature with its signing secret, no older than five minutes, and WhatsApp's signature with the app secret). It answers the app at once, since apps wait only seconds, and the reply follows when it is written. A message the app delivers again is answered once. Each answer counts against the workspace's [rate limit, quotas and budget](#rate-limits-and-quotas); over them, the bot says so in the chat. One chat may send a bot `BOT_CHAT_MESSAGES_PER_MINUTE` messages a minute (10 by default): past that, the bot asks it once to slow down, and ignores its messages until the minute is over, so one chat cannot spend the workspace's quota. Deliveries larger than 1 MB are refused (`413`) without being read whole. A bot's `webhook_url` starts with `APP_URL`, never a workspace's own domain, since messages carry the bot's secret.
+
+| Case | Status | Response |
+|---|---|---|
+| Credentials missing, or refused by the chat app | `422` | `{"signal": "bot_credentials_invalid"}` |
+| The chat app failed or could not be reached | `502` | `{"signal": "bot_platform_failed"}` |
+| No such bot | `404` | `{"signal": "bot_not_found"}` |
+| A delivery the app did not sign | `401` | `{"signal": "bot_signature_invalid"}` |
 
 ## Search
 

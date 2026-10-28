@@ -4,7 +4,9 @@ import {
   ChevronRight,
   FolderGit2,
   Globe,
+  HardDrive,
   LoaderCircle,
+  NotebookText,
   Plus,
   RefreshCw,
   Rss,
@@ -14,7 +16,7 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import { ApiError, api } from "@/api/client";
-import type { SourceKind, SourcePage, WebsiteSource } from "@/api/types";
+import type { Connection, SourceKind, SourcePage, WebsiteSource } from "@/api/types";
 import TagInput from "@/components/TagInput.vue";
 import { useToasts } from "@/composables/useToasts";
 import { formatNumber, formatRelative } from "@/lib/format";
@@ -48,8 +50,20 @@ const KINDS: Record<SourceKind, { label: string; placeholder: string; help: stri
     placeholder: "https://github.com/owner/repo/tree/main/docs",
     help: "The repository's Markdown, text, HTML and PDF files, or one folder's.",
   },
+  notion: {
+    label: "Notion",
+    placeholder: "Every page it can read, or https://www.notion.so/…",
+    help: "One page and the pages under it; empty, every page the connection can read.",
+  },
+  google_drive: {
+    label: "Google Drive folder",
+    placeholder: "All of My Drive, or https://drive.google.com/drive/folders/…",
+    help: "A folder and its subfolders: Docs, Slides, PDF, Word and text files.",
+  },
 };
-const KIND_ICONS = { website: Globe, feed: Rss, github: FolderGit2 };
+const KIND_ICONS = { website: Globe, feed: Rss, github: FolderGit2, notion: NotebookText, google_drive: HardDrive };
+// Notion and Google Drive are read through one of the workspace's connections.
+const CONNECTED: SourceKind[] = ["notion", "google_drive"];
 
 const sources = ref<WebsiteSource[]>([]);
 const loaded = ref(false);
@@ -83,19 +97,52 @@ async function load() {
   if (sources.value.some(busy)) timer = setTimeout(load, POLL_MS);
 }
 
+// The workspace's connections. Only admins see them, and only admins add sources that read
+// through one: a connection reads whatever its account can.
+const connections = ref<Connection[]>([]);
+const mayConnect = ref(true);
+
+async function loadConnections() {
+  try {
+    connections.value = (await api.connections()).items;
+    mayConnect.value = true;
+  } catch (caught) {
+    connections.value = [];
+    mayConnect.value = !(caught instanceof ApiError && caught.signal === "api_key_scope_missing");
+  }
+}
+
+function via(source: WebsiteSource): string | null {
+  const connection = connections.value.find((c) => c.id === source.connection_id);
+  return connection ? connection.account : null;
+}
+
 // Adding one.
 const kind = ref<SourceKind>("website");
+const connectionId = ref("");
+const connected = computed(() => CONNECTED.includes(kind.value));
+const usable = computed(() => connections.value.filter((c) => c.kind === kind.value));
+watch(usable, (choices) => {
+  if (!choices.some((c) => c.id === connectionId.value)) connectionId.value = choices[0]?.id ?? "";
+});
 const url = ref("");
 const maxPages = ref(50);
 const interval = ref(24);
 const tags = ref<string[]>([]);
 const tagInput = ref<InstanceType<typeof TagInput> | null>(null);
 const adding = ref(false);
-const validUrl = computed(() =>
-  kind.value === "github"
-    ? /^https:\/\/github\.com\/[\w-]+\/[\w.-]+(\/tree\/[^\s/]+(\/\S*)?)?\/?$/i.test(url.value.trim())
-    : /^https?:\/\/[^\s/]+/i.test(url.value.trim()),
-);
+const validUrl = computed(() => {
+  const address = url.value.trim();
+  if (kind.value === "notion") return !address || /^https:\/\/([\w-]+\.)?notion\.(so|site)\//i.test(address);
+  if (kind.value === "google_drive") {
+    return !address || /^https:\/\/drive\.google\.com\/drive\/(.*\/)?(folders\/[\w-]{10,}|my-drive)/i.test(address);
+  }
+  if (kind.value === "github") {
+    return /^https:\/\/github\.com\/[\w-]+\/[\w.-]+(\/tree\/[^\s/]+(\/\S*)?)?\/?$/i.test(address);
+  }
+  return /^https?:\/\/[^\s/]+/i.test(address);
+});
+const ready = computed(() => validUrl.value && (!connected.value || connectionId.value !== ""));
 
 async function add() {
   if (tagInput.value && !tagInput.value.commit()) return;
@@ -103,7 +150,8 @@ async function add() {
   try {
     await api.createSource(props.project, {
       kind: kind.value,
-      url: url.value.trim(),
+      ...(url.value.trim() ? { url: url.value.trim() } : {}),
+      ...(connected.value ? { connection_id: connectionId.value } : {}),
       max_pages: maxPages.value,
       sync_interval_hours: interval.value,
       tags: tags.value,
@@ -111,7 +159,7 @@ async function add() {
     toasts.success(`${KINDS[kind.value].label} added`, "Its pages are being fetched; each one is indexed as it arrives.");
     url.value = "";
     tags.value = [];
-    await load();
+    await Promise.all([load(), loadConnections()]);
     emit("synced");
   } catch (caught) {
     toasts.error("The source could not be added", caught instanceof ApiError ? caught.message : undefined);
@@ -190,7 +238,7 @@ watch(
     void load();
   },
 );
-onMounted(load);
+onMounted(() => Promise.all([load(), loadConnections()]));
 onBeforeUnmount(() => {
   if (timer) clearTimeout(timer);
 });
@@ -204,9 +252,9 @@ defineExpose({ load });
       <div>
         <h3 id="websites-title">Sources</h3>
         <p class="muted small">
-          Keep a website's pages, a feed's entries or a GitHub repository's documents in this project: they are fetched
-          (robots.txt is obeyed), indexed, and synced again on a schedule, adding new pages, replacing changed ones and
-          removing the ones that are gone.
+          Keep a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder
+          in this project: they are fetched (robots.txt is obeyed), indexed, and synced again on a schedule, adding new
+          pages, replacing changed ones and removing the ones that are gone.
         </p>
       </div>
     </div>
@@ -218,9 +266,29 @@ defineExpose({ load });
           <option v-for="(info, value) in KINDS" :key="value" :value="value">{{ info.label }}</option>
         </select>
       </label>
+      <label v-if="connected && usable.length" class="field">
+        <span>Connection</span>
+        <select v-model="connectionId" class="input">
+          <option v-for="connection in usable" :key="connection.id" :value="connection.id">{{ connection.account }}</option>
+        </select>
+      </label>
+      <p v-else-if="connected" class="field grow no-connection small" role="status">
+        <span v-if="!mayConnect">Only an admin adds Notion and Google Drive sources.</span>
+        <span v-else>
+          The workspace has no {{ kind === "notion" ? "Notion" : "Google Drive" }} connection yet: an admin
+          connects one on the <RouterLink to="/admin">Admin page</RouterLink>.
+        </span>
+      </p>
       <label class="field grow">
         <span>Address <span class="hint subtle">· {{ KINDS[kind].help }}</span></span>
-        <input v-model="url" class="input" type="url" required maxlength="2000" :placeholder="KINDS[kind].placeholder" />
+        <input
+          v-model="url"
+          class="input"
+          type="url"
+          :required="!connected"
+          maxlength="2000"
+          :placeholder="KINDS[kind].placeholder"
+        />
       </label>
       <label class="field">
         <span>Most pages</span>
@@ -236,7 +304,7 @@ defineExpose({ load });
         <span>Tags for its pages</span>
         <TagInput ref="tagInput" v-model="tags" :suggestions="tagSuggestions" label="Tags for its pages" placeholder="Optional" />
       </div>
-      <button class="btn btn-primary" type="submit" :disabled="adding || !validUrl || maxPages < 1 || maxPages > 1000">
+      <button class="btn btn-primary" type="submit" :disabled="adding || !ready || maxPages < 1 || maxPages > 1000">
         <LoaderCircle v-if="adding" :size="16" class="spin" />
         <Plus v-else :size="16" />
         Add source
@@ -265,6 +333,7 @@ defineExpose({ load });
             <a class="url mono" :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.url }}</a>
             <p class="small muted">
               <LoaderCircle v-if="source.syncing" :size="12" class="spin" aria-hidden="true" />
+              <template v-if="via(source)">Through {{ via(source) }} ·</template>
               {{ formatNumber(source.pages_count) }} of at most {{ formatNumber(source.max_pages) }} pages ·
               {{ intervalLabel(source.sync_interval_hours) }} · {{ status(source) }}
             </p>
@@ -358,6 +427,16 @@ defineExpose({ load });
 
 .hint {
   font-weight: 400;
+}
+
+.no-connection {
+  margin: 0;
+  align-self: center;
+  font-weight: 400;
+}
+
+.no-connection a {
+  text-decoration: underline;
 }
 
 .kind-icon {

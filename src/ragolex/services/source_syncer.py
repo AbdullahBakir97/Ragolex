@@ -16,7 +16,9 @@ from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
 from ragolex.domain.crawler import Crawler, UnreachablePage
 from ragolex.domain.malware_scanner import MalwareScanner
 from ragolex.domain.models import Limits, Source, SourcePage
+from ragolex.domain.oauth import OAuthProvider
 from ragolex.domain.repositories import UnitOfWork
+from ragolex.services.connection_service import ConnectionService
 from ragolex.services.deletion_service import DeletionService
 from ragolex.services.job_service import JobService
 from ragolex.services.limit_service import LimitService
@@ -27,7 +29,8 @@ from ragolex.storage.file_storage import FileStorage
 logger = logging.getLogger(__name__)
 
 EXTENSIONS = {"text/html": ".html", "application/xhtml+xml": ".html", "application/pdf": ".pdf",
-              "text/plain": ".txt", "text/markdown": ".md"}
+              "text/plain": ".txt", "text/markdown": ".md",
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx"}
 
 
 def page_file_name(url: str, content_type: str) -> str:
@@ -79,7 +82,8 @@ class SourceSyncer:
                  allowed_types: Sequence[str],
                  max_bytes: int, read_size: int, max_attempts: int, limits: Limits,
                  scanner: MalwareScanner | None = None, lease_seconds: int = 3600,
-                 poll_seconds: float = 5.0):
+                 poll_seconds: float = 5.0,
+                 oauth_providers: Mapping[str, OAuthProvider] | None = None):
         self.unit_of_work = unit_of_work
         self.storage = storage
         self.crawlers = crawlers
@@ -91,17 +95,21 @@ class SourceSyncer:
         self.scanner = scanner
         self.lease_seconds = lease_seconds
         self.poll_seconds = poll_seconds
+        # Refresh the tokens of Notion and Google Drive connections.
+        self.oauth_providers = oauth_providers or {}
 
     @classmethod
     def from_settings(cls, settings: Settings,
                       unit_of_work: Callable[..., AbstractAsyncContextManager[UnitOfWork]],
                       crawlers: Mapping[str, Crawler],
-                      scanner: MalwareScanner | None) -> "SourceSyncer":
+                      scanner: MalwareScanner | None,
+                      oauth_providers: Mapping[str, OAuthProvider] | None = None,
+                      ) -> "SourceSyncer":
         return cls(unit_of_work, FileStorage.from_settings(settings), crawlers,
                    allowed_types=settings.FILE_ALLOWED_TYPES,
                    max_bytes=settings.max_upload_bytes, read_size=settings.FILE_DEFAULT_CHUNK_SIZE,
                    max_attempts=settings.JOB_MAX_ATTEMPTS, scanner=scanner,
-                   limits=settings.default_limits)
+                   limits=settings.default_limits, oauth_providers=oauth_providers)
 
     async def run(self) -> None:
         """Sync sources as they fall due, until cancelled."""
@@ -135,7 +143,11 @@ class SourceSyncer:
             seen: set[str] = set()
             crawler = self.crawlers[source.kind]
             try:
-                async for item in crawler.crawl(source.url, source.max_pages):
+                token = None
+                if source.connection_id is not None:
+                    token = await ConnectionService(uow, self.oauth_providers).access_token(
+                        source.connection_id, source.kind)
+                async for item in crawler.crawl(source.url, source.max_pages, token):
                     seen.add(item.url)
                     if not isinstance(item, UnreachablePage):
                         await self._keep(uow, source, item.url, item.content_type, item.body,

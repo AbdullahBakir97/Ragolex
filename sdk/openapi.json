@@ -1807,8 +1807,8 @@
         "tags": [
           "sources"
         ],
-        "summary": "Keep a website's pages, a feed's entries or a GitHub repository's documents",
-        "description": "A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.",
+        "summary": "Keep a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files",
+        "description": "A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched; Notion pages and Google Drive files are read through one of the workspace's connections. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.",
         "operationId": "create_source",
         "security": [
           {
@@ -1857,13 +1857,52 @@
             }
           },
           "422": {
-            "description": "Signal: `source_url_not_allowed`",
+            "description": "Signal: `source_url_not_allowed`, `connection_wrong_kind`",
             "content": {
               "application/json": {
                 "examples": {
                   "source_url_not_allowed": {
                     "value": {
                       "signal": "source_url_not_allowed"
+                    }
+                  },
+                  "connection_wrong_kind": {
+                    "value": {
+                      "signal": "connection_wrong_kind"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `connection_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "connection_not_found": {
+                    "value": {
+                      "signal": "connection_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `api_key_scope_missing`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "api_key_scope_missing": {
+                    "value": {
+                      "signal": "api_key_scope_missing"
                     }
                   }
                 },
@@ -3731,7 +3770,7 @@
           "accounts"
         ],
         "summary": "Create an account with a workspace of its own, and sign in",
-        "description": "The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.",
+        "description": "The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is, and on a workspace's own domain, where people are invited.",
         "operationId": "sign_up",
         "requestBody": {
           "content": {
@@ -3817,7 +3856,7 @@
           "accounts"
         ],
         "summary": "Sign in with an email and password",
-        "description": "Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.",
+        "description": "Sets the session cookie, working in the first of the user's workspaces, or on a workspace's own domain, in that one. The 10th wrong password in a row locks the account for 15 minutes.",
         "operationId": "sign_in",
         "requestBody": {
           "content": {
@@ -3908,6 +3947,23 @@
               }
             }
           },
+          "403": {
+            "description": "Signal: `sso_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_required": {
+                    "value": {
+                      "signal": "sso_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3963,6 +4019,7 @@
           "accounts"
         ],
         "summary": "The signed-in user and their workspaces",
+        "description": "On a workspace's own domain, the session works in that workspace.",
         "operationId": "current_session",
         "responses": {
           "200": {
@@ -4008,6 +4065,23 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Signal: `wrong_domain`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "wrong_domain": {
+                    "value": {
+                      "signal": "wrong_domain"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4023,6 +4097,7 @@
           "accounts"
         ],
         "summary": "Work in another of the user's workspaces",
+        "description": "Not on a workspace's own domain, which always works in its own.",
         "operationId": "switch_workspace",
         "requestBody": {
           "content": {
@@ -4090,6 +4165,28 @@
                   "workspace_not_found": {
                     "value": {
                       "signal": "workspace_not_found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `wrong_domain`, `sso_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "wrong_domain": {
+                    "value": {
+                      "signal": "wrong_domain"
+                    }
+                  },
+                  "sso_required": {
+                    "value": {
+                      "signal": "sso_required"
                     }
                   }
                 }
@@ -4259,7 +4356,7 @@
             }
           },
           "403": {
-            "description": "Signal: `invitation_for_someone_else`",
+            "description": "Signal: `invitation_for_someone_else`, `sso_required`",
             "content": {
               "application/json": {
                 "schema": {
@@ -4269,6 +4366,11 @@
                   "invitation_for_someone_else": {
                     "value": {
                       "signal": "invitation_for_someone_else"
+                    }
+                  },
+                  "sso_required": {
+                    "value": {
+                      "signal": "sso_required"
                     }
                   }
                 }
@@ -5195,7 +5297,7 @@
             }
           },
           "403": {
-            "description": "Signal: `owner_required`",
+            "description": "Signal: `owner_required`, `sso_required`",
             "content": {
               "application/json": {
                 "schema": {
@@ -5205,6 +5307,11 @@
                   "owner_required": {
                     "value": {
                       "signal": "owner_required"
+                    }
+                  },
+                  "sso_required": {
+                    "value": {
+                      "signal": "sso_required"
                     }
                   }
                 }
@@ -5302,6 +5409,1444 @@
                 },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains": {
+      "get": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "The workspace's own domains, by name",
+        "operationId": "list_domains",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DomainResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Domains"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "Add a domain for the workspace to serve on",
+        "description": "It serves nothing until verified: add the TXT record it returns at the domain's DNS provider, then `POST …/verify`. Point the domain at this server with the CNAME (or an A record).",
+        "operationId": "add_domain",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `domain_invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "domain_invalid": {
+                    "value": {
+                      "signal": "domain_invalid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `domain_exists`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "domain_exists": {
+                    "value": {
+                      "signal": "domain_exists"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/domains/{domain_id}/verify": {
+      "post": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "Check the domain's TXT record",
+        "description": "Looks the record up now, without caching. Once found, the domain serves the workspace: requests to it act for it, and invitation links use it.",
+        "operationId": "verify_domain",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The domain's id.",
+              "title": "Domain Id"
+            },
+            "description": "The domain's id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `domain_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "domain_not_found": {
+                    "value": {
+                      "signal": "domain_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `domain_not_verified`, `domain_taken`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "domain_not_verified": {
+                    "value": {
+                      "signal": "domain_not_verified"
+                    }
+                  },
+                  "domain_taken": {
+                    "value": {
+                      "signal": "domain_taken"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Signal: `dns_lookup_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "dns_lookup_failed": {
+                    "value": {
+                      "signal": "dns_lookup_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains/{domain_id}": {
+      "delete": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "Remove a domain",
+        "description": "It stops serving the workspace at once.",
+        "operationId": "remove_domain",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The domain's id.",
+              "title": "Domain Id"
+            },
+            "description": "The domain's id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `domain_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "domain_not_found": {
+                    "value": {
+                      "signal": "domain_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains/allowed": {
+      "get": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "Whether a domain is a verified workspace's",
+        "description": "For a reverse proxy's on-demand certificates, such as Caddy's `on_demand_tls` `ask`: `200` for a verified domain, `404` otherwise. Needs no key.",
+        "operationId": "domain_allowed",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 253,
+              "title": "Domain"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Domain Allowed"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `domain_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "domain_not_found": {
+                    "value": {
+                      "signal": "domain_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/site": {
+      "get": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "What this domain serves, for the web app before sign-in",
+        "description": "The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.",
+        "operationId": "site",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/bots": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Add a bot that answers in Telegram, Slack or WhatsApp",
+        "description": "The chat app is asked to accept the credentials first. Telegram is told the webhook URL; for Slack and WhatsApp, paste `webhook_url` (and WhatsApp's `verify_token`) into the app's settings.",
+        "operationId": "create_bot",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `bot_credentials_invalid`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_credentials_invalid": {
+                    "value": {
+                      "signal": "bot_credentials_invalid"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Signal: `bot_platform_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_platform_failed": {
+                    "value": {
+                      "signal": "bot_platform_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "The project's bots, oldest first",
+        "operationId": "list_bots",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/bots/{bot_id}": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "A bot",
+        "operationId": "get_bot",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Change a bot",
+        "description": "Its name, tags, whether it answers, or its credentials (checked with the chat app first).",
+        "operationId": "update_bot",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `bot_credentials_invalid`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_credentials_invalid": {
+                    "value": {
+                      "signal": "bot_credentials_invalid"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Signal: `bot_platform_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_platform_failed": {
+                    "value": {
+                      "signal": "bot_platform_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Remove a bot",
+        "description": "Telegram stops sending it messages; its conversations stay with the project.",
+        "operationId": "delete_bot",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "Project name: letters, digits, '_' and '-' (1-64 characters).",
+              "title": "Project Id"
+            },
+            "description": "Project name: letters, digits, '_' and '-' (1-64 characters)."
+          },
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `project_not_found`, `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "project_not_found": {
+                    "value": {
+                      "signal": "project_not_found"
+                    }
+                  },
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/webhook": {
+      "post": {
+        "tags": [
+          "bot webhooks"
+        ],
+        "summary": "Where a chat app delivers a bot's messages",
+        "description": "Checked with the app's signature (Telegram's secret token, Slack's signing secret, WhatsApp's app secret). Answers at once; the reply is sent to the chat when it is written. A delivery sent again is answered once.",
+        "operationId": "bot_webhook",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `bot_signature_invalid`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_signature_invalid": {
+                    "value": {
+                      "signal": "bot_signature_invalid"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bot webhooks"
+        ],
+        "summary": "WhatsApp checking the callback URL",
+        "description": "Echoes `hub.challenge` when `hub.verify_token` is the bot's verify token.",
+        "operationId": "bot_webhook_check",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^bot_[A-Za-z0-9_-]{22}$",
+              "description": "The bot's id, from its webhook URL.",
+              "title": "Bot Id"
+            },
+            "description": "The bot's id, from its webhook URL."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `bot_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_not_found": {
+                    "value": {
+                      "signal": "bot_not_found"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `bot_signature_invalid`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bot_signature_invalid": {
+                    "value": {
+                      "signal": "bot_signature_invalid"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "The workspace's connections, oldest first",
+        "description": "With the services this server can connect, and the redirect URI to register with their OAuth apps.",
+        "operationId": "list_connections",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Start connecting Notion or Google Drive",
+        "description": "Send the person to `authorize_url`, in the browser that made this request: it keeps a cookie that finishing the sign-in needs. Once they sign in and allow reading, they come back to `return_to` with `connected=<id>`, or with `connection_error=<signal>`.",
+        "operationId": "start_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionStartResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `connector_not_configured`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "connector_not_configured": {
+                    "value": {
+                      "signal": "connector_not_configured"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/connections/{connection_id}": {
+      "delete": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Remove a connection",
+        "description": "Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.",
+        "operationId": "delete_connection",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^con_[A-Za-z0-9_-]{22}$",
+              "description": "The connection's id.",
+              "title": "Connection Id"
+            },
+            "description": "The connection's id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `connection_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "connection_not_found": {
+                    "value": {
+                      "signal": "connection_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `connection_in_use`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "connection_in_use": {
+                    "value": {
+                      "signal": "connection_in_use"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sso": {
+      "get": {
+        "tags": [
+          "single sign-on"
+        ],
+        "summary": "The workspace's single sign-on",
+        "operationId": "get_sso",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoSettingsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "single sign-on"
+        ],
+        "summary": "Set the workspace's OpenID Connect identity provider",
+        "description": "Its discovery document is read first, so a wrong issuer is refused.",
+        "operationId": "set_sso",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoSettingsResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Signal: `sso_failed`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_failed": {
+                    "value": {
+                      "signal": "sso_failed"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `sso_secret_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_secret_required": {
+                    "value": {
+                      "signal": "sso_secret_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `owner_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "owner_required": {
+                    "value": {
+                      "signal": "owner_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `sso_needs_domain`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_needs_domain": {
+                    "value": {
+                      "signal": "sso_needs_domain"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "single sign-on"
+        ],
+        "summary": "Remove the workspace's single sign-on",
+        "description": "Accounts made by it stay, and can set a password with a reset link.",
+        "operationId": "delete_sso",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `sso_not_configured`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_not_configured": {
+                    "value": {
+                      "signal": "sso_not_configured"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/sso/discover": {
+      "post": {
+        "tags": [
+          "single sign-on"
+        ],
+        "summary": "Which workspace signs this email in",
+        "description": "The workspace that verified the email's domain and has single sign-on turned on.",
+        "operationId": "discover",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoDiscoverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoDiscoverResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `sso_not_configured`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_not_configured": {
+                    "value": {
+                      "signal": "sso_not_configured"
+                    }
+                  }
                 }
               }
             }
@@ -8368,6 +9913,266 @@
         ],
         "title": "Body_upload_data"
       },
+      "BotListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BotResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BotListResponse"
+      },
+      "BotRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "telegram",
+              "slack",
+              "whatsapp"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "examples": [
+              "Help desk"
+            ]
+          },
+          "credentials": {
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "type": "object",
+            "title": "Credentials",
+            "description": "Telegram: `token` (from @BotFather). Slack: `bot_token` (xoxb-…) and `signing_secret`. WhatsApp: `access_token`, `phone_number_id` and `app_secret`. Stored encrypted, and never returned.",
+            "examples": [
+              {
+                "token": "123456:ABC-…"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Tags",
+            "description": "Answer only from files with any of these tags; empty for all files.",
+            "examples": [
+              [
+                "guides",
+                "v2"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "credentials"
+        ],
+        "title": "BotRequest"
+      },
+      "BotResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project": {
+            "type": "string",
+            "title": "Project"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "telegram",
+              "slack",
+              "whatsapp"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "The bot in the chat app, such as `@acme_help_bot`."
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "webhook_url": {
+            "type": "string",
+            "title": "Webhook Url",
+            "description": "Where the chat app sends messages: set by API for Telegram; paste it into Slack's Event Subscriptions or WhatsApp's Callback URL."
+          },
+          "verify_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Token",
+            "description": "WhatsApp only: the Verify token to paste next to the Callback URL."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_message_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Message At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error",
+            "description": "Why the last message it failed on failed."
+          },
+          "last_error_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project",
+          "kind",
+          "name",
+          "account",
+          "tags",
+          "enabled",
+          "webhook_url",
+          "verify_token",
+          "created_at",
+          "last_message_at",
+          "last_error",
+          "last_error_at"
+        ],
+        "title": "BotResponse"
+      },
+      "BotUpdateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20,
+                "description": "Tags: letters, digits and hyphens, up to 32 characters each; they are lowercased, with spaces and underscores turned into hyphens.",
+                "examples": [
+                  [
+                    "guides",
+                    "v2"
+                  ]
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "[] or null for all files."
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "A bot turned off ignores messages."
+          },
+          "credentials": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 4096
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credentials"
+          }
+        },
+        "type": "object",
+        "title": "BotUpdateRequest",
+        "description": "Only the fields sent are changed; new `credentials` replace the old ones whole."
+      },
       "CardListResponse": {
         "properties": {
           "total": {
@@ -8744,6 +10549,164 @@
           "text"
         ],
         "title": "CitationResponse"
+      },
+      "ConnectionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "available": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "notion",
+                "google_drive"
+              ]
+            },
+            "type": "array",
+            "title": "Available",
+            "description": "The services this server can connect (it has an OAuth app with them)."
+          },
+          "redirect_uri": {
+            "type": "string",
+            "title": "Redirect Uri",
+            "description": "The redirect URI to register with each OAuth app."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "available",
+          "redirect_uri"
+        ],
+        "title": "ConnectionListResponse"
+      },
+      "ConnectionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "notion",
+              "google_drive"
+            ],
+            "title": "Kind"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "The Notion workspace, or the Google account's email."
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By",
+            "description": "The email of who connected it."
+          },
+          "sources_count": {
+            "type": "integer",
+            "title": "Sources Count",
+            "description": "Sources that read through it."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error",
+            "description": "Why the service last refused its tokens; connect again to fix it."
+          },
+          "last_error_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "account",
+          "created_by",
+          "sources_count",
+          "created_at",
+          "last_error",
+          "last_error_at"
+        ],
+        "title": "ConnectionResponse"
+      },
+      "ConnectionStartRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "notion",
+              "google_drive"
+            ],
+            "title": "Kind"
+          },
+          "return_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return To",
+            "description": "The web app page to come back to after signing in, on this server or one of the workspace's verified domains; the Admin page otherwise. `connected=<id>` or `connection_error=<signal>` is added to it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "ConnectionStartRequest"
+      },
+      "ConnectionStartResponse": {
+        "properties": {
+          "authorize_url": {
+            "type": "string",
+            "title": "Authorize Url",
+            "description": "Send the person here to sign in and allow reading; it is valid for 15 minutes, once."
+          }
+        },
+        "type": "object",
+        "required": [
+          "authorize_url"
+        ],
+        "title": "ConnectionStartResponse"
       },
       "ConversationCreateRequest": {
         "properties": {
@@ -9132,6 +11095,118 @@
           "payload"
         ],
         "title": "DeliveryResponse"
+      },
+      "DnsRecord": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TXT",
+              "CNAME"
+            ],
+            "title": "Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "name",
+          "value"
+        ],
+        "title": "DnsRecord"
+      },
+      "DomainRequest": {
+        "properties": {
+          "domain": {
+            "type": "string",
+            "maxLength": 253,
+            "minLength": 3,
+            "title": "Domain",
+            "description": "A host name, without `https://` or a path.",
+            "examples": [
+              "help.acme.com"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "domain"
+        ],
+        "title": "DomainRequest"
+      },
+      "DomainResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "domain": {
+            "type": "string",
+            "title": "Domain"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified",
+            "description": "Whether its TXT record was found: only then does it serve the workspace."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At",
+            "description": "When its TXT record was last looked up."
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/DnsRecord"
+            },
+            "type": "array",
+            "title": "Records",
+            "description": "What to add at the domain's DNS provider: the TXT record that proves it, and a CNAME that points it at this server."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "domain",
+          "verified",
+          "created_at",
+          "verified_at",
+          "checked_at",
+          "records"
+        ],
+        "title": "DomainResponse"
       },
       "ErrorResponse": {
         "properties": {
@@ -10766,6 +12841,31 @@
           "invitation_for_someone_else",
           "account_details_required",
           "password_reset_invalid",
+          "domain_invalid",
+          "domain_not_found",
+          "domain_exists",
+          "domain_taken",
+          "domain_not_verified",
+          "wrong_domain",
+          "dns_lookup_failed",
+          "bot_not_found",
+          "bot_credentials_invalid",
+          "bot_platform_failed",
+          "bot_signature_invalid",
+          "connection_not_found",
+          "connection_in_use",
+          "connection_wrong_kind",
+          "connector_not_configured",
+          "connection_request_invalid",
+          "connection_denied",
+          "connection_failed",
+          "sso_not_configured",
+          "sso_failed",
+          "sso_email_not_allowed",
+          "sso_request_invalid",
+          "sso_secret_required",
+          "sso_required",
+          "sso_needs_domain",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",
@@ -11273,6 +13373,39 @@
         ],
         "title": "SignupRequest"
       },
+      "SiteResponse": {
+        "properties": {
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "The workspace whose own domain this is; null on the server's own domain."
+          },
+          "accounts_enabled": {
+            "type": "boolean",
+            "title": "Accounts Enabled",
+            "description": "Whether people sign in (`AUTH_ENABLED`)."
+          },
+          "signup_enabled": {
+            "type": "boolean",
+            "title": "Signup Enabled",
+            "description": "Whether people may sign up here: never on a workspace's own domain, where they are invited."
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace",
+          "accounts_enabled",
+          "signup_enabled"
+        ],
+        "title": "SiteResponse"
+      },
       "SourceListResponse": {
         "properties": {
           "items": {
@@ -11352,21 +13485,43 @@
             "enum": [
               "website",
               "feed",
-              "github"
+              "github",
+              "notion",
+              "google_drive"
             ],
             "title": "Kind",
-            "description": "`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.",
+            "description": "`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it. `notion`: the Notion pages a connection can read, or one page and the pages under it. `google_drive`: the files of a Google Drive folder and its subfolders. Notion and Google Drive sources need a `connection_id`.",
             "default": "website"
           },
           "url": {
-            "type": "string",
-            "minLength": 1,
-            "format": "uri",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Url",
-            "description": "The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.",
+            "description": "The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`. For Notion, a page's address (omit it for every page the connection can read); for Google Drive, a folder's address (omit it for all of My Drive). Required for the other kinds.",
             "examples": [
               "https://docs.example.com/guide/"
             ]
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^con_[A-Za-z0-9_-]{22}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "The workspace's connection a Notion or Google Drive source reads through, from `GET /api/v1/connections`."
           },
           "max_pages": {
             "type": "integer",
@@ -11401,9 +13556,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "url"
-        ],
         "title": "SourceRequest"
       },
       "SourceResponse": {
@@ -11417,13 +13569,27 @@
             "enum": [
               "website",
               "feed",
-              "github"
+              "github",
+              "notion",
+              "google_drive"
             ],
             "title": "Kind"
           },
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "The connection a Notion or Google Drive source reads through."
           },
           "max_pages": {
             "type": "integer",
@@ -11499,6 +13665,7 @@
           "id",
           "kind",
           "url",
+          "connection_id",
           "max_pages",
           "sync_interval_hours",
           "pages_count",
@@ -11510,6 +13677,190 @@
           "created_at"
         ],
         "title": "SourceResponse"
+      },
+      "SsoDiscoverRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "examples": [
+              "ada@acme.com"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "SsoDiscoverRequest"
+      },
+      "SsoDiscoverResponse": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "title": "Workspace"
+          },
+          "start_url": {
+            "type": "string",
+            "title": "Start Url",
+            "description": "Open it in the browser, with `&next=<path>` for the page to open after signing in."
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace",
+          "start_url"
+        ],
+        "title": "SsoDiscoverResponse"
+      },
+      "SsoProviderResponse": {
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "title": "Issuer"
+          },
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "default_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Default Role"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "issuer",
+          "client_id",
+          "default_role",
+          "enabled",
+          "required",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SsoProviderResponse"
+      },
+      "SsoSettingsRequest": {
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "maxLength": 500,
+            "pattern": "^https?://\\S+$",
+            "title": "Issuer",
+            "description": "The identity provider's issuer URL, whose `/.well-known/openid-configuration` is read.",
+            "examples": [
+              "https://login.microsoftonline.com/<tenant id>/v2.0"
+            ]
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret",
+            "description": "Needed the first time; leave it out to keep the one already set. Stored encrypted and never returned."
+          },
+          "default_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Default Role",
+            "description": "The role of people added by their first sign-in.",
+            "default": "viewer"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "description": "Members other than owners sign in only through the provider: not with a password, nor by invitation. Only an owner changes it, and it needs a verified domain.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "issuer",
+          "client_id"
+        ],
+        "title": "SsoSettingsRequest"
+      },
+      "SsoSettingsResponse": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SsoProviderResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until one is set."
+          },
+          "redirect_uri": {
+            "type": "string",
+            "title": "Redirect Uri",
+            "description": "The redirect URI to register with the provider."
+          },
+          "email_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Email Domains",
+            "description": "The workspace's verified domains: only emails on them sign in through the provider. Add the company's email domain (`acme.com`) under domains and prove it with its TXT record."
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "redirect_uri",
+          "email_domains"
+        ],
+        "title": "SsoSettingsResponse"
       },
       "StudyRequest": {
         "properties": {

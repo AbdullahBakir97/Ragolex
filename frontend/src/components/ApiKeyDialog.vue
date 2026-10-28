@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { KeyRound, LoaderCircle } from "@lucide/vue";
-import { nextTick, ref, watch } from "vue";
+import { nextTick, ref } from "vue";
 
-import { apiKey, keyNeeded, setApiKey } from "@/api/auth";
+import { setApiKey, signInNeeded } from "@/api/auth";
 import { ApiError, api } from "@/api/client";
+import { reloadAt } from "@/lib/navigate";
+
+// Signing in with an API key instead of an account, from the sign-in page.
+const props = defineProps<{ next: string }>();
 
 const dialog = ref<HTMLDialogElement | null>(null);
 const input = ref<HTMLInputElement | null>(null);
@@ -11,20 +15,15 @@ const key = ref("");
 const checking = ref(false);
 const error = ref<string | null>(null);
 
-watch(
-  keyNeeded,
-  async (needed) => {
-    if (!needed) return;
-    // A key that was refused is no use any more.
-    error.value = apiKey.value ? "The saved API key no longer works." : null;
-    setApiKey(null);
-    key.value = "";
-    await nextTick();
-    if (!dialog.value?.open) dialog.value?.showModal();
-    input.value?.focus();
-  },
-  { flush: "post" },
-);
+async function open() {
+  key.value = "";
+  error.value = null;
+  if (!dialog.value?.open) dialog.value?.showModal();
+  await nextTick();
+  input.value?.focus();
+}
+
+defineExpose({ open });
 
 async function signIn() {
   const value = key.value.trim();
@@ -34,13 +33,13 @@ async function signIn() {
   setApiKey(value);
   try {
     await api.me();
-    keyNeeded.value = false;
+    signInNeeded.value = false;
     dialog.value?.close();
-    // Everything on the page was loaded without the key: start again with it.
-    window.location.reload();
+    // Start again with the key, where the app was going.
+    reloadAt(props.next);
   } catch (caught) {
     setApiKey(null);
-    keyNeeded.value = true;
+    signInNeeded.value = false;
     error.value = caught instanceof ApiError ? caught.message : "The key could not be checked.";
   } finally {
     checking.value = false;
@@ -49,12 +48,12 @@ async function signIn() {
 </script>
 
 <template>
-  <dialog ref="dialog" class="dialog" aria-labelledby="api-key-title" @cancel.prevent>
+  <dialog ref="dialog" class="dialog" aria-labelledby="api-key-title">
     <form class="content" @submit.prevent="signIn">
       <span class="icon"><KeyRound :size="20" /></span>
       <h2 id="api-key-title">Sign in with an API key</h2>
       <p class="muted">
-        This server needs an API key. Ask its administrator for one, or create one on the server with
+        Apps and scripts use API keys. Ask the administrator for one, or create one on the server with
         <code>ragolex keys create</code>. It is kept in this browser only.
       </p>
       <label class="field">
@@ -72,6 +71,7 @@ async function signIn() {
       </label>
       <p v-if="error" class="error small" role="alert">{{ error }}</p>
       <div class="actions">
+        <button type="button" class="btn btn-ghost" @click="dialog?.close()">Cancel</button>
         <button type="submit" class="btn btn-primary" :disabled="checking || !key.trim()">
           <LoaderCircle v-if="checking" :size="16" class="spin" />
           Sign in
@@ -129,5 +129,6 @@ async function signIn() {
 .actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
 </style>

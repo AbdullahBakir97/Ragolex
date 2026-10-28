@@ -7,6 +7,38 @@ export const router = createRouter({
   routes: [
     { path: "/", name: "home", component: HomeView, meta: { title: "Projects" } },
     { path: "/admin", name: "admin", component: () => import("@/views/AdminView.vue"), meta: { title: "Admin" } },
+    { path: "/account", name: "account", component: () => import("@/views/AccountView.vue"), meta: { title: "Account" } },
+    // Pages for people who are not signed in yet: no sidebar, no data.
+    {
+      path: "/signin",
+      name: "signin",
+      component: () => import("@/views/auth/SignInView.vue"),
+      meta: { title: "Sign in", public: true },
+    },
+    {
+      path: "/signup",
+      name: "signup",
+      component: () => import("@/views/auth/SignUpView.vue"),
+      meta: { title: "Create an account", public: true },
+    },
+    {
+      path: "/forgot-password",
+      name: "forgot-password",
+      component: () => import("@/views/auth/ForgotPasswordView.vue"),
+      meta: { title: "Reset your password", public: true },
+    },
+    {
+      path: "/reset-password",
+      name: "reset-password",
+      component: () => import("@/views/auth/ResetPasswordView.vue"),
+      meta: { title: "Choose a new password", public: true },
+    },
+    {
+      path: "/invite",
+      name: "invite",
+      component: () => import("@/views/auth/InviteView.vue"),
+      meta: { title: "Join a workspace", public: true },
+    },
     {
       path: "/projects/:project([A-Za-z0-9_-]{1,64})",
       component: () => import("@/views/ProjectView.vue"),
@@ -49,6 +81,12 @@ export const router = createRouter({
           name: "widget",
           component: () => import("@/views/project/WidgetView.vue"),
           meta: { title: "Chat widget" },
+        },
+        {
+          path: "bots",
+          name: "bots",
+          component: () => import("@/views/project/BotsView.vue"),
+          meta: { title: "Chat bots" },
         },
         {
           path: "webhooks",

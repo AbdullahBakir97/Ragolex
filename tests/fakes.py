@@ -15,14 +15,25 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from itertools import count
 
-from ragolex.core.errors import EmbeddingFailed, LLMFailed, MailFailed
+from ragolex.core.errors import (
+    BotPlatformFailed,
+    ConnectionFailed,
+    DnsLookupFailed,
+    EmbeddingFailed,
+    LLMFailed,
+    MailFailed,
+)
 from ragolex.domain.llm import Completion, Message, TokenUsage
 from ragolex.domain.models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Bot,
     Card,
     Chunk,
+    Connection,
+    ConnectionRequest,
+    ConnectionTokens,
     Conversation,
     ConversationMessage,
     Deck,
@@ -35,6 +46,7 @@ from ragolex.domain.models import (
     Mail,
     Member,
     Membership,
+    OAuthGrant,
     PasswordReset,
     Project,
     RatedAnswer,
@@ -43,8 +55,11 @@ from ragolex.domain.models import (
     SearchFilters,
     Source,
     SourcePage,
+    SsoProvider,
+    SsoRequest,
     TagCount,
     Tenant,
+    TenantDomain,
     TenantUsage,
     UnembeddedChunk,
     UsageHistory,
@@ -690,9 +705,11 @@ class FakeUserSessions:
     def __init__(self):
         self.by_hash: dict[str, UserSession] = {}
 
-    async def create(self, *, user_id, tenant_id, token_hash, expires_at) -> UserSession:
+    async def create(self, *, user_id, tenant_id, token_hash, expires_at,
+                     sso_tenant_id=None) -> UserSession:
         session = UserSession(id=str(uuid.uuid4()), user_id=user_id, tenant_id=tenant_id,
-                              created_at=datetime.now(UTC), expires_at=expires_at)
+                              created_at=datetime.now(UTC), expires_at=expires_at,
+                              sso_tenant_id=sso_tenant_id)
         self.by_hash[token_hash] = session
         return session
 
@@ -763,6 +780,66 @@ class FakeInvitations:
         for token_hash in found:
             del self.by_hash[token_hash]
         return bool(found)
+
+
+class FakeDomains:
+
+    def __init__(self, tenants: "FakeTenants"):
+        self.tenants = tenants
+        self.by_id: dict[str, TenantDomain] = {}
+
+    async def add(self, *, tenant_id, domain, token) -> TenantDomain | None:
+        if any((d.tenant_id, d.domain) == (tenant_id, domain) for d in self.by_id.values()):
+            return None
+        tenant = await self.tenants.get_by_id(tenant_id)
+        assert tenant is not None
+        added = TenantDomain(id=str(uuid.uuid4()), tenant_id=tenant_id, tenant_name=tenant.name,
+                             domain=domain, token=token, created_at=datetime.now(UTC))
+        self.by_id[added.id] = added
+        return added
+
+    async def list_for_tenant(self, tenant_id: int) -> list[TenantDomain]:
+        return sorted((d for d in self.by_id.values() if d.tenant_id == tenant_id),
+                      key=lambda d: d.domain)
+
+    async def get(self, tenant_id: int, domain_id: str) -> TenantDomain | None:
+        found = self.by_id.get(domain_id)
+        return found if found and found.tenant_id == tenant_id else None
+
+    async def find_verified(self, domain: str) -> TenantDomain | None:
+        return next((d for d in self.by_id.values() if d.domain == domain and d.verified_at),
+                    None)
+
+    async def checked(self, domain_id: str, *, verified: bool) -> bool:
+        found = self.by_id[domain_id]
+        now = datetime.now(UTC)
+        taken = verified and any(d.domain == found.domain and d.verified_at and d.id != domain_id
+                                 for d in self.by_id.values())
+        if verified and not taken:
+            found = replace(found, verified_at=found.verified_at or now)
+        self.by_id[domain_id] = replace(found, checked_at=now)
+        return not taken
+
+    async def delete(self, tenant_id: int, domain_id: str) -> bool:
+        if await self.get(tenant_id, domain_id) is None:
+            return False
+        del self.by_id[domain_id]
+        return True
+
+
+class FakeTxtResolver:
+    """TXT records by name; with ``fail``, the DNS servers do not answer."""
+
+    def __init__(self, records: dict[str, list[str]] | None = None, fail: bool = False):
+        self.records = records or {}
+        self.fail = fail
+        self.asked: list[str] = []
+
+    async def txt(self, name: str) -> list[str]:
+        self.asked.append(name)
+        if self.fail:
+            raise DnsLookupFailed("Timeout")
+        return self.records.get(name, [])
 
 
 class FakePasswordResets:
@@ -849,6 +926,246 @@ class FakeWidgets:
         return True
 
 
+class FakeBots:
+    """Bots of the projects in ``projects`` (the fake has one tenant, id 1)."""
+
+    def __init__(self, projects: FakeProjects):
+        self.projects = projects
+        self.by_id: dict[str, Bot] = {}
+        self.deliveries: set[tuple[str, str]] = set()
+        self.chat_messages: list[tuple[str, str, datetime]] = []
+        self.chats: dict[tuple[str, str], str] = {}
+
+    async def create(self, *, bot_id, project_id, kind, name, account, credentials,
+                     webhook_secret, tags=()) -> Bot:
+        project = next(p for p in self.projects.by_name.values() if p.id == project_id)
+        bot = Bot(id=bot_id, tenant_id=project.tenant_id, tenant_name="default",
+                  project_id=project_id, project_name=project.name, kind=kind, name=name,
+                  account=account, credentials=dict(credentials), webhook_secret=webhook_secret,
+                  enabled=True, created_at=datetime.now(UTC), tags=tuple(tags))
+        self.by_id[bot_id] = bot
+        return bot
+
+    async def get(self, bot_id: str) -> Bot | None:
+        return self.by_id.get(bot_id)
+
+    async def list_for_project(self, project_id: int) -> list[Bot]:
+        return [b for b in self.by_id.values() if b.project_id == project_id]
+
+    async def update(self, project_id: int, bot_id: str, changes) -> Bot | None:
+        bot = self.by_id.get(bot_id)
+        if bot is None or bot.project_id != project_id:
+            return None
+        values = {k: tuple(v) if k == "tags" else dict(v) if k == "credentials" else v
+                  for k, v in changes.items()}
+        self.by_id[bot_id] = replace(bot, **values)
+        return self.by_id[bot_id]
+
+    async def delete(self, project_id: int, bot_id: str) -> bool:
+        bot = self.by_id.get(bot_id)
+        if bot is None or bot.project_id != project_id:
+            return False
+        del self.by_id[bot_id]
+        return True
+
+    async def first_delivery(self, bot_id: str, update_id: str, chat_key: str) -> bool:
+        if (bot_id, update_id) in self.deliveries:
+            return False
+        self.deliveries.add((bot_id, update_id))
+        self.chat_messages.append((bot_id, chat_key, datetime.now(UTC)))
+        return True
+
+    async def recent_messages(self, bot_id: str, chat_key: str, seconds: int) -> int:
+        since = datetime.now(UTC) - timedelta(seconds=seconds)
+        return sum(1 for b, c, at in self.chat_messages if (b, c) == (bot_id, chat_key) and at > since)
+
+    async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
+        return self.chats.get((bot_id, chat_key))
+
+    async def set_chat_conversation(self, bot_id: str, chat_key: str,
+                                    conversation_id: str | None) -> None:
+        if conversation_id is None:
+            self.chats.pop((bot_id, chat_key), None)
+        else:
+            self.chats[bot_id, chat_key] = conversation_id
+
+    async def answered(self, bot_id: str, error: str | None) -> None:
+        bot = self.by_id[bot_id]
+        now = datetime.now(UTC)
+        self.by_id[bot_id] = replace(bot, last_message_at=now,
+                                     **({"last_error": error, "last_error_at": now}
+                                        if error is not None else {}))
+
+
+class FakeConnections:
+    """Connections to Notion and Google Drive, and the sign-ins started for them."""
+
+    def __init__(self, sources: "FakeSources"):
+        self.sources = sources
+        self.by_id: dict[str, Connection] = {}
+        self.stored_tokens: dict[str, ConnectionTokens] = {}
+        self.requests: dict[str, ConnectionRequest] = {}
+
+    def _view(self, connection: Connection) -> Connection:
+        used = sum(1 for s in self.sources.by_id.values() if s.connection_id == connection.id)
+        return replace(connection, sources_count=used)
+
+    async def create(self, *, connection_id, tenant_id, kind, account, tokens,
+                     created_by_user_id) -> Connection:
+        connection = Connection(id=connection_id, tenant_id=tenant_id, kind=kind,
+                                account=account, created_at=datetime.now(UTC))
+        self.by_id[connection_id] = connection
+        self.stored_tokens[connection_id] = tokens
+        return self._view(connection)
+
+    async def list_for_tenant(self, tenant_id: int) -> list[Connection]:
+        return [self._view(c) for c in self.by_id.values() if c.tenant_id == tenant_id]
+
+    async def get(self, tenant_id: int, connection_id: str) -> Connection | None:
+        connection = self.by_id.get(connection_id)
+        return self._view(connection) if connection and connection.tenant_id == tenant_id else None
+
+    async def tokens(self, connection_id: str, *, lock: bool = False) -> ConnectionTokens | None:
+        return self.stored_tokens.get(connection_id)
+
+    async def set_tokens(self, connection_id: str, tokens: ConnectionTokens) -> None:
+        self.stored_tokens[connection_id] = tokens
+        self.by_id[connection_id] = replace(self.by_id[connection_id], last_error=None,
+                                            last_error_at=None)
+
+    async def failed(self, connection_id: str, error: str) -> None:
+        self.by_id[connection_id] = replace(self.by_id[connection_id], last_error=error,
+                                            last_error_at=datetime.now(UTC))
+
+    async def delete(self, tenant_id: int, connection_id: str) -> bool:
+        if await self.get(tenant_id, connection_id) is None:
+            return False
+        del self.by_id[connection_id]
+        self.stored_tokens.pop(connection_id, None)
+        return True
+
+    async def add_request(self, request: ConnectionRequest) -> None:
+        self.requests[request.state_hash] = request
+
+    async def find_request(self, state_hash: str) -> ConnectionRequest | None:
+        request = self.requests.get(state_hash)
+        return request if request and request.expires_at > datetime.now(UTC) else None
+
+    async def take_request(self, state_hash: str) -> ConnectionRequest | None:
+        request = self.requests.pop(state_hash, None)
+        return request if request and request.expires_at > datetime.now(UTC) else None
+
+
+class FakeSso:
+    """Workspaces' identity providers, and the sign-ins started through them."""
+
+    def __init__(self):
+        self.providers: dict[int, SsoProvider] = {}
+        self.requests: dict[str, SsoRequest] = {}
+
+    async def get(self, tenant_id: int) -> SsoProvider | None:
+        return self.providers.get(tenant_id)
+
+    async def save(self, *, tenant_id, issuer, client_id, client_secret, default_role,
+                   enabled, required=False) -> SsoProvider:
+        now = datetime.now(UTC)
+        old = self.providers.get(tenant_id)
+        self.providers[tenant_id] = SsoProvider(
+            tenant_id=tenant_id, issuer=issuer, client_id=client_id,
+            client_secret=client_secret, default_role=default_role, enabled=enabled,
+            created_at=old.created_at if old else now, updated_at=now, required=required)
+        return self.providers[tenant_id]
+
+    async def delete(self, tenant_id: int) -> bool:
+        return self.providers.pop(tenant_id, None) is not None
+
+    async def add_request(self, request: SsoRequest) -> None:
+        self.requests[request.state_hash] = request
+
+    async def find_request(self, state_hash: str) -> SsoRequest | None:
+        request = self.requests.get(state_hash)
+        return request if request and request.expires_at > datetime.now(UTC) else None
+
+    async def take_request(self, state_hash: str) -> SsoRequest | None:
+        request = self.requests.pop(state_hash, None)
+        return request if request and request.expires_at > datetime.now(UTC) else None
+
+
+class FakeOAuthProvider:
+    """Notion or Google: its codes and refresh tokens, and the calls made to it."""
+
+    def __init__(self, kind: str = "notion", account: str = "Acme wiki",
+                 expires_in: int | None = None):
+        self.kind = kind
+        self.account = account
+        self.expires_in = expires_in
+        self.exchanged: list[dict[str, str]] = []
+        self.refreshed: list[str] = []
+        self.refuse: str | None = None  # Refuse every code and refresh, with this message.
+
+    def _grant(self, number: int) -> OAuthGrant:
+        expires = (datetime.now(UTC) + timedelta(seconds=self.expires_in)
+                   if self.expires_in is not None else None)
+        return OAuthGrant(tokens=ConnectionTokens(access_token=f"access-{number}",
+                                                  refresh_token="refresh-1" if expires else None,
+                                                  expires_at=expires),
+                          account=self.account)
+
+    def authorize_url(self, *, state: str, redirect_uri: str, code_challenge: str) -> str:
+        return (f"https://{self.kind}.example.com/authorize?state={state}"
+                f"&redirect_uri={redirect_uri}&code_challenge={code_challenge}")
+
+    async def exchange(self, *, code: str, redirect_uri: str, code_verifier: str) -> OAuthGrant:
+        self.exchanged.append({"code": code, "redirect_uri": redirect_uri,
+                               "code_verifier": code_verifier})
+        if self.refuse:
+            raise ConnectionFailed(self.refuse)
+        return self._grant(len(self.exchanged))
+
+    async def refresh(self, refresh_token: str) -> OAuthGrant:
+        self.refreshed.append(refresh_token)
+        if self.refuse:
+            raise ConnectionFailed(self.refuse)
+        return self._grant(100 + len(self.refreshed))
+
+    async def aclose(self) -> None:
+        pass
+
+
+class FakeChatPlatform:
+    """A chat app: what was sent where, and how the bot was registered."""
+
+    def __init__(self, account: str = "@help_bot"):
+        self.account = account
+        self.sent: list[tuple[dict, str]] = []
+        self.registered: dict[str, str] | None = None
+        self.unregistered = 0
+        self.refuse: str | None = None  # Refuse every call, with this message.
+
+    def _check(self) -> None:
+        if self.refuse:
+            raise BotPlatformFailed(self.refuse)
+
+    async def check(self, credentials) -> str:
+        self._check()
+        return self.account
+
+    async def register(self, credentials, url: str, secret: str) -> None:
+        self._check()
+        self.registered = {"url": url, "secret": secret}
+
+    async def unregister(self, credentials) -> None:
+        self._check()
+        self.unregistered += 1
+
+    async def send(self, credentials, reply_to, text: str) -> None:
+        self._check()
+        self.sent.append((dict(reply_to), text))
+
+    async def aclose(self) -> None:
+        pass
+
+
 class FakeAudit:
 
     def __init__(self):
@@ -891,13 +1208,13 @@ class FakeSources:
                        syncing=source.id in self.locked)
 
     async def create(self, *, project_id, kind, url, max_pages, sync_interval_hours,
-                     tags=()) -> Source:
+                     tags=(), connection_id=None) -> Source:
         project = self._project(project_id)
         now = datetime.now(UTC)
         source = Source(id=str(uuid.uuid4()), tenant_id=project.tenant_id, project_id=project_id,
                         project_name=project.name, kind=kind, url=url, max_pages=max_pages,
                         sync_interval_hours=sync_interval_hours, created_at=now, next_sync_at=now,
-                        tags=tuple(tags))
+                        tags=tuple(tags), connection_id=connection_id)
         self.by_id[source.id] = source
         return self._view(source)
 
@@ -920,8 +1237,10 @@ class FakeSources:
 
     async def claim_due(self, lease_seconds: int) -> Source | None:
         now = datetime.now(UTC)
+        busy = {self.by_id[i].connection_id for i in self.locked} - {None}
         due = [s for s in self.by_id.values()
-               if s.next_sync_at and s.next_sync_at <= now and s.id not in self.locked]
+               if s.next_sync_at and s.next_sync_at <= now and s.id not in self.locked
+               and s.connection_id not in busy]
         if not due:
             return None
         source = min(due, key=lambda s: s.next_sync_at)
@@ -1066,6 +1385,10 @@ class FakeUnitOfWork:
         self.user_sessions = FakeUserSessions()
         self.invitations = FakeInvitations(self.tenants)
         self.password_resets = FakePasswordResets()
+        self.domains = FakeDomains(self.tenants)
+        self.bots = FakeBots(self.projects)
+        self.connections = FakeConnections(self.sources)
+        self.sso = FakeSso()
         self.usage = FakeUsage()
         self.evaluations = FakeEvaluationRuns()
         self.decks = FakeDecks()

@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
 // End-to-end tests: the web app, the API and its database, with a stand-in
-// model server (tools/fake_models.py), so no model account is needed.
+// model server (tools/fake_models.py), so no model account is needed. A second
+// API and web app, with authentication on, serve the tests of accounts
+// (e2e/accounts.spec.ts, at ACCOUNTS_URL), on the same database.
 const root = fileURLToPath(new URL("..", import.meta.url));
 const python = process.env.PYTHON ?? "python";
 const ci = !!process.env.CI;
@@ -20,6 +22,9 @@ const api = {
   FILES_DIR: join(tmpdir(), "ragolex-e2e-files"),
   PATH: process.env.PATH ?? "",
 };
+
+/** The web app of the API with authentication on. */
+export const ACCOUNTS_URL = "http://localhost:5174";
 
 export default defineConfig({
   testDir: "e2e",
@@ -57,6 +62,21 @@ export default defineConfig({
       command: "npx vite --port 5173 --strictPort",
       env: { API_URL: "http://127.0.0.1:8000" },
       url: "http://localhost:5173",
+      reuseExistingServer: !ci,
+    },
+    {
+      // Started after the first API, which has migrated the database.
+      command: `${python} -m uvicorn ragolex.main:app --port 8001`,
+      cwd: root,
+      env: { ...api, AUTH_ENABLED: "true", SESSION_COOKIE_SECURE: "false", APP_URL: ACCOUNTS_URL, JOB_WORKERS: "0" },
+      url: "http://127.0.0.1:8001/api/v1/health",
+      reuseExistingServer: !ci,
+      timeout: 60_000,
+    },
+    {
+      command: "npx vite --port 5174 --strictPort",
+      env: { API_URL: "http://127.0.0.1:8001" },
+      url: ACCOUNTS_URL,
       reuseExistingServer: !ci,
     },
   ],

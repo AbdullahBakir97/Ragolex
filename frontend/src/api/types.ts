@@ -130,6 +130,109 @@ export interface Me {
   scopes: string[];
   key_id: string | null;
   auth_enabled: boolean;
+  /** The signed-in user, when the request used a session rather than a key. */
+  user?: User | null;
+  role?: MemberRole | null;
+}
+
+/** What a domain serves, before anyone signs in. */
+export interface Site {
+  /** The workspace whose own domain this is; null on the server's own. */
+  workspace: string | null;
+  accounts_enabled: boolean;
+  signup_enabled: boolean;
+}
+
+export interface DnsRecord {
+  type: "TXT" | "CNAME";
+  name: string;
+  value: string;
+}
+
+/** A domain a workspace serves on, once its TXT record proves it. */
+export interface Domain {
+  id: string;
+  domain: string;
+  verified: boolean;
+  created_at: string;
+  verified_at: string | null;
+  checked_at: string | null;
+  records: DnsRecord[];
+}
+
+export type BotKind = "telegram" | "slack" | "whatsapp";
+
+/** A project's assistant in a chat app. Its credentials are never returned. */
+export interface ChatBot {
+  id: string;
+  project: string;
+  kind: BotKind;
+  name: string;
+  /** The bot in the chat app, such as @acme_help_bot. */
+  account: string;
+  tags: string[];
+  enabled: boolean;
+  webhook_url: string;
+  /** WhatsApp only. */
+  verify_token: string | null;
+  created_at: string;
+  last_message_at: string | null;
+  last_error: string | null;
+  last_error_at: string | null;
+}
+
+export type MemberRole = "owner" | "admin" | "editor" | "viewer";
+export const MEMBER_ROLES: MemberRole[] = ["owner", "admin", "editor", "viewer"];
+
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+}
+
+export interface Workspace {
+  name: string;
+  role: MemberRole;
+}
+
+/** A signed-in browser: its user, the workspace it works in, and all of the user's. */
+export interface Session {
+  user: User;
+  workspace: Workspace;
+  workspaces: Workspace[];
+  expires_at: string;
+}
+
+export interface Member extends User {
+  role: MemberRole;
+  joined_at: string;
+  last_login_at: string | null;
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: MemberRole;
+  invited_by: User | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface CreatedInvitation extends Invitation {
+  /** Shown only once: the link to send. */
+  link: string;
+  /** Whether the server emails it too. */
+  emailed: boolean;
+}
+
+/** What an invitation link offers, before it is accepted. */
+export interface InvitationPreview {
+  workspace: string;
+  email: string;
+  role: MemberRole;
+  invited_by: string | null;
+  expires_at: string;
+  has_account: boolean;
 }
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
@@ -353,13 +456,62 @@ export interface Assistant {
   instructions: string | null;
 }
 
-/** website: a site's pages; feed: an RSS or Atom feed's entries; github: a repository's documents. */
-export type SourceKind = "website" | "feed" | "github";
+/**
+ * website: a site's pages; feed: an RSS or Atom feed's entries; github: a repository's documents;
+ * notion: Notion pages; google_drive: a Drive folder's files (these two read through a connection).
+ */
+export type SourceKind = "website" | "feed" | "github" | "notion" | "google_drive";
+
+export type ConnectionKind = "notion" | "google_drive";
+
+export type SsoRole = "admin" | "editor" | "viewer";
+
+/** A workspace's OpenID Connect identity provider. Its client secret is never returned. */
+export interface SsoProvider {
+  issuer: string;
+  client_id: string;
+  default_role: SsoRole;
+  enabled: boolean;
+  /** Members other than owners sign in only through the provider; only owners change it. */
+  required: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SsoSettings {
+  provider: SsoProvider | null;
+  /** The redirect URI to register with the identity provider. */
+  redirect_uri: string;
+  /** Only emails on these verified domains sign in through the provider. */
+  email_domains: string[];
+}
+
+/** A workspace's sign-in to Notion or Google Drive. Its tokens are never returned. */
+export interface Connection {
+  id: string;
+  kind: ConnectionKind;
+  /** The Notion workspace, or the Google account's email. */
+  account: string;
+  created_by: string | null;
+  sources_count: number;
+  created_at: string;
+  /** Why the service last refused its tokens; connecting again fixes it. */
+  last_error: string | null;
+  last_error_at: string | null;
+}
+
+export interface ConnectionList {
+  items: Connection[];
+  /** The services this server can connect. */
+  available: ConnectionKind[];
+  redirect_uri: string;
+}
 
 export interface WebsiteSource {
   id: string;
   kind: SourceKind;
   url: string;
+  connection_id: string | null;
   max_pages: number;
   /** 0: synced only when asked. */
   sync_interval_hours: number;

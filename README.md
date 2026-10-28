@@ -25,7 +25,7 @@
 - **Read scanned PDFs** with OCR, by Tesseract or a vision model.
 - **Process** files into chunks that respect paragraphs, with exact overlap between chunks, page numbers for PDFs, the section headings for Markdown, HTML and Word files, and one function or class at a time for source code in 12 languages.
 - **Index** chunks as embeddings with OpenAI or any OpenAI-compatible server, such as Ollama, in background jobs with progress and retries, run by the API or by separate workers.
-- **Sync websites, feeds and GitHub repositories**: website pages are crawled within the site, obeying robots.txt; RSS and Atom entries and a repository's documents are read; all are indexed and kept up to date on a schedule, with new, changed and removed pages handled.
+- **Sync websites, feeds, GitHub repositories, Notion and Google Drive**: website pages are crawled within the site, obeying robots.txt; RSS and Atom entries and a repository's documents are read; Notion pages and Drive folders are read through a workspace's sign-in to them (OAuth); all are indexed and kept up to date on a schedule, with new, changed and removed pages handled.
 - **Tag** files into collections, and limit search, answers, widgets and agent tools to some tags.
 
 ### Learn from documents
@@ -37,6 +37,7 @@
 
 - **Embed a chat widget** in any website with one `<script>` tag: streamed answers with clickable citations, in the site's colour and with its logo, allowed only on the websites you list, without API keys in the page.
 - **Use the [TypeScript and Python SDKs](sdk/README.md)**, generated from the OpenAPI schema and checked against the API in CI: every endpoint typed, streamed answers, uploads and jobs.
+- **Chat** in Telegram, Slack and WhatsApp: a project's bot answers with its sources, keeps each chat's conversation, and checks every message's signature.
 - **Connect agents** through a built-in MCP server (`/api/v1/mcp`) with `list_projects`, `search_knowledge` and `ask` tools, or the same tools as function-calling schemas.
 - **Automate** with signed webhooks: uploads, deletions, finished jobs and budget alerts are sent to n8n, Make, Zapier or any URL, retried for a day until received.
 - **Rely on a stable API**: `/api/v1` only grows, CI fails on breaking changes, and retired endpoints announce their end in headers at least six months ahead.
@@ -44,8 +45,10 @@
 ### Serve several apps
 
 - **Tenants** keep their projects apart on one deployment. API keys with scopes (`read`, `write`, `ask`, `admin`) say what each app may do, within its own rate limit, monthly quotas and budget.
+- **Brands** each get their own domain on one deployment, proven by a DNS record, with certificates on demand.
+- **Teams** sign in with an email and password, or with their organisation's account through single sign-on (OpenID Connect: Entra ID, Google Workspace, Okta, Keycloak), which a workspace can require, each with a role in a workspace (owner, admin, editor or viewer): invite people by link or email, change their roles, and reset forgotten passwords.
 - **Track cost**: the tokens and cost of every answer, spending per day, project and model, and a monthly budget that alerts at 80% and stops answers at 100%.
-- **Administer** a tenant in the web app: its API keys, usage, cost, evaluation scores over time and the audit log of who changed what.
+- **Administer** a tenant in the web app: its members and invitations, API keys, usage, cost, evaluation scores over time and the audit log of who changed what.
 - **Export** everything a tenant has as one ZIP archive, or delete it all.
 
 ### Quality, security and operations
@@ -57,7 +60,7 @@
 - **Deploy** automatically: every merge runs on staging and every release tag on production, from images built once, going back to the previous release on its own when a deployment isn't healthy.
 - **Tested** by more than 1,200 backend tests with a 95% coverage threshold, Vitest unit tests, and Playwright end-to-end and accessibility checks of every page; dependencies and secrets are scanned in CI.
 
-Next on the [roadmap](docs/roadmap.md): user accounts with roles per tenant, a custom domain per tenant, OAuth connectors for Notion and Google Drive, and Telegram, Slack and WhatsApp bots.
+Next on the [roadmap](docs/roadmap.md): single sign-on for organisations, self-serve plans, more sources and scale.
 
 ## Web app
 
@@ -74,11 +77,19 @@ Everything above in the browser: projects, drag-and-drop uploads, conversations 
   </tr>
   <tr>
     <td width="50%"><img src="docs/media/web-usage.png" alt="The Usage page: questions, answer rate, tokens and cost, the tenant's limits and monthly budget, and a chart of spending per day with the cost per project and model."></td>
-    <td width="50%"><img src="docs/media/web-admin.png" alt="The Admin page: usage this month, the tenant's API keys with their scopes, evaluation scores with every run, and the audit log."></td>
+    <td width="50%"><img src="docs/media/web-admin.png" alt="The Admin page: usage this month, the workspace's members with their roles and an open invitation, and its domains with the DNS records to add."></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Usage</b>: spending, limits and budget</sub></td>
-    <td align="center"><sub><b>Admin</b>: API keys, evaluation and audit log</sub></td>
+    <td align="center"><sub><b>Admin</b>: members, domains, keys and audit log</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/media/web-bots.png" alt="The Bots page: Slack chosen with its setup steps and fields, and three bots (Slack, Telegram and WhatsApp) with their accounts, tags, last messages, webhook URLs and a WhatsApp bot's last problem."></td>
+    <td width="50%"><img src="docs/media/web-connections.png" alt="The Connections section of the Admin page: buttons to connect Notion and Google Drive, the redirect URI to register, and a Notion workspace and a Google account connected, with how many sources use each."></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Bots</b>: answers in Telegram, Slack and WhatsApp</sub></td>
+    <td align="center"><sub><b>Connections</b>: Notion and Google Drive as sources</sub></td>
   </tr>
 </table>
 
@@ -187,10 +198,4 @@ Full-Stack Developer based in Germany - Python · Django · Vue · Nuxt.
 
 Copyright (C) 2024-2026 Abdullah Bakir.
 
-Ragolex is released under the [GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0-only). You may use, change and share it, including to run it as a service, as long as you:
-
-- keep the copyright and the [NOTICE](./NOTICE) file in every copy,
-- keep the "Ragolex by Abdullah Bakir" credit in the web app and say in your documentation that your work is based on Ragolex,
-- publish the complete source code of your version, under the same license, to everyone who uses it, also when they only use it over a network.
-
-To use Ragolex under other terms, for example in a closed-source product, contact [Abdullah Bakir](https://github.com/AbdullahBakir97).
+Ragolex is released under the [GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0-only). You may use, change and share it, including to run it as a service.

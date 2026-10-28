@@ -12,9 +12,13 @@ from .models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Bot,
     Card,
     CardSource,
     Chunk,
+    Connection,
+    ConnectionRequest,
+    ConnectionTokens,
     Conversation,
     ConversationMessage,
     Deck,
@@ -36,8 +40,11 @@ from .models import (
     SearchFilters,
     Source,
     SourcePage,
+    SsoProvider,
+    SsoRequest,
     TagCount,
     Tenant,
+    TenantDomain,
     TenantUsage,
     UnembeddedChunk,
     UsageHistory,
@@ -178,7 +185,8 @@ class MembershipRepository(Protocol):
 class UserSessionRepository(Protocol):
 
     async def create(self, *, user_id: int, tenant_id: int, token_hash: str,
-                     expires_at: datetime) -> UserSession: ...
+                     expires_at: datetime, sso_tenant_id: int | None = None
+                     ) -> UserSession: ...
 
     async def find_active(self, token_hash: str) -> UserSession | None:
         """The session with this hash, unless it has expired."""
@@ -220,6 +228,32 @@ class InvitationRepository(Protocol):
     async def delete(self, tenant_id: int, invitation_id: str) -> bool:
         """Whether the tenant had an invitation not accepted yet with that id."""
         ...
+
+
+class DomainRepository(Protocol):
+
+    async def add(self, *, tenant_id: int, domain: str, token: str) -> TenantDomain | None:
+        """The tenant's new, unverified domain; None when the tenant has it already."""
+        ...
+
+    async def list_for_tenant(self, tenant_id: int) -> list[TenantDomain]:
+        """By domain."""
+        ...
+
+    async def get(self, tenant_id: int, domain_id: str) -> TenantDomain | None: ...
+
+    async def find_verified(self, domain: str) -> TenantDomain | None:
+        """The verified domain with that name, whichever tenant has it."""
+        ...
+
+    async def checked(self, domain_id: str, *, verified: bool) -> bool:
+        """Note a lookup of its TXT record; ``verified`` marks it verified (once).
+
+        False when another tenant has the domain verified already, so it stays unverified.
+        """
+        ...
+
+    async def delete(self, tenant_id: int, domain_id: str) -> bool: ...
 
 
 class PasswordResetRepository(Protocol):
@@ -531,6 +565,50 @@ class WidgetRepository(Protocol):
     async def delete(self, project_id: int, widget_id: str) -> bool: ...
 
 
+class BotRepository(Protocol):
+
+    async def create(self, *, bot_id: str, project_id: int, kind: str, name: str, account: str,
+                     credentials: Mapping[str, str], webhook_secret: str,
+                     tags: Sequence[str] = ()) -> Bot: ...
+
+    async def get(self, bot_id: str) -> Bot | None:
+        """Any tenant's bot: chat apps reach bots by their public id alone."""
+        ...
+
+    async def list_for_project(self, project_id: int) -> list[Bot]:
+        """Oldest first."""
+        ...
+
+    async def update(self, project_id: int, bot_id: str,
+                     changes: Mapping[str, Any]) -> Bot | None:
+        """Change the fields named in ``changes``; None when the project has no such bot."""
+        ...
+
+    async def delete(self, project_id: int, bot_id: str) -> bool: ...
+
+    async def first_delivery(self, bot_id: str, update_id: str, chat_key: str) -> bool:
+        """Note a message's delivery in its chat; False when it was delivered before (a
+        retry). Deliveries older than a week are forgotten now and then."""
+        ...
+
+    async def recent_messages(self, bot_id: str, chat_key: str, seconds: int) -> int:
+        """How many messages the chat sent the bot in the last ``seconds``."""
+        ...
+
+    async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
+        """The conversation a chat (or thread) keeps, if it has one."""
+        ...
+
+    async def set_chat_conversation(self, bot_id: str, chat_key: str,
+                                    conversation_id: str | None) -> None:
+        """Keep ``conversation_id`` for the chat; None starts afresh next time."""
+        ...
+
+    async def answered(self, bot_id: str, error: str | None) -> None:
+        """Note that the bot handled a message: when, and why it failed, if it did."""
+        ...
+
+
 class AuditRepository(Protocol):
 
     async def add(self, *, tenant_id: int, action: str, target: str | None,
@@ -548,7 +626,8 @@ class AuditRepository(Protocol):
 class SourceRepository(Protocol):
 
     async def create(self, *, project_id: int, kind: str, url: str, max_pages: int,
-                     sync_interval_hours: int, tags: Sequence[str] = ()) -> Source:
+                     sync_interval_hours: int, tags: Sequence[str] = (),
+                     connection_id: str | None = None) -> Source:
         """A new source, due for its first sync at once."""
         ...
 
@@ -565,7 +644,8 @@ class SourceRepository(Protocol):
         ...
 
     async def claim_due(self, lease_seconds: int) -> Source | None:
-        """Take the source most overdue for a sync, of any tenant, for ``lease_seconds``."""
+        """Take the source most overdue for a sync, of any tenant, for ``lease_seconds``;
+        not one whose connection another source is syncing through."""
         ...
 
     async def finish_sync(self, source_id: str, *, error: str | None,
@@ -585,6 +665,74 @@ class SourceRepository(Protocol):
 
     async def file_used_elsewhere(self, file_id: int, source_id: str, url: str) -> bool:
         """Whether a page other than this one, of any source, uses the file."""
+        ...
+
+
+class ConnectionRepository(Protocol):
+
+    async def create(self, *, connection_id: str, tenant_id: int, kind: str, account: str,
+                     tokens: ConnectionTokens, created_by_user_id: int | None) -> Connection: ...
+
+    async def list_for_tenant(self, tenant_id: int) -> list[Connection]:
+        """Oldest first, each with how many sources read through it."""
+        ...
+
+    async def get(self, tenant_id: int, connection_id: str) -> Connection | None: ...
+
+    async def tokens(self, connection_id: str, *, lock: bool = False) -> ConnectionTokens | None:
+        """The connection's tokens; ``lock`` holds it until the transaction ends, so only one
+        sync refreshes them at a time."""
+        ...
+
+    async def set_tokens(self, connection_id: str, tokens: ConnectionTokens) -> None:
+        """New tokens, which work: the last error is cleared."""
+        ...
+
+    async def failed(self, connection_id: str, error: str) -> None:
+        """Note why the provider refused the connection's tokens."""
+        ...
+
+    async def delete(self, tenant_id: int, connection_id: str) -> bool:
+        """False when the tenant has no such connection. Sources must not use it."""
+        ...
+
+    async def add_request(self, request: ConnectionRequest) -> None:
+        """Keep a sign-in that was started, to finish when the provider sends people back."""
+        ...
+
+    async def find_request(self, state_hash: str) -> ConnectionRequest | None:
+        """The sign-in with this state, left in place; None when there is none, or it
+        expired."""
+        ...
+
+    async def take_request(self, state_hash: str) -> ConnectionRequest | None:
+        """The sign-in with this state, removed so it is finished once; None when there is
+        none, or it expired. Expired ones are removed too."""
+        ...
+
+
+class SsoRepository(Protocol):
+
+    async def get(self, tenant_id: int) -> SsoProvider | None:
+        """The workspace's identity provider, if it has one."""
+        ...
+
+    async def save(self, *, tenant_id: int, issuer: str, client_id: str, client_secret: str,
+                   default_role: str, enabled: bool, required: bool = False) -> SsoProvider:
+        """Set the workspace's identity provider, in place of any it had."""
+        ...
+
+    async def delete(self, tenant_id: int) -> bool: ...
+
+    async def add_request(self, request: SsoRequest) -> None: ...
+
+    async def find_request(self, state_hash: str) -> SsoRequest | None:
+        """The sign-in with this state, left in place; None when unknown or expired."""
+        ...
+
+    async def take_request(self, state_hash: str) -> SsoRequest | None:
+        """The sign-in with this state, removed so it is finished once; None when unknown or
+        expired. Expired ones are removed too."""
         ...
 
 
@@ -663,6 +811,10 @@ class UnitOfWork(Protocol):
     user_sessions: UserSessionRepository
     invitations: InvitationRepository
     password_resets: PasswordResetRepository
+    domains: DomainRepository
+    bots: BotRepository
+    connections: ConnectionRepository
+    sso: SsoRepository
     usage: UsageRepository
     evaluations: EvaluationRunRepository
     decks: DeckRepository

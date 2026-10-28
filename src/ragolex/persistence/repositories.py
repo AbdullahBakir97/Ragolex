@@ -1,6 +1,7 @@
 """SQLAlchemy implementations of the domain repository interfaces."""
 
 import json
+import random
 import uuid
 from collections import Counter
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
@@ -23,6 +24,7 @@ from sqlalchemy import (
     bindparam,
     case,
     delete,
+    exists,
     func,
     insert,
     literal_column,
@@ -33,6 +35,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
@@ -41,9 +44,14 @@ from ragolex.domain.models import (
     AnswerRecord,
     ApiKey,
     AuditEvent,
+    Bot,
     Card,
     CardSource,
     Chunk,
+    Connection,
+    ConnectionKind,
+    ConnectionRequest,
+    ConnectionTokens,
     Conversation,
     ConversationMessage,
     Deck,
@@ -69,9 +77,12 @@ from ragolex.domain.models import (
     Source,
     SourceKind,
     SourcePage,
+    SsoProvider,
+    SsoRequest,
     StoredCitation,
     TagCount,
     Tenant,
+    TenantDomain,
     TenantUsage,
     UnembeddedChunk,
     UsageHistory,
@@ -88,9 +99,12 @@ from ragolex.domain.repositories import (
     AnswerRepository,
     ApiKeyRepository,
     AuditRepository,
+    BotRepository,
     ChunkRepository,
+    ConnectionRepository,
     ConversationRepository,
     DeckRepository,
+    DomainRepository,
     EvaluationRunRepository,
     FileRepository,
     InvitationRepository,
@@ -99,6 +113,7 @@ from ragolex.domain.repositories import (
     PasswordResetRepository,
     ProjectRepository,
     SourceRepository,
+    SsoRepository,
     TenantRepository,
     UsageRepository,
     UserRepository,
@@ -112,9 +127,14 @@ from .tables import (
     AnswerRow,
     ApiKeyRow,
     AuditEventRow,
+    BotChatRow,
+    BotDeliveryRow,
+    BotRow,
     BudgetAlertRow,
     CardRow,
     ChunkRow,
+    ConnectionRequestRow,
+    ConnectionRow,
     ConversationMessageRow,
     ConversationRow,
     DeckRow,
@@ -128,6 +148,9 @@ from .tables import (
     RequestCountRow,
     SourcePageRow,
     SourceRow,
+    SsoProviderRow,
+    SsoRequestRow,
+    TenantDomainRow,
     TenantRow,
     UserRow,
     UserSessionRow,
@@ -533,7 +556,8 @@ class SqlMembershipRepository:
 
 def _user_session(row: UserSessionRow) -> UserSession:
     return UserSession(id=row.id, user_id=row.user_id, tenant_id=row.tenant_id,
-                       created_at=row.created_at, expires_at=row.expires_at)
+                       created_at=row.created_at, expires_at=row.expires_at,
+                       sso_tenant_id=row.sso_tenant_id)
 
 
 class SqlUserSessionRepository:
@@ -542,11 +566,11 @@ class SqlUserSessionRepository:
         self.session = session
 
     async def create(self, *, user_id: int, tenant_id: int, token_hash: str,
-                     expires_at: datetime) -> UserSession:
+                     expires_at: datetime, sso_tenant_id: int | None = None) -> UserSession:
         row = (await self.session.execute(
             insert(UserSessionRow).values(id=str(uuid.uuid4()), user_id=user_id,
                                           tenant_id=tenant_id, token_hash=token_hash,
-                                          expires_at=expires_at)
+                                          expires_at=expires_at, sso_tenant_id=sso_tenant_id)
             .returning(UserSessionRow))).scalar_one()
         return _user_session(row)
 
@@ -635,6 +659,69 @@ class SqlInvitationRepository:
             delete(InvitationRow).where(InvitationRow.id == invitation_id,
                                         InvitationRow.tenant_id == tenant_id,
                                         InvitationRow.accepted_at.is_(None)))
+        return _affected(result) > 0
+
+
+def _tenant_domain(row: TenantDomainRow, tenant_name: str) -> TenantDomain:
+    return TenantDomain(id=row.id, tenant_id=row.tenant_id, tenant_name=tenant_name,
+                        domain=row.domain, token=row.token, created_at=row.created_at,
+                        verified_at=row.verified_at, checked_at=row.checked_at)
+
+
+class SqlDomainRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def add(self, *, tenant_id: int, domain: str, token: str) -> TenantDomain | None:
+        added = await self.session.scalar(
+            pg_insert(TenantDomainRow)
+            .values(id=str(uuid.uuid4()), tenant_id=tenant_id, domain=domain, token=token)
+            .on_conflict_do_nothing(index_elements=["tenant_id", "domain"])
+            .returning(TenantDomainRow.id))
+        return await self.get(tenant_id, added) if added else None
+
+    async def list_for_tenant(self, tenant_id: int) -> list[TenantDomain]:
+        rows = await self.session.execute(
+            select(TenantDomainRow, TenantRow.name).join(TenantRow).where(TenantDomainRow.tenant_id == tenant_id)
+            .order_by(TenantDomainRow.domain))
+        return [_tenant_domain(row, name) for row, name in rows]
+
+    async def get(self, tenant_id: int, domain_id: str) -> TenantDomain | None:
+        row = (await self.session.execute(
+            select(TenantDomainRow, TenantRow.name).join(TenantRow).where(TenantDomainRow.tenant_id == tenant_id,
+                                 TenantDomainRow.id == domain_id))).one_or_none()
+        return _tenant_domain(*row) if row else None
+
+    async def find_verified(self, domain: str) -> TenantDomain | None:
+        row = (await self.session.execute(
+            select(TenantDomainRow, TenantRow.name).join(TenantRow).where(TenantDomainRow.domain == domain,
+                                 TenantDomainRow.verified_at.is_not(None)))).one_or_none()
+        return _tenant_domain(*row) if row else None
+
+    async def checked(self, domain_id: str, *, verified: bool) -> bool:
+        values: dict[str, Any] = {"checked_at": func.now()}
+        if verified:
+            values["verified_at"] = func.coalesce(TenantDomainRow.verified_at, func.now())
+        statement = update(TenantDomainRow).where(TenantDomainRow.id == domain_id).values(values)
+        if not verified:
+            await self.session.execute(statement)
+            return True
+        # The partial unique index refuses a second tenant's verification of the domain.
+        try:
+            async with self.session.begin_nested():
+                await self.session.execute(statement)
+        except IntegrityError:
+            await self.session.execute(
+                update(TenantDomainRow).where(TenantDomainRow.id == domain_id)
+                .values(checked_at=func.now()))
+            return False
+        return True
+
+    async def delete(self, tenant_id: int, domain_id: str) -> bool:
+        result = await self.session.execute(
+            delete(TenantDomainRow).where(TenantDomainRow.tenant_id == tenant_id,
+                                          TenantDomainRow.id == domain_id))
         return _affected(result) > 0
 
 
@@ -1426,6 +1513,264 @@ class SqlWidgetRepository:
         return _affected(result) > 0
 
 
+def _bot(row: BotRow, project: ProjectRow, tenant_name: str) -> Bot:
+    return Bot(id=row.id, tenant_id=project.tenant_id, tenant_name=tenant_name,
+               project_id=project.id, project_name=project.name, kind=row.kind, name=row.name,
+               account=row.account, credentials=json.loads(row.credentials),
+               webhook_secret=row.webhook_secret, enabled=row.enabled,
+               created_at=row.created_at, tags=tuple(row.tags),
+               last_message_at=row.last_message_at, last_error=row.last_error,
+               last_error_at=row.last_error_at)
+
+
+# Deliveries are kept a week, to tell a retry from a new message; about one delivery in
+# a hundred also forgets the older ones.
+DELIVERIES_KEPT = timedelta(days=7)
+PRUNE_DELIVERIES_CHANCE = 0.01
+
+
+class SqlBotRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    def _select(self):
+        return (select(BotRow, ProjectRow, TenantRow.name)
+                .join(ProjectRow, ProjectRow.id == BotRow.project_id)
+                .join(TenantRow, TenantRow.id == ProjectRow.tenant_id))
+
+    async def create(self, *, bot_id: str, project_id: int, kind: str, name: str, account: str,
+                     credentials: Mapping[str, str], webhook_secret: str,
+                     tags: Sequence[str] = ()) -> Bot:
+        await self.session.execute(
+            insert(BotRow).values(id=bot_id, project_id=project_id, kind=kind, name=name,
+                                  account=account, credentials=json.dumps(dict(credentials)),
+                                  webhook_secret=webhook_secret, tags=list(tags)))
+        found = await self.get(bot_id)
+        assert found is not None
+        return found
+
+    async def get(self, bot_id: str) -> Bot | None:
+        found = (await self.session.execute(self._select().where(BotRow.id == bot_id))).first()
+        return _bot(*found) if found else None
+
+    async def list_for_project(self, project_id: int) -> list[Bot]:
+        found = await self.session.execute(
+            self._select().where(BotRow.project_id == project_id)
+            .order_by(BotRow.created_at, BotRow.id))
+        return [_bot(*row) for row in found]
+
+    async def update(self, project_id: int, bot_id: str,
+                     changes: Mapping[str, Any]) -> Bot | None:
+        values = {name: (list(value) if name == "tags" else
+                         json.dumps(dict(value)) if name == "credentials" else value)
+                  for name, value in changes.items()}
+        result = await self.session.execute(
+            update(BotRow).where(BotRow.id == bot_id, BotRow.project_id == project_id)
+            .values(**values))
+        return await self.get(bot_id) if _affected(result) else None
+
+    async def delete(self, project_id: int, bot_id: str) -> bool:
+        result = await self.session.execute(
+            delete(BotRow).where(BotRow.id == bot_id, BotRow.project_id == project_id))
+        return _affected(result) > 0
+
+    async def first_delivery(self, bot_id: str, update_id: str, chat_key: str) -> bool:
+        if random.random() < PRUNE_DELIVERIES_CHANCE:
+            await self.session.execute(delete(BotDeliveryRow).where(
+                BotDeliveryRow.created_at < func.now() - DELIVERIES_KEPT))
+        noted = await self.session.scalar(
+            pg_insert(BotDeliveryRow).values(bot_id=bot_id, update_id=update_id,
+                                             chat_key=chat_key)
+            .on_conflict_do_nothing().returning(BotDeliveryRow.bot_id))
+        return noted is not None
+
+    async def recent_messages(self, bot_id: str, chat_key: str, seconds: int) -> int:
+        return await _number(self.session, select(func.count()).select_from(BotDeliveryRow).where(
+            BotDeliveryRow.bot_id == bot_id, BotDeliveryRow.chat_key == chat_key,
+            BotDeliveryRow.created_at > func.now() - timedelta(seconds=seconds)))
+
+    async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
+        return await self.session.scalar(
+            select(BotChatRow.conversation_id)
+            .where(BotChatRow.bot_id == bot_id, BotChatRow.chat_key == chat_key))
+
+    async def set_chat_conversation(self, bot_id: str, chat_key: str,
+                                    conversation_id: str | None) -> None:
+        if conversation_id is None:
+            await self.session.execute(
+                delete(BotChatRow).where(BotChatRow.bot_id == bot_id,
+                                         BotChatRow.chat_key == chat_key))
+            return
+        await self.session.execute(
+            pg_insert(BotChatRow)
+            .values(bot_id=bot_id, chat_key=chat_key, conversation_id=conversation_id)
+            .on_conflict_do_update(index_elements=["bot_id", "chat_key"],
+                                   set_={"conversation_id": conversation_id}))
+
+    async def answered(self, bot_id: str, error: str | None) -> None:
+        values: dict[str, Any] = {"last_message_at": func.now()}
+        if error is not None:
+            values.update(last_error=error, last_error_at=func.now())
+        await self.session.execute(update(BotRow).where(BotRow.id == bot_id).values(values))
+
+
+def _connection(row: ConnectionRow, email: str | None, sources: int) -> Connection:
+    return Connection(id=row.id, tenant_id=row.tenant_id, kind=cast(ConnectionKind, row.kind),
+                      account=row.account, created_at=row.created_at, created_by=email,
+                      sources_count=sources, last_error=row.last_error,
+                      last_error_at=row.last_error_at)
+
+
+def _tokens_json(tokens: ConnectionTokens) -> str:
+    return json.dumps({"access_token": tokens.access_token,
+                       "refresh_token": tokens.refresh_token})
+
+
+def _connection_request(row: ConnectionRequestRow) -> ConnectionRequest:
+    return ConnectionRequest(state_hash=row.state_hash, tenant_id=row.tenant_id,
+                             kind=cast(ConnectionKind, row.kind),
+                             code_verifier=row.code_verifier, return_to=row.return_to,
+                             expires_at=row.expires_at, browser_hash=row.browser_hash,
+                             user_id=row.user_id)
+
+
+class SqlConnectionRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    def _select(self) -> Select:
+        sources = (select(func.count()).where(SourceRow.connection_id == ConnectionRow.id)
+                   .correlate(ConnectionRow).scalar_subquery())
+        return (select(ConnectionRow, UserRow.email, sources)
+                .outerjoin(UserRow, UserRow.id == ConnectionRow.created_by_user_id))
+
+    async def create(self, *, connection_id: str, tenant_id: int, kind: str, account: str,
+                     tokens: ConnectionTokens, created_by_user_id: int | None) -> Connection:
+        await self.session.execute(
+            insert(ConnectionRow).values(id=connection_id, tenant_id=tenant_id, kind=kind,
+                                         account=account, credentials=_tokens_json(tokens),
+                                         expires_at=tokens.expires_at,
+                                         created_by_user_id=created_by_user_id))
+        found = await self.get(tenant_id, connection_id)
+        assert found is not None
+        return found
+
+    async def list_for_tenant(self, tenant_id: int) -> list[Connection]:
+        rows = await self.session.execute(
+            self._select().where(ConnectionRow.tenant_id == tenant_id)
+            .order_by(ConnectionRow.created_at, ConnectionRow.id))
+        return [_connection(*row) for row in rows]
+
+    async def get(self, tenant_id: int, connection_id: str) -> Connection | None:
+        found = (await self.session.execute(self._select().where(
+            ConnectionRow.id == connection_id, ConnectionRow.tenant_id == tenant_id))).first()
+        return _connection(*found) if found else None
+
+    async def tokens(self, connection_id: str, *, lock: bool = False) -> ConnectionTokens | None:
+        query = (select(ConnectionRow.credentials, ConnectionRow.expires_at)
+                 .where(ConnectionRow.id == connection_id))
+        found = (await self.session.execute(query.with_for_update() if lock else query)).first()
+        if found is None:
+            return None
+        stored = json.loads(found.credentials)
+        return ConnectionTokens(access_token=stored["access_token"],
+                                refresh_token=stored.get("refresh_token"),
+                                expires_at=found.expires_at)
+
+    async def set_tokens(self, connection_id: str, tokens: ConnectionTokens) -> None:
+        await self.session.execute(
+            update(ConnectionRow).where(ConnectionRow.id == connection_id)
+            .values(credentials=_tokens_json(tokens), expires_at=tokens.expires_at,
+                    last_error=None, last_error_at=None))
+
+    async def failed(self, connection_id: str, error: str) -> None:
+        await self.session.execute(
+            update(ConnectionRow).where(ConnectionRow.id == connection_id)
+            .values(last_error=error, last_error_at=func.now()))
+
+    async def delete(self, tenant_id: int, connection_id: str) -> bool:
+        result = await self.session.execute(
+            delete(ConnectionRow).where(ConnectionRow.id == connection_id,
+                                        ConnectionRow.tenant_id == tenant_id))
+        return _affected(result) > 0
+
+    async def add_request(self, request: ConnectionRequest) -> None:
+        await self.session.execute(insert(ConnectionRequestRow).values(asdict(request)))
+
+    async def find_request(self, state_hash: str) -> ConnectionRequest | None:
+        row = await self.session.scalar(
+            select(ConnectionRequestRow).where(ConnectionRequestRow.state_hash == state_hash,
+                                               ConnectionRequestRow.expires_at > func.now()))
+        return _connection_request(row) if row else None
+
+    async def take_request(self, state_hash: str) -> ConnectionRequest | None:
+        await self.session.execute(
+            delete(ConnectionRequestRow).where(ConnectionRequestRow.expires_at <= func.now()))
+        row = (await self.session.execute(
+            delete(ConnectionRequestRow).where(ConnectionRequestRow.state_hash == state_hash)
+            .returning(ConnectionRequestRow))).scalar_one_or_none()
+        return _connection_request(row) if row else None
+
+
+def _sso_provider(row: SsoProviderRow) -> SsoProvider:
+    return SsoProvider(tenant_id=row.tenant_id, issuer=row.issuer, client_id=row.client_id,
+                       client_secret=row.client_secret, default_role=row.default_role,
+                       enabled=row.enabled, created_at=row.created_at,
+                       updated_at=row.updated_at, required=row.required)
+
+
+def _sso_request(row: SsoRequestRow) -> SsoRequest:
+    return SsoRequest(state_hash=row.state_hash, tenant_id=row.tenant_id, nonce=row.nonce,
+                      code_verifier=row.code_verifier, next_url=row.next_url,
+                      browser_hash=row.browser_hash, expires_at=row.expires_at)
+
+
+class SqlSsoRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get(self, tenant_id: int) -> SsoProvider | None:
+        row = await self.session.get(SsoProviderRow, tenant_id, populate_existing=True)
+        return _sso_provider(row) if row else None
+
+    async def save(self, *, tenant_id: int, issuer: str, client_id: str, client_secret: str,
+                   default_role: str, enabled: bool, required: bool = False) -> SsoProvider:
+        values = {"issuer": issuer, "client_id": client_id, "client_secret": client_secret,
+                  "default_role": default_role, "enabled": enabled, "required": required}
+        await self.session.execute(
+            pg_insert(SsoProviderRow).values(tenant_id=tenant_id, **values)
+            .on_conflict_do_update(index_elements=["tenant_id"],
+                                   set_={**values, "updated_at": func.now()}))
+        found = await self.get(tenant_id)
+        assert found is not None
+        return found
+
+    async def delete(self, tenant_id: int) -> bool:
+        result = await self.session.execute(
+            delete(SsoProviderRow).where(SsoProviderRow.tenant_id == tenant_id))
+        return _affected(result) > 0
+
+    async def add_request(self, request: SsoRequest) -> None:
+        await self.session.execute(insert(SsoRequestRow).values(asdict(request)))
+
+    async def find_request(self, state_hash: str) -> SsoRequest | None:
+        row = await self.session.scalar(
+            select(SsoRequestRow).where(SsoRequestRow.state_hash == state_hash,
+                                        SsoRequestRow.expires_at > func.now()))
+        return _sso_request(row) if row else None
+
+    async def take_request(self, state_hash: str) -> SsoRequest | None:
+        await self.session.execute(
+            delete(SsoRequestRow).where(SsoRequestRow.expires_at <= func.now()))
+        row = (await self.session.execute(
+            delete(SsoRequestRow).where(SsoRequestRow.state_hash == state_hash)
+            .returning(SsoRequestRow))).scalar_one_or_none()
+        return _sso_request(row) if row else None
+
+
 def _audit_event(row: AuditEventRow, key_name: str | None,
                  user_email: str | None) -> AuditEvent:
     return AuditEvent(id=row.id, tenant_id=row.tenant_id, action=row.action, target=row.target,
@@ -1479,7 +1824,8 @@ def _source(row: SourceRow, project: ProjectRow, pages_count: int) -> Source:
                   syncing=row.locked_until is not None
                   and row.locked_until > datetime.now(row.locked_until.tzinfo),
                   last_synced_at=row.last_synced_at, next_sync_at=row.next_sync_at,
-                  last_error=row.last_error, tags=tuple(row.tags))
+                  last_error=row.last_error, tags=tuple(row.tags),
+                  connection_id=row.connection_id)
 
 
 class SqlSourceRepository:
@@ -1499,13 +1845,14 @@ class SqlSourceRepository:
             self._select().where(SourceRow.id == source_id))).one())
 
     async def create(self, *, project_id: int, kind: str, url: str, max_pages: int,
-                     sync_interval_hours: int, tags: Sequence[str] = ()) -> Source:
+                     sync_interval_hours: int, tags: Sequence[str] = (),
+                     connection_id: str | None = None) -> Source:
         source_id = str(uuid.uuid4())
         await self.session.execute(
             insert(SourceRow).values(id=source_id, project_id=project_id, kind=kind, url=url,
                                      max_pages=max_pages,
                                      sync_interval_hours=sync_interval_hours, tags=list(tags),
-                                     next_sync_at=func.now()))
+                                     connection_id=connection_id, next_sync_at=func.now()))
         return await self._by_id(source_id)
 
     async def get(self, project_id: int, source_id: str) -> Source | None:
@@ -1531,10 +1878,17 @@ class SqlSourceRepository:
             update(SourceRow).where(SourceRow.id == source_id).values(next_sync_at=func.now()))
 
     async def claim_due(self, lease_seconds: int) -> Source | None:
+        # Sources sharing a connection sync one at a time, within the service's rate limit
+        # (best effort: two workers claiming at the same moment may still overlap).
+        other = aliased(SourceRow)
+        busy_connection = exists().where(other.connection_id == SourceRow.connection_id,
+                                         other.id != SourceRow.id,
+                                         other.locked_until > func.now())
         due = (select(SourceRow.id)
                .where(SourceRow.next_sync_at <= func.now(),
                       or_(SourceRow.locked_until.is_(None),
-                          SourceRow.locked_until < func.now()))
+                          SourceRow.locked_until < func.now()),
+                      or_(SourceRow.connection_id.is_(None), ~busy_connection))
                .order_by(SourceRow.next_sync_at).limit(1)
                .with_for_update(skip_locked=True).scalar_subquery())
         source_id = await self.session.scalar(
@@ -1749,6 +2103,10 @@ class SqlUnitOfWork:
         self.user_sessions: UserSessionRepository = SqlUserSessionRepository(session)
         self.invitations: InvitationRepository = SqlInvitationRepository(session)
         self.password_resets: PasswordResetRepository = SqlPasswordResetRepository(session)
+        self.domains: DomainRepository = SqlDomainRepository(session)
+        self.bots: BotRepository = SqlBotRepository(session)
+        self.connections: ConnectionRepository = SqlConnectionRepository(session)
+        self.sso: SsoRepository = SqlSsoRepository(session)
         self.usage: UsageRepository = SqlUsageRepository(session)
         self.evaluations: EvaluationRunRepository = SqlEvaluationRunRepository(session)
         self.decks: DeckRepository = SqlDeckRepository(session)

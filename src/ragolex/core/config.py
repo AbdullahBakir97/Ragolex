@@ -160,17 +160,34 @@ class Settings(BaseSettings):
     CLAMAV_TIMEOUT_SECONDS: float = Field(default=60, gt=0, le=600)
     # Website sources: crawls reach only public addresses unless allowed.
     CRAWLER_ALLOW_PRIVATE_URLS: bool = False
+    # Single sign-on: let a workspace's identity provider be on this server's
+    # network (a Keycloak on the intranet). Off, it must be a public address.
+    SSO_ALLOW_PRIVATE_URLS: bool = False
     CRAWLER_DELAY_SECONDS: float = Field(default=0.5, ge=0, le=10)
     CRAWLER_TIMEOUT_SECONDS: float = Field(default=15, gt=0, le=120)
     # GitHub sources: a token reads private repositories and raises the
     # API's rate limit (60 requests an hour without one, 5000 with).
     GITHUB_TOKEN: str | None = None
+    # Notion and Google Drive sources: the server's OAuth app with each, whose
+    # redirect URI is APP_URL + /api/v1/connections/callback. Unset, that
+    # service cannot be connected.
+    NOTION_CLIENT_ID: str | None = None
+    NOTION_CLIENT_SECRET: str | None = None
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
     # OCR reads PDF pages that are pictures of text (scans): with "tesseract",
     # the tesseract program; with "vision", LLM_BASE_URL's model or OCR_MODEL.
     OCR_ENGINE: Literal["", "tesseract", "vision"] = ""
     OCR_LANGUAGES: str = Field(default="eng", pattern=r"^[A-Za-z_]+(\+[A-Za-z_]+)*$")
     OCR_MODEL: str | None = None
     OCR_TIMEOUT_SECONDS: float = Field(default=120, gt=0, le=600)
+    BOT_TIMEOUT_SECONDS: float = Field(
+        default=15, gt=0, le=60, description="How long Telegram, Slack and WhatsApp have to "
+                                             "answer a bot's call")
+    BOT_CHAT_MESSAGES_PER_MINUTE: int = Field(
+        default=10, ge=0, le=1000,
+        description="The most messages one chat may send a bot in a minute; past it the bot "
+                    "asks to slow down once, then ignores them for the minute (0: no limit)")
     WEBHOOK_TIMEOUT_SECONDS: float = Field(
         default=10, gt=0, le=60, description="How long a webhook's receiver has to answer")
     ENCRYPTION_KEYS: str = Field(
