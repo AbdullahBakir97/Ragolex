@@ -241,7 +241,7 @@ class SsoService:
         assertion = self._saml().verify(
             self.service_provider, saml_response, idp_entity_id=provider.issuer,
             certificate=provider.certificate, now=datetime.now(UTC))
-        if not secrets.compare_digest(assertion.in_response_to, relay_state):
+        if not secrets.compare_digest(assertion.in_response_to.encode(), relay_state.encode()):
             raise SsoFailed("the assertion answers another sign-in")
         email = await self._email(request.tenant_id, {"email": assertion.email})
         if len(email) > 254:

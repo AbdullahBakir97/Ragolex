@@ -99,7 +99,8 @@ class SignxmlSamlVerifier:
         if len(saml_response) > MAX_RESPONSE_BYTES * 4 // 3 + 4:
             raise SsoFailed("the SAML response is too large")
         try:
-            document = base64.b64decode(saml_response, validate=True)
+            # Some providers (AD FS among them) wrap the base64 in lines.
+            document = base64.b64decode("".join(saml_response.split()), validate=True)
         except (binascii.Error, ValueError) as exc:
             raise SsoFailed("the SAML response is not base64") from exc
         if b"EncryptedAssertion" in document:

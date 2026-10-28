@@ -224,6 +224,7 @@ def test_someone_signs_in_through_a_saml_provider(client, saml, signed):
     ({"recipient": "https://another-app.example/acs"}, "recipient"),
     ({"expires_in": -600}, "expired"),
     ({"in_response_to": "_another-sign-in"}, "another sign-in"),
+    ({"in_response_to": "_ánother"}, "another sign-in, not ASCII"),
     ({"sign": "response", "status": "Requester"}, "not signed in"),
     ({"extra": "<saml:EncryptedAssertion xmlns:saml='urn:oasis:names:tc:SAML:2.0:assertion'/>"},
      "encrypted"),
@@ -311,6 +312,13 @@ def check(saml, response):
     return SignxmlSamlVerifier().verify(SP, response, idp_entity_id=ENTITY_ID,
                                         certificate=pem(saml.certificate),
                                         now=datetime.now(UTC))
+
+
+def test_base64_wrapped_in_lines_is_read():
+    saml = SamlIdentityProvider()
+    response = saml.response("_r")
+    wrapped = "\r\n".join(response[i:i + 76] for i in range(0, len(response), 76))
+    assert check(saml, wrapped).email == "grace@acme.com"
 
 
 def test_an_email_attribute_counts_over_a_persistent_name_id():
