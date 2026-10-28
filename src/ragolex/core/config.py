@@ -102,8 +102,19 @@ class Settings(BaseSettings):
         description="hybrid: chunks close in meaning or sharing the question's words; "
                     "vector: close in meaning only")
     AUTH_ENABLED: bool = Field(
-        default=False, description="Require an API key on every request (except health and the "
-                                   "welcome); off, everything acts for the default tenant")
+        default=False, description="Require an API key or a signed-in user on every request "
+                                   "(except health and the welcome); off, everything acts for "
+                                   "the default tenant")
+    SIGNUP_ENABLED: bool = Field(
+        default=True, description="Let anyone sign up with an email and password, and get a "
+                                  "workspace of their own (needs AUTH_ENABLED); off, accounts "
+                                  "are added with `ragolex users add`")
+    SESSION_DAYS: int = Field(
+        default=30, ge=1, le=365, description="How long a sign-in lasts, in days")
+    SESSION_COOKIE_SECURE: bool = Field(
+        default=True, description="Send the session cookie over HTTPS only (browsers treat "
+                                  "localhost as secure); turn off only to sign in over plain "
+                                  "HTTP on another host")
     RATE_LIMIT_PER_MINUTE: int = Field(
         default=0, ge=0, description="Requests per minute per tenant; 0 is unlimited")
     ANSWERS_PER_MONTH: int = Field(

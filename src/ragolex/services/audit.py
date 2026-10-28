@@ -10,12 +10,13 @@ async def record(uow: UnitOfWork, tenant_id: int, action: str, target: str | Non
                  **details: Any) -> None:
     """Note an administrative action in the tenant's audit log, in the caller's transaction.
 
-    The event names the API key and the request it came from, so it is
-    saved exactly when the action is, with who did it.
+    The event names the API key or signed-in user, and the request it came
+    from, so it is saved exactly when the action is, with who did it.
     """
     await uow.audit.add(tenant_id=tenant_id, action=action, target=target, details=details,
                         actor_key_id=log_context.actor.get(),
-                        request_id=log_context.request_id.get())
+                        request_id=log_context.request_id.get(),
+                        actor_user_id=log_context.user.get())
 
 
 class AuditService:

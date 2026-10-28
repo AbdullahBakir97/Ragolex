@@ -31,6 +31,7 @@ from ragolex.domain.models import (
     FeedbackCounts,
     FileRecord,
     Job,
+    Membership,
     Project,
     RatedAnswer,
     Schedule,
@@ -45,6 +46,9 @@ from ragolex.domain.models import (
     UsageHistory,
     UsageTotal,
     UsageTotals,
+    User,
+    UserLogin,
+    UserSession,
     Webhook,
     WebhookDelivery,
     Widget,
@@ -508,6 +512,11 @@ class FakeTenants:
             self.by_name[name] = Tenant(id=next(self._ids), name=name, created_at=datetime.now(UTC))
         return self.by_name[name]
 
+    async def create(self, name: str) -> Tenant | None:
+        if name in self.by_name:
+            return None
+        return await self.get_or_create(name)
+
     async def list_all(self) -> list[Tenant]:
         return [self.by_name[name] for name in sorted(self.by_name)]
 
@@ -589,6 +598,101 @@ class FakeApiKeys:
                 self.by_hash[key_hash] = replace(key, last_used_at=datetime.now(UTC))
 
 
+class FakeUsers:
+
+    def __init__(self):
+        self.logins: dict[int, UserLogin] = {}
+        self._ids = count(1)
+
+    async def create(self, *, email, name, password_hash) -> User | None:
+        if any(login.user.email == email for login in self.logins.values()):
+            return None
+        user = User(id=next(self._ids), email=email, name=name, created_at=datetime.now(UTC))
+        self.logins[user.id] = UserLogin(user=user, password_hash=password_hash,
+                                         failed_logins=0, locked_until=None)
+        return user
+
+    async def get(self, user_id: int) -> User | None:
+        login = self.logins.get(user_id)
+        return login.user if login else None
+
+    async def login(self, email: str) -> UserLogin | None:
+        return next((login for login in self.logins.values() if login.user.email == email), None)
+
+    async def login_failed(self, user_id: int, *, lock_after: int, lock_for: timedelta) -> None:
+        login = self.logins[user_id]
+        if login.failed_logins + 1 >= lock_after:
+            self.logins[user_id] = replace(login, failed_logins=0,
+                                           locked_until=datetime.now(UTC) + lock_for)
+        else:
+            self.logins[user_id] = replace(login, failed_logins=login.failed_logins + 1)
+
+    async def logged_in(self, user_id: int) -> None:
+        login = self.logins[user_id]
+        self.logins[user_id] = replace(login, failed_logins=0, locked_until=None,
+                                       user=replace(login.user, last_login_at=datetime.now(UTC)))
+
+    async def set_password(self, user_id: int, password_hash: str) -> None:
+        self.logins[user_id] = replace(self.logins[user_id], password_hash=password_hash)
+
+
+class FakeMemberships:
+
+    def __init__(self, tenants: "FakeTenants"):
+        self.tenants = tenants
+        self.roles: dict[tuple[int, int], tuple[str, datetime]] = {}
+
+    async def _membership(self, user_id: int, tenant_id: int) -> Membership | None:
+        found = self.roles.get((user_id, tenant_id))
+        tenant = await self.tenants.get_by_id(tenant_id)
+        if found is None or tenant is None:
+            return None
+        return Membership(user_id=user_id, tenant_id=tenant_id, tenant_name=tenant.name,
+                          role=found[0], created_at=found[1])
+
+    async def add(self, *, user_id: int, tenant_id: int, role: str) -> Membership:
+        created = self.roles.get((user_id, tenant_id), (role, datetime.now(UTC)))[1]
+        self.roles[user_id, tenant_id] = (role, created)
+        membership = await self._membership(user_id, tenant_id)
+        assert membership is not None
+        return membership
+
+    async def get(self, user_id: int, tenant_id: int) -> Membership | None:
+        return await self._membership(user_id, tenant_id)
+
+    async def list_for_user(self, user_id: int) -> list[Membership]:
+        mine = [await self._membership(user, tenant) for user, tenant in self.roles
+                if user == user_id]
+        return sorted((m for m in mine if m), key=lambda m: m.tenant_name)
+
+
+class FakeUserSessions:
+
+    def __init__(self):
+        self.by_hash: dict[str, UserSession] = {}
+
+    async def create(self, *, user_id, tenant_id, token_hash, expires_at) -> UserSession:
+        session = UserSession(id=str(uuid.uuid4()), user_id=user_id, tenant_id=tenant_id,
+                              created_at=datetime.now(UTC), expires_at=expires_at)
+        self.by_hash[token_hash] = session
+        return session
+
+    async def find_active(self, token_hash: str) -> UserSession | None:
+        session = self.by_hash.get(token_hash)
+        return session if session and session.expires_at > datetime.now(UTC) else None
+
+    async def touch(self, session_id: str) -> None:
+        pass
+
+    async def switch_tenant(self, session_id: str, tenant_id: int) -> None:
+        for token_hash, session in self.by_hash.items():
+            if session.id == session_id:
+                self.by_hash[token_hash] = replace(session, tenant_id=tenant_id)
+
+    async def delete(self, session_id: str) -> None:
+        self.by_hash = {h: s for h, s in self.by_hash.items() if s.id != session_id}
+
+
 class FakeWidgets:
     """Widgets of the projects in ``projects`` (the fake has one tenant, id 1)."""
 
@@ -635,11 +739,11 @@ class FakeAudit:
         self.events: list[AuditEvent] = []
 
     async def add(self, *, tenant_id, action, target, details, actor_key_id,
-                  request_id) -> None:
+                  request_id, actor_user_id=None) -> None:
         self.events.append(AuditEvent(
             id=len(self.events) + 1, tenant_id=tenant_id, action=action, target=target,
             details=dict(details), actor_key_id=actor_key_id, actor_key_name=None,
-            request_id=request_id, created_at=datetime.now(UTC)))
+            request_id=request_id, created_at=datetime.now(UTC), actor_user_id=actor_user_id))
 
     def _mine(self, tenant_id, action):
         return [e for e in reversed(self.events)
@@ -841,6 +945,9 @@ class FakeUnitOfWork:
         self.sources = FakeSources(self.projects, self.files)
         self.tenants = FakeTenants()
         self.api_keys = FakeApiKeys()
+        self.users = FakeUsers()
+        self.memberships = FakeMemberships(self.tenants)
+        self.user_sessions = FakeUserSessions()
         self.usage = FakeUsage()
         self.evaluations = FakeEvaluationRuns()
         self.decks = FakeDecks()

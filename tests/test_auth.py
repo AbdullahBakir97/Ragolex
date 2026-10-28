@@ -44,7 +44,7 @@ def upload(client, key, project="docs", name="notes.txt", content=b"Cats purr wh
 def test_without_auth_everything_acts_for_the_default_tenant(client):
     assert client.get("/api/v1/me").json() == {
         "tenant": "default", "scopes": ["admin", "ask", "read", "write"], "key_id": None,
-        "auth_enabled": False}
+        "auth_enabled": False, "user": None, "role": None}
 
 
 def test_with_auth_a_key_is_required(client, auth_on):

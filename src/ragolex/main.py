@@ -13,6 +13,7 @@ from ragolex.api.dependencies import get_loader_registry
 from ragolex.api.error_handlers import register_error_handlers
 from ragolex.api.request_context import RequestContext
 from ragolex.api.routes import (
+    accounts,
     ask,
     audit,
     base,
@@ -156,6 +157,7 @@ def create_app() -> FastAPI:
     app.include_router(webhooks.router)
     app.include_router(widgets.router)
     app.include_router(widgets.public_router)
+    app.include_router(accounts.router)
     app.include_router(keys.router)
     app.include_router(audit.router)
     app.include_router(evaluations.router)

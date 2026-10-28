@@ -192,6 +192,60 @@ class ApiKeyNotFound(AppError):
     status_code = HTTPStatus.NOT_FOUND
 
 
+class AccountsDisabled(AppError):
+    """Accounts need authentication on (AUTH_ENABLED); without it everyone is the default tenant."""
+
+    signal = ResponseSignal.ACCOUNTS_DISABLED
+    status_code = HTTPStatus.CONFLICT
+
+
+class SignupDisabled(AppError):
+    """The server does not let people sign up (SIGNUP_ENABLED is off)."""
+
+    signal = ResponseSignal.SIGNUP_DISABLED
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class EmailTaken(AppError):
+    signal = ResponseSignal.EMAIL_TAKEN
+    status_code = HTTPStatus.CONFLICT
+
+
+class WorkspaceTaken(AppError):
+    """A workspace (tenant) with that name exists already."""
+
+    signal = ResponseSignal.WORKSPACE_TAKEN
+    status_code = HTTPStatus.CONFLICT
+
+
+class LoginFailed(AppError):
+    """The email or the password is wrong; which one is not said."""
+
+    signal = ResponseSignal.LOGIN_FAILED
+    status_code = HTTPStatus.UNAUTHORIZED
+
+
+class AccountLocked(AppError):
+    """Too many failed sign-ins in a row; the account is locked for a while."""
+
+    signal = ResponseSignal.ACCOUNT_LOCKED
+    status_code = HTTPStatus.TOO_MANY_REQUESTS
+
+
+class SessionRequired(AppError):
+    """This needs a signed-in user, not an API key."""
+
+    signal = ResponseSignal.SESSION_REQUIRED
+    status_code = HTTPStatus.UNAUTHORIZED
+
+
+class WorkspaceNotFound(AppError):
+    """The user is not a member of a workspace with that name (or there is none)."""
+
+    signal = ResponseSignal.WORKSPACE_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
 class RateLimited(AppError):
     """The tenant made too many requests this minute; Retry-After says when to try again."""
 

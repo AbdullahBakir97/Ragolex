@@ -50,6 +50,59 @@ curl -X DELETE http://localhost:8000/api/v1/keys/<key id> -H "Authorization: Bea
 
 The first key of a tenant comes from the command line (`ragolex keys create`), run where the database is reachable, e.g. `docker compose exec app ragolex keys create --tenant acme --name admin`. `ragolex keys list` and `ragolex keys revoke` work there too, `ragolex tenants list` lists tenants, and `ragolex tenants export` and `ragolex tenants delete` [export and delete](#export-and-delete-a-tenants-data) one. Projects that existed before tenants belong to `default`.
 
+### User accounts
+
+People sign in with an email and a password instead of an API key. A tenant is their **workspace**, and each member has a **role** there, which grants scopes as a key's do:
+
+| Role | Scopes | For |
+|---|---|---|
+| `owner` | `read`, `write`, `ask`, `admin` | Whoever created the workspace |
+| `admin` | `read`, `write`, `ask`, `admin` | Managing keys, webhooks and members |
+| `editor` | `read`, `write`, `ask` | Uploading, changing and asking |
+| `viewer` | `read`, `ask` | Searching and asking only |
+
+With `AUTH_ENABLED=true` and `SIGNUP_ENABLED=true` (the default), anyone can sign up: the account gets a new workspace, which it owns. Signing up or in sets a session cookie, `ragolex_session`, sent with every later request to `/api`:
+
+```bash
+curl -c cookies.txt -X POST http://localhost:8000/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email": "ada@example.com", "password": "at least 10 characters", "name": "Ada", "workspace": "acme"}'
+curl -b cookies.txt http://localhost:8000/api/v1/projects
+```
+
+| Endpoint | Does |
+|---|---|
+| `POST /api/v1/auth/signup` | Creates the account and its workspace, and signs in (`201`) |
+| `POST /api/v1/auth/login` | Signs in with `email` and `password`, in the first of the user's workspaces |
+| `GET /api/v1/auth/session` | The signed-in user, the workspace the session works in, and all of the user's workspaces |
+| `PUT /api/v1/auth/session/workspace` | Works in another of the user's workspaces: `{"workspace": "zenith"}` |
+| `POST /api/v1/auth/logout` | Ends the session and removes the cookie (`204`) |
+
+How it is kept safe:
+
+- **Passwords** have at least 10 characters, and only their Argon2id hash is stored. Email addresses are compared in lower case, so one address has one account.
+- **Sign-in failures** answer the same `login_failed` for a wrong password and an unknown email. The 10th failure in a row locks the account for 15 minutes (`429` `account_locked`); a good sign-in starts the count again.
+- **The session cookie** is `HttpOnly` (scripts cannot read it), `SameSite=Strict` (other sites cannot send it, which stops cross-site request forgery), `Secure` (HTTPS only, unless `SESSION_COOKIE_SECURE=false`) and only sent to `/api`. A session lasts `SESSION_DAYS` (30) days; the server keeps only the token's SHA-256.
+- **A request with an API key** acts for the key, even when the browser also has a session cookie.
+
+Workspace names are 2 to 64 lower-case letters, digits, `-` and `_`. `GET /api/v1/me` shows a signed-in user and their `role` too.
+
+| Case | Status | Response |
+|---|---|---|
+| `AUTH_ENABLED` is off | `409` | `{"signal": "accounts_disabled"}` |
+| `SIGNUP_ENABLED` is off | `403` | `{"signal": "signup_disabled"}` |
+| The email has an account, or the workspace name is taken | `409` | `{"signal": "email_taken"}`, `{"signal": "workspace_taken"}` |
+| Wrong email or password | `401` | `{"signal": "login_failed"}` |
+| Too many failures in a row | `429` | `{"signal": "account_locked"}` |
+| No session, or it expired, or the user left the workspace | `401` | `{"signal": "session_required"}` |
+| Not a member of that workspace (or of any) | `404` | `{"signal": "workspace_not_found"}` |
+
+With sign-up off, accounts are added from the command line. A new account asks for its password; an existing one keeps it and gets the role:
+
+```bash
+docker compose exec app ragolex users add ada@example.com --tenant acme --role owner --name "Ada Lovelace"
+```
+
 ## Audit log
 
 Administrative actions are recorded in their tenant's audit log, in the same transaction as the action itself, so a recorded action happened and every action that happened is recorded. `GET /api/v1/audit` (`admin` scope) lists them, most recent first; `?action=api_key` or `?action=widget.deleted` keeps the actions that start with it. Operators can read the same log with `ragolex audit --tenant <name>`.
@@ -63,6 +116,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | Action | Target | Details |
 |---|---|---|
 | `tenant.created`, `tenant.limits_changed` | The tenant's name | The new limits (`changes`) |
+| `member.added` | The member's email | Their `role` |
 | `api_key.created`, `api_key.revoked` | The key's id | Name, prefix and scopes, never the key |
 | `webhook.created`, `webhook.deleted` | The webhook's id | Project, URL and events, never the secret |
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
@@ -70,7 +124,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | `file.deleted`, `project.deleted` | The file's id, or the project's name | The project |
 | `tenant.exported` | The tenant's name | How many projects, files, conversations, keys and audit events the archive holds |
 
-`actor` is the API key that did it, with its name; it is `null` for the server's operators: the command line, or requests while authentication is off. `request_id` matches the request's `X-Request-ID` and its log lines. Events are kept as long as the tenant; a revoked key still shows by name.
+`actor` is the API key that did it, with its name, and `user` the signed-in user, with their email; both are `null` for the server's operators: the command line, or requests while authentication is off. `request_id` matches the request's `X-Request-ID` and its log lines. Events are kept as long as the tenant; a revoked key still shows by name.
 
 ## Evaluation runs
 
@@ -174,7 +228,12 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/` | Redirects to `/docs` |
 | `GET` | `/api/v1/` | Welcome message with app name and version |
 | `GET` | `/api/v1/health` | `200` `{"status": "ok", "database": "ok"}`, or `503` when the database is unreachable |
-| `GET` | `/api/v1/me` | The tenant and scopes of the API key used |
+| `GET` | `/api/v1/me` | The tenant and scopes of the API key used, or the signed-in user with their role |
+| `POST` | `/api/v1/auth/signup` | Create an account with a workspace of its own, and sign in |
+| `POST` | `/api/v1/auth/login` | Sign in with an email and password |
+| `POST` | `/api/v1/auth/logout` | Sign out |
+| `GET` | `/api/v1/auth/session` | The signed-in user and their workspaces |
+| `PUT` | `/api/v1/auth/session/workspace` | Work in another of the user's workspaces |
 | `GET` | `/api/v1/usage` | The tenant's usage this month, against its limits |
 | `GET` | `/api/v1/usage/history` | The tenant's answers and their cost per day, project and model |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |

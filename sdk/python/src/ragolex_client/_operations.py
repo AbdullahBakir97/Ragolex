@@ -40,6 +40,7 @@ from .models import (
     JobListResponse,
     JobRequest,
     JobResponse,
+    LoginRequest,
     MeResponse,
     MessageResponse,
     ProcessRequest,
@@ -52,6 +53,8 @@ from .models import (
     SearchFiltersRequest,
     SearchRequest,
     SearchResponse,
+    SessionResponse,
+    SignupRequest,
     SourceListResponse,
     SourcePagesResponse,
     SourceRequest,
@@ -71,6 +74,7 @@ from .models import (
     WidgetRequest,
     WidgetResponse,
     WidgetUpdateRequest,
+    WorkspaceRequest,
 )
 
 T = TypeVar("T")
@@ -495,10 +499,59 @@ class Operations:
         """
         return self._request('PUT', f'/api/v1/widgets/{_path(widget_id)}/conversations/{_path(conversation_id)}/messages/{_path(message_id)}/feedback', query={}, json=_body(FeedbackRequest, {'rating': rating, 'comment': comment}, optional=False), response=_none)
 
+    def sign_up(
+        self,
+        *,
+        email: str,
+        password: str,
+        name: str,
+        workspace: str,
+    ) -> SessionResponse:
+        """Create an account with a workspace of its own, and sign in
+
+        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.
+        """
+        return self._request('POST', '/api/v1/auth/signup', query={}, json=_body(SignupRequest, {'email': email, 'password': password, 'name': name, 'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
+
+    def sign_in(
+        self,
+        *,
+        email: str,
+        password: str,
+    ) -> SessionResponse:
+        """Sign in with an email and password
+
+        Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.
+        """
+        return self._request('POST', '/api/v1/auth/login', query={}, json=_body(LoginRequest, {'email': email, 'password': password}, optional=False), response=SessionResponse.model_validate)
+
+    def sign_out(
+        self,
+    ) -> None:
+        """Sign out: end the session and remove its cookie
+        """
+        return self._request('POST', '/api/v1/auth/logout', query={}, json=None, response=_none)
+
+    def current_session(
+        self,
+    ) -> SessionResponse:
+        """The signed-in user and their workspaces
+        """
+        return self._request('GET', '/api/v1/auth/session', query={}, json=None, response=SessionResponse.model_validate)
+
+    def switch_workspace(
+        self,
+        *,
+        workspace: str,
+    ) -> SessionResponse:
+        """Work in another of the user's workspaces
+        """
+        return self._request('PUT', '/api/v1/auth/session/workspace', query={}, json=_body(WorkspaceRequest, {'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
+
     def me(
         self,
     ) -> MeResponse:
-        """The tenant and scopes of the API key used
+        """Who the request acts for: the tenant and scopes of the API key used, or the signed-in user with their role
         """
         return self._request('GET', '/api/v1/me', query={}, json=None, response=MeResponse.model_validate)
 
@@ -1240,10 +1293,59 @@ class AsyncOperations:
         """
         return await self._request('PUT', f'/api/v1/widgets/{_path(widget_id)}/conversations/{_path(conversation_id)}/messages/{_path(message_id)}/feedback', query={}, json=_body(FeedbackRequest, {'rating': rating, 'comment': comment}, optional=False), response=_none)
 
+    async def sign_up(
+        self,
+        *,
+        email: str,
+        password: str,
+        name: str,
+        workspace: str,
+    ) -> SessionResponse:
+        """Create an account with a workspace of its own, and sign in
+
+        The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.
+        """
+        return await self._request('POST', '/api/v1/auth/signup', query={}, json=_body(SignupRequest, {'email': email, 'password': password, 'name': name, 'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
+
+    async def sign_in(
+        self,
+        *,
+        email: str,
+        password: str,
+    ) -> SessionResponse:
+        """Sign in with an email and password
+
+        Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.
+        """
+        return await self._request('POST', '/api/v1/auth/login', query={}, json=_body(LoginRequest, {'email': email, 'password': password}, optional=False), response=SessionResponse.model_validate)
+
+    async def sign_out(
+        self,
+    ) -> None:
+        """Sign out: end the session and remove its cookie
+        """
+        return await self._request('POST', '/api/v1/auth/logout', query={}, json=None, response=_none)
+
+    async def current_session(
+        self,
+    ) -> SessionResponse:
+        """The signed-in user and their workspaces
+        """
+        return await self._request('GET', '/api/v1/auth/session', query={}, json=None, response=SessionResponse.model_validate)
+
+    async def switch_workspace(
+        self,
+        *,
+        workspace: str,
+    ) -> SessionResponse:
+        """Work in another of the user's workspaces
+        """
+        return await self._request('PUT', '/api/v1/auth/session/workspace', query={}, json=_body(WorkspaceRequest, {'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
+
     async def me(
         self,
     ) -> MeResponse:
-        """The tenant and scopes of the API key used
+        """Who the request acts for: the tenant and scopes of the API key used, or the signed-in user with their role
         """
         return await self._request('GET', '/api/v1/me', query={}, json=None, response=MeResponse.model_validate)
 

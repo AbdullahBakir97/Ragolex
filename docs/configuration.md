@@ -23,7 +23,10 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `RERANK_MODEL` | `""` | The reranking model, e.g. `"BAAI/bge-reranker-v2-m3"` |
 | `RERANK_API_KEY` | `""` | Sent as a bearer token when set |
 | `RERANK_CANDIDATES` | `20` | Results reranked per search (1–100); the best `top_k` of them are kept. If the reranker fails, the search order stays and a warning is logged |
-| `AUTH_ENABLED` | `false` | Require an API key on every request but the welcome and health endpoints; off, every request acts for the tenant `default` with every scope. Turn it on for any server others can reach (see [Authentication](api.md#authentication-and-tenants)) |
+| `AUTH_ENABLED` | `false` | Require an API key or a signed-in user on every request but the welcome and health endpoints; off, every request acts for the tenant `default` with every scope. Turn it on for any server others can reach (see [Authentication](api.md#authentication-and-tenants)) |
+| `SIGNUP_ENABLED` | `true` | With `AUTH_ENABLED`, let anyone sign up with an email and password and get a workspace of their own. Turn it off for a private server; then `ragolex users add` adds accounts (see [User accounts](api.md#user-accounts)) |
+| `SESSION_DAYS` | `30` | How long a sign-in lasts (1 to 365 days) |
+| `SESSION_COOKIE_SECURE` | `true` | Send the session cookie over HTTPS only. Browsers treat `localhost` as secure, so it works in development; turn it off only to sign in over plain HTTP on another host |
 | `RATE_LIMIT_PER_MINUTE` | `0` | Requests per minute per tenant (`429` beyond it); `0` is unlimited. `ragolex tenants limits` sets a tenant's own |
 | `ANSWERS_PER_MONTH` | `0` | Answers per calendar month (UTC) per tenant; `0` is unlimited |
 | `STORAGE_MB_PER_TENANT` | `0` | Megabytes of uploaded files per tenant; `0` is unlimited |

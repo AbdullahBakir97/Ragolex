@@ -5,7 +5,12 @@ from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, Request, Response, Security
-from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import (
+    APIKeyCookie,
+    APIKeyHeader,
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+)
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from ragolex.core import log_context
@@ -18,6 +23,7 @@ from ragolex.domain.repositories import UnitOfWork
 from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
 from ragolex.ocr.factory import create_ocr
 from ragolex.persistence.repositories import SqlUnitOfWork
+from ragolex.services.account_service import AccountService
 from ragolex.services.answer_service import AnswerService
 from ragolex.services.assistant_service import AssistantService
 from ragolex.services.auth_service import AuthService
@@ -65,23 +71,39 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 bearer = HTTPBearer(auto_error=False, description="An API key: `Authorization: Bearer ragolex_…`")
 key_header = APIKeyHeader(name="X-API-Key", auto_error=False,
                           description="An API key, for clients that cannot set Authorization")
+# The web app's sign-in (POST /api/v1/auth/login sets it); HttpOnly, so scripts cannot read it.
+SESSION_COOKIE = "ragolex_session"
+session_cookie = APIKeyCookie(name=SESSION_COOKIE, auto_error=False,
+                              description="A signed-in user's session, set by signing in")
+
+
+def get_account_service(session: SessionDep, settings: SettingsDep) -> AccountService:
+    return AccountService(SqlUnitOfWork(session), session_days=settings.SESSION_DAYS)
+
+
+AccountServiceDep = Annotated[AccountService, Depends(get_account_service)]
 
 
 async def get_principal(
-    session: SessionDep, settings: SettingsDep,
+    session: SessionDep, settings: SettingsDep, accounts: AccountServiceDep,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer)],
     header_key: Annotated[str | None, Security(key_header)],
+    cookie: Annotated[str | None, Security(session_cookie)],
 ) -> Principal:
-    """Who the request acts for: the API key's tenant, or the default tenant when auth is off."""
+    """Who the request acts for: an API key's tenant, a signed-in user's workspace, or the
+    default tenant when auth is off. An API key wins over a session cookie."""
     service = AuthService(SqlUnitOfWork(session))
+    key = credentials.credentials if credentials else header_key
     if not settings.AUTH_ENABLED:
         principal = await service.anonymous()
+    elif key or not cookie:
+        principal = await service.authenticate(key)
     else:
-        principal = await service.authenticate(
-            credentials.credentials if credentials else header_key)
+        principal = await accounts.authenticate(cookie)
     # The request's log lines name its tenant (RequestContext ends this with the request).
     log_context.tenant.set(principal.tenant_name)
     log_context.actor.set(principal.key_id)
+    log_context.user.set(principal.user_id)
     return principal
 
 

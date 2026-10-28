@@ -569,6 +569,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an account with a workspace of its own, and sign in
+         * @description The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.
+         */
+        post: operations["sign_up"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in with an email and password
+         * @description Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.
+         */
+        post: operations["sign_in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign out: end the session and remove its cookie */
+        post: operations["sign_out"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user and their workspaces */
+        get: operations["current_session"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/session/workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Work in another of the user's workspaces */
+        put: operations["switch_workspace"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -576,7 +667,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The tenant and scopes of the API key used */
+        /** Who the request acts for: the tenant and scopes of the API key used, or the signed-in user with their role */
         get: operations["me"];
         put?: never;
         post?: never;
@@ -1268,6 +1359,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** @description The signed-in user that did it; null for API keys and the server's operators. */
+            user?: components["schemas"]["AuditUser"] | null;
         };
         /** AuditListResponse */
         AuditListResponse: {
@@ -1279,6 +1372,16 @@ export interface components {
             limit: number;
             /** Items */
             items: components["schemas"]["AuditEventResponse"][];
+        };
+        /** AuditUser */
+        AuditUser: {
+            /** Id */
+            id: number;
+            /**
+             * Email
+             * @description The user's email; null once the account is gone.
+             */
+            email: string | null;
         };
         /** Body_upload_data */
         Body_upload_data: {
@@ -1926,6 +2029,16 @@ export interface components {
             /** Sources */
             sources: number[];
         };
+        /** LoginRequest */
+        LoginRequest: {
+            /**
+             * Email
+             * @example ada@example.com
+             */
+            email: string;
+            /** Password */
+            password: string;
+        };
         /** MeResponse */
         MeResponse: {
             /** Tenant */
@@ -1934,11 +2047,18 @@ export interface components {
             scopes: string[];
             /**
              * Key Id
-             * @description Null when authentication is off.
+             * @description The API key used; null for a signed-in user and when authentication is off.
              */
             key_id: string | null;
             /** Auth Enabled */
             auth_enabled: boolean;
+            /** @description The signed-in user; null for API keys and when authentication is off. */
+            user?: components["schemas"]["UserResponse"] | null;
+            /**
+             * Role
+             * @description The signed-in user's role in the workspace.
+             */
+            role?: ("owner" | "admin" | "editor" | "viewer") | null;
         };
         /** MessageResponse */
         MessageResponse: {
@@ -2177,7 +2297,7 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
         /** ReviewCardResponse */
         ReviewCardResponse: {
             /** Id */
@@ -2357,6 +2477,47 @@ export interface components {
              * @description How many chunks the search found.
              */
             results: number;
+        };
+        /** SessionResponse */
+        SessionResponse: {
+            user: components["schemas"]["UserResponse"];
+            /** @description The workspace the session works in. */
+            workspace: components["schemas"]["WorkspaceResponse"];
+            /**
+             * Workspaces
+             * @description Every workspace the user is a member of, by name.
+             */
+            workspaces: components["schemas"]["WorkspaceResponse"][];
+            /**
+             * Expires At
+             * Format: date-time
+             * @description When the sign-in ends.
+             */
+            expires_at: string;
+        };
+        /** SignupRequest */
+        SignupRequest: {
+            /**
+             * Email
+             * @example ada@example.com
+             */
+            email: string;
+            /**
+             * Password
+             * @description At least 10 characters. Only an Argon2 hash is stored.
+             */
+            password: string;
+            /**
+             * Name
+             * @example Ada Lovelace
+             */
+            name: string;
+            /**
+             * Workspace
+             * @description The new workspace's name: 2 to 64 lower-case letters, digits, `-` and `_`. You become its owner.
+             * @example acme
+             */
+            workspace: string;
         };
         /** SourceListResponse */
         SourceListResponse: {
@@ -2657,6 +2818,15 @@ export interface components {
              */
             cost_usd: number | null;
         };
+        /** UserResponse */
+        UserResponse: {
+            /** Id */
+            id: number;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -2892,6 +3062,24 @@ export interface components {
              * @example https://example.com/logo.png
              */
             logo_url?: string | null;
+        };
+        /** WorkspaceRequest */
+        WorkspaceRequest: {
+            /**
+             * Workspace
+             * @example acme
+             */
+            workspace: string;
+        };
+        /** WorkspaceResponse */
+        WorkspaceResponse: {
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "admin" | "editor" | "viewer";
         };
     };
     responses: never;
@@ -4732,6 +4920,251 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sign_up: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Signal: `signup_disabled` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `accounts_disabled`, `email_taken`, `workspace_taken` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sign_in: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Signal: `login_failed` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `workspace_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `accounts_disabled` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Signal: `account_locked` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sign_out: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Signal: `accounts_disabled` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    current_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Signal: `session_required` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `accounts_disabled` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    switch_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Signal: `session_required` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `workspace_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `accounts_disabled` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

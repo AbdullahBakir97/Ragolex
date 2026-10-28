@@ -74,6 +74,16 @@ SCOPES = ("read", "write", "ask", "admin")
 Scope = Literal["read", "write", "ask", "admin"]
 Rating = Literal["up", "down"]
 Role = Literal["user", "assistant"]
+# What a person may do in a workspace (tenant), most first. Each role grants scopes,
+# as an API key's scopes do: owners and admins all of them, editors all but admin.
+MEMBER_ROLES = ("owner", "admin", "editor", "viewer")
+MemberRole = Literal["owner", "admin", "editor", "viewer"]
+ROLE_SCOPES: Mapping[str, frozenset[str]] = {
+    "owner": frozenset(SCOPES),
+    "admin": frozenset(SCOPES),
+    "editor": frozenset({"read", "write", "ask"}),
+    "viewer": frozenset({"read", "ask"}),
+}
 
 
 @dataclass(frozen=True)
@@ -155,12 +165,64 @@ class ApiKey:
 
 @dataclass(frozen=True)
 class Principal:
-    """Who a request acts for: a tenant, with the scopes its key has."""
+    """Who a request acts for: a tenant, with the scopes its key, or its user's role, has.
+
+    A request authenticates with an API key (``key_id``) or as a signed-in user
+    (``user_id`` and ``role``); with authentication off, it has neither.
+    """
 
     tenant_id: int
     tenant_name: str
     scopes: frozenset[str]
-    key_id: str | None = None  # None when authentication is off.
+    key_id: str | None = None
+    user_id: int | None = None
+    role: str | None = None
+
+
+@dataclass(frozen=True)
+class User:
+    """A person with an account: they sign in with their email and password."""
+
+    id: int
+    email: str
+    name: str
+    created_at: datetime
+    last_login_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class UserLogin:
+    """What signing in checks: the password's hash, and how many tries failed lately."""
+
+    user: User
+    password_hash: str
+    failed_logins: int
+    locked_until: datetime | None
+
+
+@dataclass(frozen=True)
+class Membership:
+    """A user's place in a workspace (tenant), with their role there."""
+
+    user_id: int
+    tenant_id: int
+    tenant_name: str
+    role: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class UserSession:
+    """A signed-in browser: its user and the workspace it works in.
+
+    Only a hash of its token is stored, as for API keys.
+    """
+
+    id: str
+    user_id: int
+    tenant_id: int
+    created_at: datetime
+    expires_at: datetime
 
 
 @dataclass(frozen=True)
@@ -435,8 +497,9 @@ class SourcePage:
 class AuditEvent:
     """An administrative action in a tenant: who did it, to what, and when.
 
-    ``actor_key_id`` is the API key that did it; None for the server's own
-    operators (the command line, or requests while authentication is off).
+    ``actor_key_id`` is the API key that did it, and ``actor_user_id`` the
+    signed-in user; both are None for the server's own operators (the command
+    line, or requests while authentication is off).
     """
 
     id: int
@@ -448,6 +511,8 @@ class AuditEvent:
     actor_key_name: str | None
     request_id: str | None
     created_at: datetime
+    actor_user_id: int | None = None
+    actor_user_email: str | None = None
 
 
 DeliveryStatus = Literal["pending", "delivered", "failed"]
