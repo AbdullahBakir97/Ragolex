@@ -47,6 +47,7 @@ from ragolex.core.errors import (
     PasswordResetInvalid,
     SessionRequired,
     SignupDisabled,
+    SsoRequired,
     WorkspaceNotFound,
     WorkspaceTaken,
     WrongDomain,
@@ -102,7 +103,7 @@ async def sign_up(request: SignupRequest, response: Response, accounts: AccountS
                          "workspaces, or on a workspace's own domain, in that one. The 10th "
                          "wrong password in a row locks the account for 15 minutes.",
              responses=error_responses(AccountsDisabled, LoginFailed, AccountLocked,
-                                       WorkspaceNotFound))
+                                       WorkspaceNotFound, SsoRequired))
 async def sign_in(request: LoginRequest, response: Response, accounts: AccountServiceDep,
                   settings: SettingsDep, site: SiteDep) -> SessionResponse:
     signed_in = await accounts.sign_in(request.email, request.password,
@@ -132,7 +133,7 @@ async def current_session(cookie: CookieDep, accounts: AccountServiceDep,
 @router.put("/session/workspace", summary="Work in another of the user's workspaces",
             description="Not on a workspace's own domain, which always works in its own.",
             responses=error_responses(AccountsDisabled, SessionRequired, WorkspaceNotFound,
-                                      WrongDomain))
+                                      WrongDomain, SsoRequired))
 async def switch_workspace(request: WorkspaceRequest, cookie: CookieDep,
                            accounts: AccountServiceDep, site: SiteDep) -> SessionResponse:
     if site is not None:
@@ -162,7 +163,7 @@ async def invitation(request: InvitationTokenRequest,
                          "account signs in first. Works even with `SIGNUP_ENABLED` off.",
              responses=error_responses(AccountsDisabled, InvitationInvalid,
                                        InvitationForSomeoneElse, SessionRequired,
-                                       AccountDetailsRequired, EmailTaken))
+                                       AccountDetailsRequired, EmailTaken, SsoRequired))
 async def accept_invitation(request: AcceptInvitationRequest, response: Response,
                             cookie: CookieDep, accounts: AccountServiceDep,
                             settings: SettingsDep) -> SessionResponse:

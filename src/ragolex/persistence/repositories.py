@@ -556,7 +556,8 @@ class SqlMembershipRepository:
 
 def _user_session(row: UserSessionRow) -> UserSession:
     return UserSession(id=row.id, user_id=row.user_id, tenant_id=row.tenant_id,
-                       created_at=row.created_at, expires_at=row.expires_at)
+                       created_at=row.created_at, expires_at=row.expires_at,
+                       sso_tenant_id=row.sso_tenant_id)
 
 
 class SqlUserSessionRepository:
@@ -565,11 +566,11 @@ class SqlUserSessionRepository:
         self.session = session
 
     async def create(self, *, user_id: int, tenant_id: int, token_hash: str,
-                     expires_at: datetime) -> UserSession:
+                     expires_at: datetime, sso_tenant_id: int | None = None) -> UserSession:
         row = (await self.session.execute(
             insert(UserSessionRow).values(id=str(uuid.uuid4()), user_id=user_id,
                                           tenant_id=tenant_id, token_hash=token_hash,
-                                          expires_at=expires_at)
+                                          expires_at=expires_at, sso_tenant_id=sso_tenant_id)
             .returning(UserSessionRow))).scalar_one()
         return _user_session(row)
 
@@ -1717,7 +1718,7 @@ def _sso_provider(row: SsoProviderRow) -> SsoProvider:
     return SsoProvider(tenant_id=row.tenant_id, issuer=row.issuer, client_id=row.client_id,
                        client_secret=row.client_secret, default_role=row.default_role,
                        enabled=row.enabled, created_at=row.created_at,
-                       updated_at=row.updated_at)
+                       updated_at=row.updated_at, required=row.required)
 
 
 def _sso_request(row: SsoRequestRow) -> SsoRequest:
@@ -1736,9 +1737,9 @@ class SqlSsoRepository:
         return _sso_provider(row) if row else None
 
     async def save(self, *, tenant_id: int, issuer: str, client_id: str, client_secret: str,
-                   default_role: str, enabled: bool) -> SsoProvider:
+                   default_role: str, enabled: bool, required: bool = False) -> SsoProvider:
         values = {"issuer": issuer, "client_id": client_id, "client_secret": client_secret,
-                  "default_role": default_role, "enabled": enabled}
+                  "default_role": default_role, "enabled": enabled, "required": required}
         await self.session.execute(
             pg_insert(SsoProviderRow).values(tenant_id=tenant_id, **values)
             .on_conflict_do_update(index_elements=["tenant_id"],

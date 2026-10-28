@@ -215,7 +215,8 @@ class Membership:
 class UserSession:
     """A signed-in browser: its user and the workspace it works in.
 
-    Only a hash of its token is stored, as for API keys.
+    Only a hash of its token is stored, as for API keys. ``sso_tenant_id`` is
+    the workspace whose identity provider signed it in; None for a password.
     """
 
     id: str
@@ -223,6 +224,7 @@ class UserSession:
     tenant_id: int
     created_at: datetime
     expires_at: datetime
+    sso_tenant_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -620,6 +622,8 @@ class SsoProvider:
     People whose email is on one of the workspace's verified domains sign in
     through it; a first sign-in makes their account, or adds it to the
     workspace, with ``default_role``. ``client_secret`` is stored encrypted.
+    With ``required`` (and ``enabled``), its members other than owners work
+    in it only through the provider: not with a password, nor by invitation.
     """
 
     tenant_id: int
@@ -630,6 +634,11 @@ class SsoProvider:
     enabled: bool
     created_at: datetime
     updated_at: datetime
+    required: bool = False
+
+    @property
+    def enforced(self) -> bool:
+        return self.enabled and self.required
 
 
 @dataclass(frozen=True)

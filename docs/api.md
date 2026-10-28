@@ -165,6 +165,14 @@ People then choose **Sign in with single sign-on** in the web app and give their
 
 The sign-in uses the authorization code flow with PKCE, a single-use state and a nonce, and only the browser that started it can finish it. The ID token's signature is checked with the provider's published keys (never with the client secret, nor unsigned), as are its issuer, audience, expiry and nonce. An email the provider marks unverified, or one outside the workspace's verified domains, is refused (`sso_email_not_allowed`). With Entra ID, the sign-in name (`preferred_username`) counts as the email when there is no `email` claim. Errors come back to the sign-in page as `?sso_error=<signal>`. The provider must be on a public address, unless `SSO_ALLOW_PRIVATE_URLS` is on (a Keycloak on the server's own network). Single sign-on needs `AUTH_ENABLED`.
 
+**Requiring it.** With `"required": true`, the workspace's members sign in only through its provider:
+
+- A password no longer signs them in there (`403` `{"signal": "sso_required"}`; the web app then offers single sign-on), and sessions they started with a password end (`401`). A password still works in their other workspaces, and a session that came through this workspace's provider cannot be switched into another workspace that requires its own (`403` `sso_required`).
+- Invitations are off: new ones, and accepting ones sent before (`403` `sso_required`). People join through the provider.
+- **Owners keep their passwords**, so a broken provider cannot lock the workspace. Turning the provider off (`"enabled": false`), or removing it, lifts the requirement.
+
+Only an owner turns it on or off (`403` `{"signal": "owner_required"}` for an admin or an API key), and it needs a verified domain (`409` `{"signal": "sso_needs_domain"}`), or no one but owners could sign in.
+
 ### Your own domains
 
 A workspace can serve on domains of its own, such as `help.acme.com`: its web app, its API and its chat widgets, all from the same deployment. An `admin` key, or an owner's or admin's session, manages them:
@@ -210,7 +218,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 |---|---|---|
 | `tenant.created`, `tenant.limits_changed` | The tenant's name | The new limits (`changes`) |
 | `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`); `"via": "sso"` for someone added by their first single sign-on |
-| `sso.configured`, `sso.removed` | The identity provider's issuer | Its client id, default role and whether it is on; never the secret |
+| `sso.configured`, `sso.removed` | The identity provider's issuer | Its client id, default role, whether it is on and whether it is required; never the secret |
 | `invitation.created`, `invitation.revoked`, `invitation.accepted` | The invited email | The invitation's id and `role` |
 | `domain.added`, `domain.verified`, `domain.removed` | The domain | |
 | `bot.created`, `bot.updated`, `bot.deleted` | The bot's id | Project, kind, name and what changed; never its credentials |
@@ -255,7 +263,7 @@ curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/ap
 | `invitations.json` | Each open invitation's email, role and dates; never its link |
 | `domains.json` | The workspace's own domains, and when each was verified |
 | `connections.json` | Its Notion and Google Drive connections: kind, account, who connected it and when; never their tokens |
-| `sso.json` | Its single sign-on provider (issuer, client id, default role, on or off), or `null`; never the secret |
+| `sso.json` | Its single sign-on provider (issuer, client id, default role, on or off, required or not), or `null`; never the secret |
 | `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
 | `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
 | `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |

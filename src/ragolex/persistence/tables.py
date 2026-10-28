@@ -166,6 +166,9 @@ class UserSessionRow(Base):
     created_at: Mapped[datetime] = _created_at()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The workspace whose identity provider signed it in; null for a password.
+    sso_tenant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tenants.id", ondelete="SET NULL"), index=True)
 
 
 class TenantDomainRow(Base):
@@ -286,6 +289,8 @@ class SsoProviderRow(Base):
     client_secret: Mapped[str] = mapped_column(EncryptedString())
     default_role: Mapped[str] = mapped_column(String(16))
     enabled: Mapped[bool] = mapped_column(Boolean)
+    # Members other than owners sign in only through it.
+    required: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _created_at()
 

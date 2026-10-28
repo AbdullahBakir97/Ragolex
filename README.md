@@ -46,7 +46,7 @@
 
 - **Tenants** keep their projects apart on one deployment. API keys with scopes (`read`, `write`, `ask`, `admin`) say what each app may do, within its own rate limit, monthly quotas and budget.
 - **Brands** each get their own domain on one deployment, proven by a DNS record, with certificates on demand.
-- **Teams** sign in with an email and password, or with their organisation's account through single sign-on (OpenID Connect: Entra ID, Google Workspace, Okta, Keycloak), each with a role in a workspace (owner, admin, editor or viewer): invite people by link or email, change their roles, and reset forgotten passwords.
+- **Teams** sign in with an email and password, or with their organisation's account through single sign-on (OpenID Connect: Entra ID, Google Workspace, Okta, Keycloak), which a workspace can require, each with a role in a workspace (owner, admin, editor or viewer): invite people by link or email, change their roles, and reset forgotten passwords.
 - **Track cost**: the tokens and cost of every answer, spending per day, project and model, and a monthly budget that alerts at 80% and stops answers at 100%.
 - **Administer** a tenant in the web app: its members and invitations, API keys, usage, cost, evaluation scores over time and the audit log of who changed what.
 - **Export** everything a tenant has as one ZIP archive, or delete it all.

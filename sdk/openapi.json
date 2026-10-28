@@ -3947,6 +3947,23 @@
               }
             }
           },
+          "403": {
+            "description": "Signal: `sso_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_required": {
+                    "value": {
+                      "signal": "sso_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -4155,7 +4172,7 @@
             }
           },
           "403": {
-            "description": "Signal: `wrong_domain`",
+            "description": "Signal: `wrong_domain`, `sso_required`",
             "content": {
               "application/json": {
                 "schema": {
@@ -4165,6 +4182,11 @@
                   "wrong_domain": {
                     "value": {
                       "signal": "wrong_domain"
+                    }
+                  },
+                  "sso_required": {
+                    "value": {
+                      "signal": "sso_required"
                     }
                   }
                 }
@@ -4334,7 +4356,7 @@
             }
           },
           "403": {
-            "description": "Signal: `invitation_for_someone_else`",
+            "description": "Signal: `invitation_for_someone_else`, `sso_required`",
             "content": {
               "application/json": {
                 "schema": {
@@ -4344,6 +4366,11 @@
                   "invitation_for_someone_else": {
                     "value": {
                       "signal": "invitation_for_someone_else"
+                    }
+                  },
+                  "sso_required": {
+                    "value": {
+                      "signal": "sso_required"
                     }
                   }
                 }
@@ -5270,7 +5297,7 @@
             }
           },
           "403": {
-            "description": "Signal: `owner_required`",
+            "description": "Signal: `owner_required`, `sso_required`",
             "content": {
               "application/json": {
                 "schema": {
@@ -5280,6 +5307,11 @@
                   "owner_required": {
                     "value": {
                       "signal": "owner_required"
+                    }
+                  },
+                  "sso_required": {
+                    "value": {
+                      "signal": "sso_required"
                     }
                   }
                 }
@@ -6678,6 +6710,40 @@
                   "sso_secret_required": {
                     "value": {
                       "signal": "sso_secret_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `owner_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "owner_required": {
+                    "value": {
+                      "signal": "owner_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `sso_needs_domain`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sso_needs_domain": {
+                    "value": {
+                      "signal": "sso_needs_domain"
                     }
                   }
                 }
@@ -12798,6 +12864,8 @@
           "sso_email_not_allowed",
           "sso_request_invalid",
           "sso_secret_required",
+          "sso_required",
+          "sso_needs_domain",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",
@@ -13670,6 +13738,10 @@
             "type": "boolean",
             "title": "Enabled"
           },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -13687,6 +13759,7 @@
           "client_id",
           "default_role",
           "enabled",
+          "required",
           "created_at",
           "updated_at"
         ],
@@ -13739,6 +13812,12 @@
             "type": "boolean",
             "title": "Enabled",
             "default": true
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "description": "Members other than owners sign in only through the provider: not with a password, nor by invitation. Only an owner changes it, and it needs a verified domain.",
+            "default": false
           }
         },
         "type": "object",

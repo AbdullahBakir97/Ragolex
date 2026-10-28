@@ -34,7 +34,9 @@ from ragolex.api.schemas import (
 )
 from ragolex.core.errors import (
     AppError,
+    OwnerRequired,
     SsoFailed,
+    SsoNeedsDomain,
     SsoNotConfigured,
     SsoRequestInvalid,
     SsoSecretRequired,
@@ -60,7 +62,8 @@ async def _settings(service: SsoService, tenant_id: int) -> SsoSettingsResponse:
         provider=SsoProviderResponse(
             issuer=provider.issuer, client_id=provider.client_id,
             default_role=provider.default_role,  # type: ignore[arg-type]
-            enabled=provider.enabled, created_at=provider.created_at,
+            enabled=provider.enabled, required=provider.required,
+            created_at=provider.created_at,
             updated_at=provider.updated_at) if provider else None,
         redirect_uri=service.redirect_uri, email_domains=await service.email_domains(tenant_id))
 
@@ -72,12 +75,13 @@ async def get_sso(principal: PrincipalDep, service: SsoServiceDep) -> SsoSetting
 
 @router.put("", summary="Set the workspace's OpenID Connect identity provider",
             description="Its discovery document is read first, so a wrong issuer is refused.",
-            responses=error_responses(SsoFailed, SsoSecretRequired))
+            responses=error_responses(SsoFailed, SsoSecretRequired, OwnerRequired,
+                                      SsoNeedsDomain))
 async def set_sso(body: SsoSettingsRequest, principal: PrincipalDep,
                   service: SsoServiceDep) -> SsoSettingsResponse:
     await service.configure(principal.tenant_id, issuer=body.issuer, client_id=body.client_id,
                             client_secret=body.client_secret, default_role=body.default_role,
-                            enabled=body.enabled)
+                            enabled=body.enabled, required=body.required, role=principal.role)
     return await _settings(service, principal.tenant_id)
 
 
