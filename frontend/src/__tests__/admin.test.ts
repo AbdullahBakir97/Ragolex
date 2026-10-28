@@ -209,7 +209,7 @@ describe("AdminView", () => {
     const wrapper = mount(AdminView, { global: { stubs: { AdminKeys: true, AdminEvaluations: true, AdminAudit: true } } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("need a key with the admin scope");
+    expect(wrapper.text()).toContain("need the admin scope");
     expect(wrapper.findComponent({ name: "AdminKeys" }).exists()).toBe(false);
   });
 });

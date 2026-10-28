@@ -35,7 +35,13 @@ import type {
   ApiKeyInfo,
   AuditEvent,
   CreatedApiKey,
+  CreatedInvitation,
   EvaluationRun,
+  Invitation,
+  InvitationPreview,
+  Member,
+  MemberRole,
+  Session,
   Scope,
   Card,
   Deck,
@@ -81,7 +87,11 @@ export function errorFromBody(status: number, body: unknown): ApiError {
   return new ApiError(status, `http_${status}`, `The server answered with status ${status}.`);
 }
 
-async function send(path: string, init: RequestInit = {}): Promise<Response> {
+/**
+ * Sends a request; an error response becomes an ApiError. Unless `quiet`, a
+ * refusal for want of a key or a session sends the app to the sign-in page.
+ */
+async function send(path: string, init: RequestInit = {}, quiet = false): Promise<Response> {
   let response: Response;
   try {
     response = await fetch(BASE + path, { ...init, headers: { ...authHeaders(), ...(init.headers as object) } });
@@ -92,7 +102,7 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     const error = errorFromBody(response.status, body);
-    noteRefusal(error.signal);
+    if (!quiet) noteRefusal(error.signal);
     throw error;
   }
   return response;
@@ -103,13 +113,13 @@ async function get<T>(path: string, params?: Record<string, number | string>): P
   return (await send(path + query)).json() as Promise<T>;
 }
 
-async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+async function post<T>(path: string, body?: unknown, signal?: AbortSignal, quiet = false): Promise<T> {
   const init: RequestInit = { method: "POST", signal };
   if (body !== undefined) {
     init.headers = { "Content-Type": "application/json" };
     init.body = JSON.stringify(body);
   }
-  return (await send(path, init)).json() as Promise<T>;
+  return (await send(path, init, quiet)).json() as Promise<T>;
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
@@ -139,6 +149,14 @@ async function download(path: string): Promise<{ blob: Blob; filename: string | 
 
 async function remove(path: string): Promise<void> {
   await send(path, { method: "DELETE" });
+}
+
+/** A request whose success has no body (202, 204). */
+async function call(method: string, path: string, body?: unknown): Promise<void> {
+  await send(path, {
+    method,
+    ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  });
 }
 
 const project = (name: string) => encodeURIComponent(name);
@@ -238,6 +256,34 @@ export const api = {
     post<Job>(`/projects/${project(name)}/jobs`, { file_id: fileId, ...options }),
   job: (name: string, jobId: string) => get<Job>(`/projects/${project(name)}/jobs/${encodeURIComponent(jobId)}`),
   me: () => get<Me>("/me"),
+
+  // Accounts. The session is an HttpOnly cookie the server sets and the browser sends.
+  signUp: (body: { email: string; password: string; name: string; workspace: string }) =>
+    post<Session>("/auth/signup", body),
+  signIn: (email: string, password: string) => post<Session>("/auth/login", { email, password }),
+  signOut: () => call("POST", "/auth/logout"),
+  /** Quiet: having no session is an answer here, not a reason to sign in. */
+  session: async () => (await send("/auth/session", {}, true)).json() as Promise<Session>,
+  switchWorkspace: (workspace: string) => put<Session>("/auth/session/workspace", { workspace }),
+  changePassword: (current: string, next: string) =>
+    call("PUT", "/auth/password", { current_password: current, new_password: next }),
+  /** Always succeeds: the server does not say whether the address has an account. */
+  requestPasswordReset: (email: string) => call("POST", "/auth/password-reset", { email }),
+  resetPassword: (token: string, password: string) =>
+    call("POST", "/auth/password-reset/confirm", { token, password }),
+  invitation: (token: string) => post<InvitationPreview>("/auth/invitation", { token }, undefined, true),
+  /**
+   * Signed in, joins as the user; otherwise `name` and `password` make the invited
+   * email's account. Quiet: the invitation page says what to do when it fails.
+   */
+  acceptInvitation: (token: string, account: { name?: string; password?: string } = {}) =>
+    post<Session>("/auth/invitation/accept", { token, ...account }, undefined, true),
+  members: () => get<Member[]>("/members"),
+  changeRole: (userId: number, role: MemberRole) => put<Member>(`/members/${userId}`, { role }),
+  removeMember: (userId: number) => remove(`/members/${userId}`),
+  invitations: () => get<Invitation[]>("/invitations"),
+  invite: (email: string, role: MemberRole) => post<CreatedInvitation>("/invitations", { email, role }),
+  revokeInvitation: (invitationId: string) => remove(`/invitations/${encodeURIComponent(invitationId)}`),
   decks: (name: string) => get<Deck[]>(decks(name)),
   createDeck: (name: string, deckName: string, cards: NewCard[]) => post<Deck>(decks(name), { name: deckName, cards }),
   addCards: (name: string, deckId: string, cards: NewCard[]) =>

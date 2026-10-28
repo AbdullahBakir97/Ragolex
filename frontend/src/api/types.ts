@@ -130,6 +130,63 @@ export interface Me {
   scopes: string[];
   key_id: string | null;
   auth_enabled: boolean;
+  /** The signed-in user, when the request used a session rather than a key. */
+  user?: User | null;
+  role?: MemberRole | null;
+}
+
+export type MemberRole = "owner" | "admin" | "editor" | "viewer";
+export const MEMBER_ROLES: MemberRole[] = ["owner", "admin", "editor", "viewer"];
+
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+}
+
+export interface Workspace {
+  name: string;
+  role: MemberRole;
+}
+
+/** A signed-in browser: its user, the workspace it works in, and all of the user's. */
+export interface Session {
+  user: User;
+  workspace: Workspace;
+  workspaces: Workspace[];
+  expires_at: string;
+}
+
+export interface Member extends User {
+  role: MemberRole;
+  joined_at: string;
+  last_login_at: string | null;
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: MemberRole;
+  invited_by: User | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface CreatedInvitation extends Invitation {
+  /** Shown only once: the link to send. */
+  link: string;
+  /** Whether the server emails it too. */
+  emailed: boolean;
+}
+
+/** What an invitation link offers, before it is accepted. */
+export interface InvitationPreview {
+  workspace: string;
+  email: string;
+  role: MemberRole;
+  invited_by: string | null;
+  expires_at: string;
+  has_account: boolean;
 }
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";

@@ -38,11 +38,12 @@ See [Web app](web.md) for what it does and how it is built.
 
 ### End-to-end tests
 
-`npm run e2e` drives the web app in Chromium against the real API and database. Playwright starts what they need (`frontend/playwright.config.ts`): `tools/fake_models.py`, a stand-in for the embedding and answer models, so no model account is needed; the API on port 8000, after migrating the database; and the web app on port 5173. The tests cover:
+`npm run e2e` drives the web app in Chromium against the real API and database. Playwright starts what they need (`frontend/playwright.config.ts`): `tools/fake_models.py`, a stand-in for the embedding and answer models, so no model account is needed; the API on port 8000, after migrating the database; and the web app on port 5173. A second API (port 8001), with `AUTH_ENABLED=true`, and its web app (port 5174) serve the tests of accounts, on the same database. The tests cover:
 
 - creating a project and uploading a document until it is indexed, then reading its chunks;
 - asking a question: the streamed answer, its source, the conversation's address, a rating and a follow-up; and a question the documents do not answer;
 - searching, and adding a chat widget whose live preview answers;
+- accounts: signing up, being sent to sign in and back, a wrong password, inviting someone who joins with a new account, changing their role and removing them, changing a password, and asking for a reset link;
 - accessibility: [axe](https://github.com/dequelabs/axe-core) finds no WCAG 2.1 A or AA violation on any page, in the light and dark themes, at desktop and phone width (the tests tagged `@phone` run on a phone too), and no page is wider than the screen.
 
 They need PostgreSQL with pgvector and a database for them, by default `ragolex_e2e` on `localhost` (set `E2E_DATABASE_URL` for another), and a browser:
