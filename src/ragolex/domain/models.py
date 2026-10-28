@@ -516,15 +516,19 @@ class Widget:
     logo_url: str | None = None
 
 
-SourceKind = Literal["website", "feed", "github"]
+SourceKind = Literal["website", "feed", "github", "notion", "google_drive"]
+# The kinds of source that read through a workspace's connection (its OAuth sign-in).
+CONNECTED_SOURCE_KINDS = ("notion", "google_drive")
 
 
 @dataclass(frozen=True)
 class Source:
-    """Where a project's documents come from and are kept in sync with: a website.
+    """Where a project's documents come from and are kept in sync with: a website, a feed,
+    a repository, Notion pages or a Google Drive folder.
 
     It is synced every ``sync_interval_hours`` (0: only when asked), and
-    ``syncing`` while a worker crawls it.
+    ``syncing`` while a worker crawls it. Notion and Google Drive sources read
+    through ``connection_id``, the workspace's sign-in to them.
     """
 
     id: str
@@ -543,6 +547,70 @@ class Source:
     last_error: str | None = None
     # Given to the pages it stores.
     tags: tuple[str, ...] = ()
+    connection_id: str | None = None
+
+
+ConnectionKind = Literal["notion", "google_drive"]
+CONNECTION_KINDS: tuple[ConnectionKind, ...] = ("notion", "google_drive")
+
+
+@dataclass(frozen=True)
+class Connection:
+    """A workspace's sign-in to Notion or Google Drive, which its sources read through.
+
+    ``account`` names what was connected (a Notion workspace, a Google
+    account's email). Its tokens are kept apart, encrypted, and never shown.
+    ``last_error`` is why its tokens were last refused, until they work again.
+    """
+
+    id: str
+    tenant_id: int
+    kind: ConnectionKind
+    account: str
+    created_at: datetime
+    created_by: str | None = None
+    sources_count: int = 0
+    last_error: str | None = None
+    last_error_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ConnectionTokens:
+    """What a connection reads with. ``expires_at`` is None for a token that does not
+    expire; ``refresh_token`` gets a new one when it does."""
+
+    access_token: str
+    refresh_token: str | None = None
+    expires_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class OAuthGrant:
+    """What signing in to a provider gave: the tokens, and the account they are for."""
+
+    tokens: ConnectionTokens
+    account: str
+
+
+@dataclass(frozen=True)
+class ConnectionRequest:
+    """A sign-in to a provider that was started and not finished yet.
+
+    The provider sends people back with its ``state``, which is kept only as
+    a hash; ``code_verifier`` proves the code is ours (PKCE); ``return_to`` is
+    where the web app is. ``browser_hash`` is the hash of a cookie given to
+    the browser that started it: only that browser can finish it, so nobody
+    can have someone else connect their account to the wrong workspace.
+    """
+
+    state_hash: str
+    tenant_id: int
+    kind: ConnectionKind
+    code_verifier: str
+    return_to: str
+    expires_at: datetime
+    browser_hash: str
+    user_id: int | None = None
 
 
 @dataclass(frozen=True)

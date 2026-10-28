@@ -243,7 +243,7 @@ def test_the_command_encrypts_what_was_stored_before_and_rotates_keys(
     assert "files: 1 not encrypted" in capsys.readouterr().out
     assert cli.main(["encryption", "encrypt"]) == cli.PASSED
     first_id = ring(first).current_id
-    assert f"Encrypted 1 files and 1 secrets (of webhooks and bots) with key {first_id}" in (
+    assert f"Encrypted 1 files and 1 secrets (of webhooks, bots and connections) with key {first_id}" in (
         capsys.readouterr().out)
     [(stored,)] = query("SELECT secret FROM webhooks")
     assert stored.startswith(f"enc:v1:{first_id}:")

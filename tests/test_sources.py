@@ -169,9 +169,11 @@ class ScriptedCrawler:
         self.crawls = list(crawls)
         self.removes_missing = removes_missing
         self.urls = []
+        self.tokens = []
 
-    async def crawl(self, start_url, max_pages):
+    async def crawl(self, start_url, max_pages, access_token=None):
         self.urls.append(start_url)
+        self.tokens.append(access_token)
         crawl = self.crawls.pop(0)
         if isinstance(crawl, Exception):
             raise crawl

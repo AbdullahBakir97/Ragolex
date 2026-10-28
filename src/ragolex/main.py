@@ -18,6 +18,7 @@ from ragolex.api.routes import (
     audit,
     base,
     bots,
+    connections,
     conversations,
     data,
     decks,
@@ -39,7 +40,7 @@ from ragolex.api.routes import (
 )
 from ragolex.api.widget_cors import WidgetCors
 from ragolex.bots.factory import create_chat_platforms
-from ragolex.connectors.factory import create_crawlers
+from ragolex.connectors.factory import create_crawlers, create_oauth_providers
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.logging_config import configure_logging
 from ragolex.core.tracing import setup_tracing
@@ -98,6 +99,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         app.state.chat_platforms = platforms = create_chat_platforms(settings)
         sender = create_webhook_sender(settings)
         crawlers = create_crawlers(settings)
+        app.state.oauth_providers = providers = create_oauth_providers(settings)
         workers: list[asyncio.Task] = []
         try:
             await _check_embedding_dimensions(engine, settings)
@@ -111,7 +113,8 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
             if settings.JOB_WORKERS:
                 dispatcher = WebhookDispatcher(unit_of_work, sender)
                 workers.append(asyncio.create_task(dispatcher.run(), name="webhook-dispatcher"))
-                syncer = SourceSyncer.from_settings(settings, unit_of_work, crawlers, scanner)
+                syncer = SourceSyncer.from_settings(settings, unit_of_work, crawlers, scanner,
+                                                    providers)
                 workers.append(asyncio.create_task(syncer.run(), name="source-syncer"))
             yield
         finally:
@@ -122,6 +125,8 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
             await sender.aclose()
             for crawler in crawlers.values():
                 await crawler.aclose()
+            for provider in providers.values():
+                await provider.aclose()
             if embedder is not None:
                 await embedder.aclose()
             if llm is not None:
@@ -177,6 +182,8 @@ def create_app() -> FastAPI:
     app.include_router(domains.public_router)
     app.include_router(bots.router)
     app.include_router(bots.public_router)
+    app.include_router(connections.router)
+    app.include_router(connections.public_router)
     app.include_router(audit.router)
     app.include_router(evaluations.router)
     app.include_router(export.router)

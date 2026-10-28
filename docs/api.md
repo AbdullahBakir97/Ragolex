@@ -202,6 +202,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | `invitation.created`, `invitation.revoked`, `invitation.accepted` | The invited email | The invitation's id and `role` |
 | `domain.added`, `domain.verified`, `domain.removed` | The domain | |
 | `bot.created`, `bot.updated`, `bot.deleted` | The bot's id | Project, kind, name and what changed; never its credentials |
+| `connection.created`, `connection.renewed`, `connection.deleted` | The connection's id | Its kind and account; never its tokens |
 | `api_key.created`, `api_key.revoked` | The key's id | Name, prefix and scopes, never the key |
 | `webhook.created`, `webhook.deleted` | The webhook's id | Project, URL and events, never the secret |
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
@@ -241,6 +242,7 @@ curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/ap
 | `members.json` | Each member's email, name, role, and when they joined and last signed in; never passwords or sessions |
 | `invitations.json` | Each open invitation's email, role and dates; never its link |
 | `domains.json` | The workspace's own domains, and when each was verified |
+| `connections.json` | Its Notion and Google Drive connections: kind, account, who connected it and when; never their tokens |
 | `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
 | `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
 | `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
@@ -356,7 +358,10 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `GET` | `/api/v1/projects/{project_id}/jobs` | List jobs, most recent first (paged; `?status=` filters) |
 | `GET` | `/api/v1/projects/{project_id}/jobs/{job_id}` | A job's status and progress |
 | `POST` | `/api/v1/projects/{project_id}/jobs/{job_id}/retry` | Queue a failed job again |
-| `POST` | `/api/v1/projects/{project_id}/sources` | Keep a website's pages in the project, synced on a schedule (`write`) |
+| `GET` | `/api/v1/connections` | The workspace's Notion and Google Drive connections, and which services this server can connect (`write`) |
+| `POST` | `/api/v1/connections` | Start connecting Notion or Google Drive: where to send the person to sign in (`admin`) |
+| `DELETE` | `/api/v1/connections/{connection_id}` | Remove a connection no source uses (`admin`) |
+| `POST` | `/api/v1/projects/{project_id}/sources` | Keep a website's pages, a feed, a GitHub repository, Notion pages or a Google Drive folder in the project, synced on a schedule (`write`) |
 | `GET` | `/api/v1/projects/{project_id}/sources` | List the project's sources |
 | `GET` | `/api/v1/projects/{project_id}/sources/{source_id}` | A source: pages, last and next sync, last error |
 | `GET` | `/api/v1/projects/{project_id}/sources/{source_id}/pages` | The pages a source stored (paged) |
@@ -539,7 +544,7 @@ curl http://localhost:8000/api/v1/projects/demo1/tags
 {"items": [{"tag": "handbook", "files": 12}, {"tag": "v2", "files": 3}]}
 ```
 
-`PUT .../tags` replaces the file's tags (`[]` removes them) and returns the file, with its `tags`; every file listed carries its `tags`. Tags are given at upload too, and a [source](#sources-websites-feeds-and-github-repositories) gives its own to the pages it stores. Limit a search or an answer to files with any of some tags with the `tags` [filter](#filters); a [chat widget](#chat-widget) with tags answers its visitors only from those files. An invalid tag in a body is a validation error (`422`); in `?tag=` or an upload's `tags`, it is `422` `{"signal": "tag_invalid"}`.
+`PUT .../tags` replaces the file's tags (`[]` removes them) and returns the file, with its `tags`; every file listed carries its `tags`. Tags are given at upload too, and a [source](#sources-websites-feeds-github-notion-and-google-drive) gives its own to the pages it stores. Limit a search or an answer to files with any of some tags with the `tags` [filter](#filters); a [chat widget](#chat-widget) with tags answers its visitors only from those files. An invalid tag in a body is a validation error (`422`); in `?tag=` or an upload's `tags`, it is `422` `{"signal": "tag_invalid"}`.
 
 ## Delete files and projects
 
@@ -606,9 +611,9 @@ A job is `queued`, then `running` (`stage` is `processing`, then `indexing`, whi
 | No such project, file or job | `404` | `{"signal": "project_not_found"}` / `{"signal": "file_not_found"}` / `{"signal": "job_not_found"}` |
 | Options not valid, such as `overlap_size` not smaller than `chunk_size` | `422` | Validation error details |
 
-## Sources: websites, feeds and GitHub repositories
+## Sources: websites, feeds, GitHub, Notion and Google Drive
 
-A source keeps a website's pages, a feed's entries or a GitHub repository's documents in a project: they are fetched, stored as files and indexed, then synced again on a schedule. `kind` says which (default `website`); the rest of this section describes websites, and [feeds and repositories](#feeds-and-github-repositories) below.
+A source keeps a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files in a project: they are fetched, stored as files and indexed, then synced again on a schedule. `kind` says which (default `website`); the rest of this section describes websites, with [feeds and repositories](#feeds-and-github-repositories) and [Notion and Google Drive](#notion-and-google-drive) below.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/projects/demo1/sources \
@@ -644,6 +649,29 @@ curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Typ
 - **`github`:** `https://github.com/<owner>/<repo>`, at its default branch, or `.../tree/<branch or tag>/<folder>` for one branch and folder. Its Markdown, text, reStructuredText, HTML and PDF files are kept, top-level ones first, up to `max_pages`; hidden and vendored folders (`.github`, `node_modules`, `vendor`) are skipped. Each is a page at its `github.com/.../blob/...` address, so answers cite it, and files deleted from the repository are removed from the project. `GITHUB_TOKEN` reads private repositories and raises GitHub's rate limit from 60 requests an hour to 5000: a sync makes two requests, plus one per file. A repository that cannot be read (not found, rate limited) fails the sync with `last_error` and keeps every page.
 
 Any other `kind`, or a `github` URL that is not a repository's, is refused with `422`.
+
+### Notion and Google Drive
+
+Notion pages and Google Drive files are private, so these sources read through a **connection**: an admin signs the workspace in to the service once, choosing what it may read, and its sources use that sign-in. The server needs an OAuth app with each service; see [Configuration › Notion and Google Drive](configuration.md#notion-and-google-drive).
+
+```bash
+# Start connecting: send the person to authorize_url.
+curl -X POST http://localhost:8000/api/v1/connections -H "Content-Type: application/json" \
+  -d '{"kind": "notion", "return_to": "http://localhost:3000/projects/demo1/documents"}'
+# {"authorize_url": "https://api.notion.com/v1/oauth/authorize?client_id=…&state=…"}
+
+# Once they come back with ?connected=con_…, add sources that read through it.
+curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Type: application/json" \
+  -d '{"kind": "notion", "connection_id": "con_V1StGXR8_Z5jdHi6B-myT1", "sync_interval_hours": 6}'
+curl -X POST http://localhost:8000/api/v1/projects/demo1/sources -H "Content-Type: application/json" \
+  -d '{"kind": "google_drive", "connection_id": "con_…", "url": "https://drive.google.com/drive/folders/1AbC…"}'
+```
+
+- **Connecting.** `POST /api/v1/connections` (`admin`) with a `kind` returns an `authorize_url`, valid once for 15 minutes. At the service, the person signs in and allows reading (in Notion, they pick the pages to share); the service sends them to `/api/v1/connections/callback`, which keeps the connection and redirects to `return_to` with `?connected=<id>`, or with `?connection_error=<signal>`: `connection_denied` (they declined), `connection_failed` (the service refused the code) or `connection_request_invalid` (the link was used or expired). `return_to` must be on this server's web app or one of the workspace's [verified domains](#your-own-domains); otherwise they land on the Admin page. Open `authorize_url` in the browser that made the request: the response gives it a cookie that finishing the sign-in needs, so nobody can send someone else the link and have their account connected to another workspace (the web app does both). A service the server has no OAuth app with is `409` `{"signal": "connector_not_configured"}`.
+- **Connections.** `GET /api/v1/connections` lists them, oldest first, with their `account` (the Notion workspace, or the Google account's email), who connected them, how many sources use each and `last_error`, and says which services the server can connect (`available`) and the `redirect_uri` to register. Tokens are stored encrypted when `ENCRYPTION_KEYS` is set and are never returned. Google's last an hour: they are refreshed before a sync that needs them, and a refused refresh (the access was revoked) fails the sync with `last_error`, also noted on the connection. Connecting the same account again renews that connection, and its sources carry on. `DELETE /api/v1/connections/{connection_id}` (`admin`) forgets it, once no source uses it (`409` `{"signal": "connection_in_use"}` otherwise); revoke the access at the service too.
+- **`notion`:** with no `url`, every page the connection can read, most recently edited first; with a page's `url` (`https://www.notion.so/…-<id>`), that page and the pages and database entries under it. Each page becomes Markdown (`# Title`, then its headings, paragraphs, lists, to-dos, quotes, callouts, code, tables and equations, with bold, italics and links), at its `notion.so` address, so answers cite it. Pages no longer shared, or deleted, are removed from the project. Notion's rate limit is waited out.
+- **`google_drive`:** with no `url`, all of My Drive; with a folder's `url` (`https://drive.google.com/drive/folders/<id>`, shared drives too), that folder and the folders in it. Google Docs are read as Markdown and Slides as text; PDF, Word, Markdown, HTML and text files as they are; spreadsheets, images and other files are skipped, as are files over `FILE_MAX_SIZE`. Each is a page at its Drive address, and files moved out, deleted or trashed are removed from the project.
+- A `notion` or `google_drive` source needs a `connection_id` (`422` without one); a connection of the workspace's other service is `422` `{"signal": "connection_wrong_kind"}`, and an unknown one `404` `{"signal": "connection_not_found"}`. Other kinds take none.
 
 ## Webhooks
 

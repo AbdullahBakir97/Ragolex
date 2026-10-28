@@ -424,7 +424,7 @@ describe("AdminView", () => {
         }),
     });
     const wrapper = mount(AdminView, {
-      global: { stubs: { AdminMembers: true, AdminKeys: true, AdminEvaluations: true, AdminAudit: true } },
+      global: { stubs: { AdminMembers: true, AdminConnections: true, AdminKeys: true, AdminEvaluations: true, AdminAudit: true } },
     });
     await flushPromises();
 

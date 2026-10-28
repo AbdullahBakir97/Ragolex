@@ -41,8 +41,9 @@ class FeedCrawler:
         self._web = WebsiteCrawler(allow_private=allow_private, timeout_seconds=timeout_seconds,
                                    max_bytes=max_bytes, http_client=http_client)
 
-    async def crawl(self, start_url: str,
-                    max_pages: int) -> AsyncIterator[CrawledPage | UnreachablePage]:
+    async def crawl(self, start_url: str, max_pages: int,
+                    access_token: str | None = None,
+                    ) -> AsyncIterator[CrawledPage | UnreachablePage]:
         url = normalize_feed(start_url)
         if url is None:
             raise CrawlFailed(f"{start_url} is not an http or https URL")

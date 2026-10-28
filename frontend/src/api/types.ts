@@ -456,13 +456,40 @@ export interface Assistant {
   instructions: string | null;
 }
 
-/** website: a site's pages; feed: an RSS or Atom feed's entries; github: a repository's documents. */
-export type SourceKind = "website" | "feed" | "github";
+/**
+ * website: a site's pages; feed: an RSS or Atom feed's entries; github: a repository's documents;
+ * notion: Notion pages; google_drive: a Drive folder's files (these two read through a connection).
+ */
+export type SourceKind = "website" | "feed" | "github" | "notion" | "google_drive";
+
+export type ConnectionKind = "notion" | "google_drive";
+
+/** A workspace's sign-in to Notion or Google Drive. Its tokens are never returned. */
+export interface Connection {
+  id: string;
+  kind: ConnectionKind;
+  /** The Notion workspace, or the Google account's email. */
+  account: string;
+  created_by: string | null;
+  sources_count: number;
+  created_at: string;
+  /** Why the service last refused its tokens; connecting again fixes it. */
+  last_error: string | null;
+  last_error_at: string | null;
+}
+
+export interface ConnectionList {
+  items: Connection[];
+  /** The services this server can connect. */
+  available: ConnectionKind[];
+  redirect_uri: string;
+}
 
 export interface WebsiteSource {
   id: string;
   kind: SourceKind;
   url: string;
+  connection_id: string | null;
   max_pages: number;
   /** 0: synced only when asked. */
   sync_interval_hours: number;

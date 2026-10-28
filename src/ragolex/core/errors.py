@@ -389,6 +389,54 @@ class BotSignatureInvalid(AppError):
     status_code = HTTPStatus.UNAUTHORIZED
 
 
+class ConnectionNotFound(AppError):
+    signal = ResponseSignal.CONNECTION_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class ConnectionInUse(AppError):
+    """Sources still read through the connection: remove them first."""
+
+    signal = ResponseSignal.CONNECTION_IN_USE
+    status_code = HTTPStatus.CONFLICT
+
+
+class ConnectionWrongKind(AppError):
+    """A source was given a connection to another service (Google Drive for Notion)."""
+
+    signal = ResponseSignal.CONNECTION_WRONG_KIND
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class ConnectorNotConfigured(AppError):
+    """The server has no OAuth app for this service: its client id and secret are unset."""
+
+    signal = ResponseSignal.CONNECTOR_NOT_CONFIGURED
+    status_code = HTTPStatus.CONFLICT
+
+
+class ConnectionRequestInvalid(AppError):
+    """A sign-in came back with a state that is unknown, used already or expired."""
+
+    signal = ResponseSignal.CONNECTION_REQUEST_INVALID
+    status_code = HTTPStatus.BAD_REQUEST
+
+
+class ConnectionDenied(AppError):
+    """The person declined, at the provider, to let the workspace read."""
+
+    signal = ResponseSignal.CONNECTION_DENIED
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class ConnectionFailed(AppError):
+    """The provider refused a code or a refresh token, or could not be reached; the message
+    says how."""
+
+    signal = ResponseSignal.CONNECTION_FAILED
+    status_code = HTTPStatus.BAD_GATEWAY
+
+
 class RateLimited(AppError):
     """The tenant made too many requests this minute; Retry-After says when to try again."""
 

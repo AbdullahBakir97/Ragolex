@@ -25,7 +25,7 @@
 - **Read scanned PDFs** with OCR, by Tesseract or a vision model.
 - **Process** files into chunks that respect paragraphs, with exact overlap between chunks, page numbers for PDFs, the section headings for Markdown, HTML and Word files, and one function or class at a time for source code in 12 languages.
 - **Index** chunks as embeddings with OpenAI or any OpenAI-compatible server, such as Ollama, in background jobs with progress and retries, run by the API or by separate workers.
-- **Sync websites, feeds and GitHub repositories**: website pages are crawled within the site, obeying robots.txt; RSS and Atom entries and a repository's documents are read; all are indexed and kept up to date on a schedule, with new, changed and removed pages handled.
+- **Sync websites, feeds, GitHub repositories, Notion and Google Drive**: website pages are crawled within the site, obeying robots.txt; RSS and Atom entries and a repository's documents are read; Notion pages and Drive folders are read through a workspace's sign-in to them (OAuth); all are indexed and kept up to date on a schedule, with new, changed and removed pages handled.
 - **Tag** files into collections, and limit search, answers, widgets and agent tools to some tags.
 
 ### Learn from documents
@@ -60,7 +60,7 @@
 - **Deploy** automatically: every merge runs on staging and every release tag on production, from images built once, going back to the previous release on its own when a deployment isn't healthy.
 - **Tested** by more than 1,200 backend tests with a 95% coverage threshold, Vitest unit tests, and Playwright end-to-end and accessibility checks of every page; dependencies and secrets are scanned in CI.
 
-Next on the [roadmap](docs/roadmap.md): OAuth connectors for Notion and Google Drive.
+Every item on the [roadmap](docs/roadmap.md) is delivered.
 
 ## Web app
 

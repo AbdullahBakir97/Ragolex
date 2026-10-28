@@ -16,6 +16,9 @@ from .models import (
     Card,
     CardSource,
     Chunk,
+    Connection,
+    ConnectionRequest,
+    ConnectionTokens,
     Conversation,
     ConversationMessage,
     Deck,
@@ -615,7 +618,8 @@ class AuditRepository(Protocol):
 class SourceRepository(Protocol):
 
     async def create(self, *, project_id: int, kind: str, url: str, max_pages: int,
-                     sync_interval_hours: int, tags: Sequence[str] = ()) -> Source:
+                     sync_interval_hours: int, tags: Sequence[str] = (),
+                     connection_id: str | None = None) -> Source:
         """A new source, due for its first sync at once."""
         ...
 
@@ -652,6 +656,49 @@ class SourceRepository(Protocol):
 
     async def file_used_elsewhere(self, file_id: int, source_id: str, url: str) -> bool:
         """Whether a page other than this one, of any source, uses the file."""
+        ...
+
+
+class ConnectionRepository(Protocol):
+
+    async def create(self, *, connection_id: str, tenant_id: int, kind: str, account: str,
+                     tokens: ConnectionTokens, created_by_user_id: int | None) -> Connection: ...
+
+    async def list_for_tenant(self, tenant_id: int) -> list[Connection]:
+        """Oldest first, each with how many sources read through it."""
+        ...
+
+    async def get(self, tenant_id: int, connection_id: str) -> Connection | None: ...
+
+    async def tokens(self, connection_id: str, *, lock: bool = False) -> ConnectionTokens | None:
+        """The connection's tokens; ``lock`` holds it until the transaction ends, so only one
+        sync refreshes them at a time."""
+        ...
+
+    async def set_tokens(self, connection_id: str, tokens: ConnectionTokens) -> None:
+        """New tokens, which work: the last error is cleared."""
+        ...
+
+    async def failed(self, connection_id: str, error: str) -> None:
+        """Note why the provider refused the connection's tokens."""
+        ...
+
+    async def delete(self, tenant_id: int, connection_id: str) -> bool:
+        """False when the tenant has no such connection. Sources must not use it."""
+        ...
+
+    async def add_request(self, request: ConnectionRequest) -> None:
+        """Keep a sign-in that was started, to finish when the provider sends people back."""
+        ...
+
+    async def find_request(self, state_hash: str) -> ConnectionRequest | None:
+        """The sign-in with this state, left in place; None when there is none, or it
+        expired."""
+        ...
+
+    async def take_request(self, state_hash: str) -> ConnectionRequest | None:
+        """The sign-in with this state, removed so it is finished once; None when there is
+        none, or it expired. Expired ones are removed too."""
         ...
 
 
@@ -732,6 +779,7 @@ class UnitOfWork(Protocol):
     password_resets: PasswordResetRepository
     domains: DomainRepository
     bots: BotRepository
+    connections: ConnectionRepository
     usage: UsageRepository
     evaluations: EvaluationRunRepository
     decks: DeckRepository

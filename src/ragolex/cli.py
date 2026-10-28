@@ -14,7 +14,7 @@ from pathlib import Path
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from ragolex.connectors.factory import create_crawlers
+from ragolex.connectors.factory import create_crawlers, create_oauth_providers
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.encryption import EncryptionError, new_key
 from ragolex.core.errors import AppError
@@ -562,8 +562,8 @@ async def _encryption(action: str) -> int:
         return FAILED
     finally:
         await engine.dispose()
-    print(f"Encrypted {files_changed} files and {secrets_changed} secrets (of webhooks and bots) "
-          f"with key {keys.current_id}.")
+    print(f"Encrypted {files_changed} files and {secrets_changed} secrets (of webhooks, bots "
+          f"and connections) with key {keys.current_id}.")
     return PASSED
 
 
@@ -787,8 +787,9 @@ async def _work(workers: int) -> int:
     dispatcher = WebhookDispatcher(unit_of_work, sender)
     crawlers = create_crawlers(settings)
     scanner = create_scanner(settings)
-    syncer = SourceSyncer.from_settings(settings, unit_of_work, crawlers, scanner)
-    print(f"Running jobs with {workers} workers, sending webhooks and syncing websites; "
+    providers = create_oauth_providers(settings)
+    syncer = SourceSyncer.from_settings(settings, unit_of_work, crawlers, scanner, providers)
+    print(f"Running jobs with {workers} workers, sending webhooks and syncing sources; "
           "stop with Ctrl+C.", flush=True)
     try:
         await asyncio.gather(dispatcher.run(), syncer.run(),
@@ -796,6 +797,8 @@ async def _work(workers: int) -> int:
     finally:
         for crawler in crawlers.values():
             await crawler.aclose()
+        for provider in providers.values():
+            await provider.aclose()
         if embedder is not None:
             await embedder.aclose()
         await sender.aclose()
@@ -987,7 +990,8 @@ def main(argv: list[str] | None = None) -> int:
     audit.add_argument("--action", help="only actions that start with this, e.g. api_key")
     audit.add_argument("--limit", type=_positive, default=50, help="events to show (default 50)")
     encryption = commands.add_parser(
-        "encryption", help="encrypt uploaded files, and webhooks' and bots' secrets, at rest",
+        "encryption",
+        help="encrypt uploaded files, and the secrets of webhooks, bots and connections, at rest",
         description="Encryption at rest with ENCRYPTION_KEYS: make a key, see what is "
                     "encrypted with which key, and encrypt what is not yet encrypted with the "
                     "first key (after adding a key, or putting a new one first to rotate).")

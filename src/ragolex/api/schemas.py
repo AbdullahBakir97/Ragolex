@@ -18,6 +18,8 @@ from pydantic import (
 )
 
 from ragolex.connectors.github import parse_repository
+from ragolex.connectors.google_drive import folder_id
+from ragolex.connectors.notion import is_notion_url
 from ragolex.core.errors import AppError
 from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
 from ragolex.domain.models import ReviewGrade, SearchFilters
@@ -1036,7 +1038,12 @@ class WidgetAnswer(BaseModel):
 SourceIdPath = Annotated[UUID, Path(description="The source's id.")]
 
 
-SourceKind = Literal["website", "feed", "github"]
+SourceKind = Literal["website", "feed", "github", "notion", "google_drive"]
+ConnectionKind = Literal["notion", "google_drive"]
+ConnectionId = Annotated[str, Field(pattern=r"^con_[A-Za-z0-9_-]{22}$")]
+# What a Notion or Google Drive source reads when it is given no URL.
+DEFAULT_CONNECTED_URLS = {"notion": "https://www.notion.so/",
+                          "google_drive": "https://drive.google.com/drive/my-drive"}
 
 
 class SourceRequest(BaseModel):
@@ -1045,11 +1052,21 @@ class SourceRequest(BaseModel):
         description="`website`: the site's pages under the URL's folder, found by following "
                     "their links. `feed`: an RSS or Atom feed's entries. `github`: the "
                     "documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one "
-                    "folder of it.")
-    url: AnyHttpUrl = Field(description="The website's start page, the feed's address, or the "
-                                        "repository's: `https://github.com/owner/repo`, "
-                                        "optionally with `/tree/<branch>/<folder>`.",
-                            examples=["https://docs.example.com/guide/"])
+                    "folder of it. `notion`: the Notion pages a connection can read, or one "
+                    "page and the pages under it. `google_drive`: the files of a Google Drive "
+                    "folder and its subfolders. Notion and Google Drive sources need a "
+                    "`connection_id`.")
+    url: AnyHttpUrl | None = Field(
+        default=None,
+        description="The website's start page, the feed's address, or the repository's: "
+                    "`https://github.com/owner/repo`, optionally with "
+                    "`/tree/<branch>/<folder>`. For Notion, a page's address (omit it for "
+                    "every page the connection can read); for Google Drive, a folder's "
+                    "address (omit it for all of My Drive). Required for the other kinds.",
+        examples=["https://docs.example.com/guide/"])
+    connection_id: ConnectionId | None = Field(
+        default=None, description="The workspace's connection a Notion or Google Drive source "
+                                  "reads through, from `GET /api/v1/connections`.")
     max_pages: int = Field(default=50, ge=1, le=1000, description="Most pages to keep.")
     sync_interval_hours: int = Field(
         default=24, ge=0, le=24 * 30,
@@ -1058,14 +1075,30 @@ class SourceRequest(BaseModel):
 
     @field_validator("url")
     @classmethod
-    def check_length(cls, url: AnyHttpUrl) -> AnyHttpUrl:
-        if len(str(url)) > 2000:
+    def check_length(cls, url: AnyHttpUrl | None) -> AnyHttpUrl | None:
+        if url is not None and len(str(url)) > 2000:
             raise ValueError("the URL is longer than 2000 characters")
         return url
 
     @model_validator(mode="after")
-    def check_repository(self) -> "SourceRequest":
-        if self.kind == "github" and parse_repository(str(self.url)) is None:
+    def check_kind(self) -> "SourceRequest":
+        url = str(self.url) if self.url is not None else None
+        if self.kind in DEFAULT_CONNECTED_URLS:
+            if self.connection_id is None:
+                raise ValueError(f"a {self.kind} source needs a connection_id")
+            if url is None:
+                self.url = AnyHttpUrl(DEFAULT_CONNECTED_URLS[self.kind])
+            elif self.kind == "notion" and not is_notion_url(url):
+                raise ValueError("a notion source's url must be a page on notion.so")
+            elif self.kind == "google_drive" and folder_id(url) is None:
+                raise ValueError("a google_drive source's url must be a folder: "
+                                 "https://drive.google.com/drive/folders/<id>")
+            return self
+        if self.connection_id is not None:
+            raise ValueError("only notion and google_drive sources take a connection_id")
+        if url is None:
+            raise ValueError(f"a {self.kind} source needs a url")
+        if self.kind == "github" and parse_repository(url) is None:
             raise ValueError("a github source's url must be https://github.com/<owner>/<repo>, "
                              "optionally with /tree/<branch>/<folder>")
         return self
@@ -1075,6 +1108,8 @@ class SourceResponse(BaseModel):
     id: str
     kind: SourceKind
     url: str
+    connection_id: str | None = Field(description="The connection a Notion or Google Drive "
+                                                  "source reads through.")
     max_pages: int
     sync_interval_hours: int
     pages_count: int = Field(description="Pages stored by the last syncs.")
@@ -1086,6 +1121,43 @@ class SourceResponse(BaseModel):
                                                "the pages it had are kept meanwhile.")
     tags: list[str] = Field(description="Given to the pages it stores.")
     created_at: datetime
+
+
+ConnectionIdPath = Annotated[str, Path(pattern=r"^con_[A-Za-z0-9_-]{22}$",
+                                       description="The connection's id.")]
+
+
+class ConnectionStartRequest(BaseModel):
+    kind: ConnectionKind
+    return_to: str | None = Field(
+        default=None, max_length=2000,
+        description="The web app page to come back to after signing in, on this server or "
+                    "one of the workspace's verified domains; the Admin page otherwise. "
+                    "`connected=<id>` or `connection_error=<signal>` is added to it.")
+
+
+class ConnectionStartResponse(BaseModel):
+    authorize_url: str = Field(description="Send the person here to sign in and allow "
+                                           "reading; it is valid for 15 minutes, once.")
+
+
+class ConnectionResponse(BaseModel):
+    id: str
+    kind: ConnectionKind
+    account: str = Field(description="The Notion workspace, or the Google account's email.")
+    created_by: str | None = Field(description="The email of who connected it.")
+    sources_count: int = Field(description="Sources that read through it.")
+    created_at: datetime
+    last_error: str | None = Field(description="Why the service last refused its tokens; "
+                                               "connect again to fix it.")
+    last_error_at: datetime | None
+
+
+class ConnectionListResponse(BaseModel):
+    items: list[ConnectionResponse]
+    available: list[ConnectionKind] = Field(
+        description="The services this server can connect (it has an OAuth app with them).")
+    redirect_uri: str = Field(description="The redirect URI to register with each OAuth app.")
 
 
 class SourceListResponse(BaseModel):

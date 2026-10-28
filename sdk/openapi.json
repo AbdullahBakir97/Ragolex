@@ -1807,8 +1807,8 @@
         "tags": [
           "sources"
         ],
-        "summary": "Keep a website's pages, a feed's entries or a GitHub repository's documents",
-        "description": "A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.",
+        "summary": "Keep a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files",
+        "description": "A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched; Notion pages and Google Drive files are read through one of the workspace's connections. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.",
         "operationId": "create_source",
         "security": [
           {
@@ -1857,13 +1857,35 @@
             }
           },
           "422": {
-            "description": "Signal: `source_url_not_allowed`",
+            "description": "Signal: `source_url_not_allowed`, `connection_wrong_kind`",
             "content": {
               "application/json": {
                 "examples": {
                   "source_url_not_allowed": {
                     "value": {
                       "signal": "source_url_not_allowed"
+                    }
+                  },
+                  "connection_wrong_kind": {
+                    "value": {
+                      "signal": "connection_wrong_kind"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `connection_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "connection_not_found": {
+                    "value": {
+                      "signal": "connection_not_found"
                     }
                   }
                 },
@@ -6367,6 +6389,191 @@
         }
       }
     },
+    "/api/v1/connections": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "The workspace's connections, oldest first",
+        "description": "With the services this server can connect, and the redirect URI to register with their OAuth apps.",
+        "operationId": "list_connections",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Start connecting Notion or Google Drive",
+        "description": "Send the person to `authorize_url`, in the browser that made this request: it keeps a cookie that finishing the sign-in needs. Once they sign in and allow reading, they come back to `return_to` with `connected=<id>`, or with `connection_error=<signal>`.",
+        "operationId": "start_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionStartResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `connector_not_configured`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "connector_not_configured": {
+                    "value": {
+                      "signal": "connector_not_configured"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/connections/{connection_id}": {
+      "delete": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Remove a connection",
+        "description": "Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.",
+        "operationId": "delete_connection",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^con_[A-Za-z0-9_-]{22}$",
+              "description": "The connection's id.",
+              "title": "Connection Id"
+            },
+            "description": "The connection's id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `connection_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "connection_not_found": {
+                    "value": {
+                      "signal": "connection_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `connection_in_use`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "connection_in_use": {
+                    "value": {
+                      "signal": "connection_in_use"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "tags": [
@@ -10053,6 +10260,164 @@
         ],
         "title": "CitationResponse"
       },
+      "ConnectionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "available": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "notion",
+                "google_drive"
+              ]
+            },
+            "type": "array",
+            "title": "Available",
+            "description": "The services this server can connect (it has an OAuth app with them)."
+          },
+          "redirect_uri": {
+            "type": "string",
+            "title": "Redirect Uri",
+            "description": "The redirect URI to register with each OAuth app."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "available",
+          "redirect_uri"
+        ],
+        "title": "ConnectionListResponse"
+      },
+      "ConnectionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "notion",
+              "google_drive"
+            ],
+            "title": "Kind"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "The Notion workspace, or the Google account's email."
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By",
+            "description": "The email of who connected it."
+          },
+          "sources_count": {
+            "type": "integer",
+            "title": "Sources Count",
+            "description": "Sources that read through it."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error",
+            "description": "Why the service last refused its tokens; connect again to fix it."
+          },
+          "last_error_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "account",
+          "created_by",
+          "sources_count",
+          "created_at",
+          "last_error",
+          "last_error_at"
+        ],
+        "title": "ConnectionResponse"
+      },
+      "ConnectionStartRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "notion",
+              "google_drive"
+            ],
+            "title": "Kind"
+          },
+          "return_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return To",
+            "description": "The web app page to come back to after signing in, on this server or one of the workspace's verified domains; the Admin page otherwise. `connected=<id>` or `connection_error=<signal>` is added to it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "ConnectionStartRequest"
+      },
+      "ConnectionStartResponse": {
+        "properties": {
+          "authorize_url": {
+            "type": "string",
+            "title": "Authorize Url",
+            "description": "Send the person here to sign in and allow reading; it is valid for 15 minutes, once."
+          }
+        },
+        "type": "object",
+        "required": [
+          "authorize_url"
+        ],
+        "title": "ConnectionStartResponse"
+      },
       "ConversationCreateRequest": {
         "properties": {
           "title": {
@@ -12197,6 +12562,13 @@
           "bot_credentials_invalid",
           "bot_platform_failed",
           "bot_signature_invalid",
+          "connection_not_found",
+          "connection_in_use",
+          "connection_wrong_kind",
+          "connector_not_configured",
+          "connection_request_invalid",
+          "connection_denied",
+          "connection_failed",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",
@@ -12816,21 +13188,43 @@
             "enum": [
               "website",
               "feed",
-              "github"
+              "github",
+              "notion",
+              "google_drive"
             ],
             "title": "Kind",
-            "description": "`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.",
+            "description": "`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it. `notion`: the Notion pages a connection can read, or one page and the pages under it. `google_drive`: the files of a Google Drive folder and its subfolders. Notion and Google Drive sources need a `connection_id`.",
             "default": "website"
           },
           "url": {
-            "type": "string",
-            "minLength": 1,
-            "format": "uri",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Url",
-            "description": "The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.",
+            "description": "The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`. For Notion, a page's address (omit it for every page the connection can read); for Google Drive, a folder's address (omit it for all of My Drive). Required for the other kinds.",
             "examples": [
               "https://docs.example.com/guide/"
             ]
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^con_[A-Za-z0-9_-]{22}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "The workspace's connection a Notion or Google Drive source reads through, from `GET /api/v1/connections`."
           },
           "max_pages": {
             "type": "integer",
@@ -12865,9 +13259,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "url"
-        ],
         "title": "SourceRequest"
       },
       "SourceResponse": {
@@ -12881,13 +13272,27 @@
             "enum": [
               "website",
               "feed",
-              "github"
+              "github",
+              "notion",
+              "google_drive"
             ],
             "title": "Kind"
           },
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "The connection a Notion or Google Drive source reads through."
           },
           "max_pages": {
             "type": "integer",
@@ -12963,6 +13368,7 @@
           "id",
           "kind",
           "url",
+          "connection_id",
           "max_pages",
           "sync_interval_hours",
           "pages_count",
