@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Web interface for the Ragolex API.",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && vite build --config vite.widget.config.ts",

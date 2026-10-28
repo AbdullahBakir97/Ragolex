@@ -1,0 +1,33 @@
+Ragolex
+Copyright (C) 2024-2026 Abdullah Bakir <https://github.com/AbdullahBakir97>
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License, version 3, as
+published by the Free Software Foundation (see LICENSE).
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
+for more details.
+
+Additional terms under section 7(b) of the license
+--------------------------------------------------
+
+Anyone who conveys this program, or a work based on it, or lets users
+interact with it over a network, must preserve these author attributions:
+
+1. This NOTICE file, unchanged, in every copy of the source code.
+
+2. The "Ragolex by Abdullah Bakir" credit in the web app, together with its
+   link to https://github.com/AbdullahBakir97/Ragolex, wherever the web app
+   or a modified version of it is shown to users.
+
+3. A statement in the documentation of a work based on this program that it
+   is based on Ragolex by Abdullah Bakir, with a link to
+   https://github.com/AbdullahBakir97/Ragolex.
+
+Licensing under other terms
+---------------------------
+
+To use Ragolex under terms other than the AGPL, for example in a closed-source
+product, contact Abdullah Bakir through https://github.com/AbdullahBakir97.

@@ -144,6 +144,8 @@ def create_app() -> FastAPI:
         setup_tracing("ragolex", settings.APP_VERSION)
     # FastAPI traces each request itself, once a tracer provider is set up.
     app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION,
+                  contact={"name": "Abdullah Bakir", "url": "https://github.com/AbdullahBakir97"},
+                  license_info={"name": "AGPL-3.0-only", "identifier": "AGPL-3.0-only"},
                   lifespan=_lifespan(settings), generate_unique_id_function=_operation_id,
                   telemetry={"exclude": _not_traced})
 

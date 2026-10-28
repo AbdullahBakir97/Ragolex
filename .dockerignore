@@ -1,4 +1,4 @@
-# Only what the API image needs: pyproject.toml, README.md, LICENSE, src/ and evals/.
+# Only what the API image needs: pyproject.toml, README.md, LICENSE, NOTICE, src/ and evals/.
 # Secrets and local data must never reach an image.
 .env
 .git

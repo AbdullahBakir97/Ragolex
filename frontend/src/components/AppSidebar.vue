@@ -104,6 +104,9 @@ onMounted(async () => {
         <a class="nav-item docs" href="/docs" target="_blank" rel="noopener"><BookOpen :size="16" /> API docs</a>
         <ThemeToggle />
       </div>
+      <a class="credit small subtle" href="https://github.com/AbdullahBakir97/Ragolex" target="_blank" rel="noopener">
+        Ragolex by Abdullah Bakir
+      </a>
     </div>
 
     <NewProjectDialog ref="dialog" />
@@ -272,5 +275,15 @@ onMounted(async () => {
 
 .docs {
   flex: 1;
+}
+
+.credit {
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.credit:hover {
+  color: var(--text);
+  text-decoration: underline;
 }
 </style>

@@ -2,7 +2,7 @@
 
 > A retrieval-augmented generation (RAG) platform with a web app: bring in documents, websites and repositories, ask questions, and get answers that cite the passages they come from, for any number of apps, sites and agents from one deployment.
 
-[![CI](https://github.com/AbdullahBakir97/Ragolex/actions/workflows/ci.yml/badge.svg)](https://github.com/AbdullahBakir97/Ragolex/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) ![Vue](https://img.shields.io/badge/Vue_3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
+[![CI](https://github.com/AbdullahBakir97/Ragolex/actions/workflows/ci.yml/badge.svg)](https://github.com/AbdullahBakir97/Ragolex/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) ![Vue](https://img.shields.io/badge/Vue_3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white) [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=flat-square)](./LICENSE)
 
 <p align="center">
   <img src="docs/media/web-ask.png" width="880" alt="The Ask page of the web app in research mode: a two-part question about a team trip to Lisbon, the four searches the model planned for it, and an answer with numbered citations above its cited sources.">
@@ -185,4 +185,12 @@ Full-Stack Developer based in Germany - Python · Django · Vue · Nuxt.
 
 ## License
 
-Released under the [MIT License](./LICENSE).
+Copyright (C) 2024-2026 Abdullah Bakir.
+
+Ragolex is released under the [GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0-only). You may use, change and share it, including to run it as a service, as long as you:
+
+- keep the copyright and the [NOTICE](./NOTICE) file in every copy,
+- keep the "Ragolex by Abdullah Bakir" credit in the web app and say in your documentation that your work is based on Ragolex,
+- publish the complete source code of your version, under the same license, to everyone who uses it, also when they only use it over a network.
+
+To use Ragolex under other terms, for example in a closed-source product, contact [Abdullah Bakir](https://github.com/AbdullahBakir97).
