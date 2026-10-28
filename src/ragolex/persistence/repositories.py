@@ -1718,13 +1718,15 @@ def _sso_provider(row: SsoProviderRow) -> SsoProvider:
     return SsoProvider(tenant_id=row.tenant_id, issuer=row.issuer, client_id=row.client_id,
                        client_secret=row.client_secret, default_role=row.default_role,
                        enabled=row.enabled, created_at=row.created_at,
-                       updated_at=row.updated_at, required=row.required)
+                       updated_at=row.updated_at, required=row.required,
+                       protocol=row.protocol, sso_url=row.sso_url, certificate=row.certificate)
 
 
 def _sso_request(row: SsoRequestRow) -> SsoRequest:
     return SsoRequest(state_hash=row.state_hash, tenant_id=row.tenant_id, nonce=row.nonce,
                       code_verifier=row.code_verifier, next_url=row.next_url,
-                      browser_hash=row.browser_hash, expires_at=row.expires_at)
+                      browser_hash=row.browser_hash, expires_at=row.expires_at,
+                      vouched_email=row.vouched_email, vouched_name=row.vouched_name)
 
 
 class SqlSsoRepository:
@@ -1737,9 +1739,12 @@ class SqlSsoRepository:
         return _sso_provider(row) if row else None
 
     async def save(self, *, tenant_id: int, issuer: str, client_id: str, client_secret: str,
-                   default_role: str, enabled: bool, required: bool = False) -> SsoProvider:
+                   default_role: str, enabled: bool, required: bool = False,
+                   protocol: str = "oidc", sso_url: str | None = None,
+                   certificate: str | None = None) -> SsoProvider:
         values = {"issuer": issuer, "client_id": client_id, "client_secret": client_secret,
-                  "default_role": default_role, "enabled": enabled, "required": required}
+                  "default_role": default_role, "enabled": enabled, "required": required,
+                  "protocol": protocol, "sso_url": sso_url, "certificate": certificate}
         await self.session.execute(
             pg_insert(SsoProviderRow).values(tenant_id=tenant_id, **values)
             .on_conflict_do_update(index_elements=["tenant_id"],
@@ -1769,6 +1774,14 @@ class SqlSsoRepository:
             delete(SsoRequestRow).where(SsoRequestRow.state_hash == state_hash)
             .returning(SsoRequestRow))).scalar_one_or_none()
         return _sso_request(row) if row else None
+
+    async def vouch(self, state_hash: str, *, email: str, name: str | None) -> bool:
+        result = await self.session.execute(
+            update(SsoRequestRow)
+            .where(SsoRequestRow.state_hash == state_hash, SsoRequestRow.expires_at > func.now(),
+                   SsoRequestRow.vouched_email.is_(None))
+            .values(vouched_email=email, vouched_name=name))
+        return _affected(result) > 0
 
 
 def _audit_event(row: AuditEventRow, key_name: str | None,

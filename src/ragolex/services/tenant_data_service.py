@@ -126,7 +126,8 @@ class TenantDataService:
              "created_at": c.created_at} for c in connections])
         provider = await self.uow.sso.get(tenant.id)
         export.add_json("sso.json", {
-            "issuer": provider.issuer, "client_id": provider.client_id,
+            "protocol": provider.protocol, "issuer": provider.issuer,
+            "client_id": provider.client_id, "sso_url": provider.sso_url,
             "default_role": provider.default_role, "enabled": provider.enabled,
             "required": provider.required, "created_at": provider.created_at}
             if provider else None)

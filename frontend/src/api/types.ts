@@ -465,11 +465,19 @@ export type SourceKind = "website" | "feed" | "github" | "notion" | "google_driv
 export type ConnectionKind = "notion" | "google_drive";
 
 export type SsoRole = "admin" | "editor" | "viewer";
+export type SsoProtocol = "oidc" | "saml";
 
-/** A workspace's OpenID Connect identity provider. Its client secret is never returned. */
+/** A workspace's identity provider (OpenID Connect or SAML). Its client secret is never returned. */
 export interface SsoProvider {
+  protocol: SsoProtocol;
+  /** The OpenID Connect issuer, or the SAML entity ID. */
   issuer: string;
+  /** OpenID Connect's; empty for SAML. */
   client_id: string;
+  /** SAML's sign-in URL. */
+  sso_url: string | null;
+  /** When SAML's signing certificate expires. */
+  certificate_expires_at: string | null;
   default_role: SsoRole;
   enabled: boolean;
   /** Members other than owners sign in only through the provider; only owners change it. */
@@ -480,8 +488,12 @@ export interface SsoProvider {
 
 export interface SsoSettings {
   provider: SsoProvider | null;
-  /** The redirect URI to register with the identity provider. */
+  /** The redirect URI to register with an OpenID Connect provider. */
   redirect_uri: string;
+  /** For SAML: this server's entity ID (its metadata's address). */
+  saml_entity_id: string;
+  /** For SAML: where the provider posts its responses. */
+  saml_acs_url: string;
   /** Only emails on these verified domains sign in through the provider. */
   email_domains: string[];
 }

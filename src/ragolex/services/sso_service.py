@@ -7,6 +7,7 @@ from urllib.parse import urlencode, urlsplit
 from ragolex.core.errors import (
     DomainInvalid,
     OwnerRequired,
+    SsoCertificateInvalid,
     SsoEmailNotAllowed,
     SsoFailed,
     SsoNeedsDomain,
@@ -18,12 +19,15 @@ from ragolex.core.passwords import hash_password
 from ragolex.domain.models import SsoProvider, SsoRequest, Tenant
 from ragolex.domain.oidc import OidcClient
 from ragolex.domain.repositories import UnitOfWork
+from ragolex.domain.saml import SamlServiceProvider, SamlVerifier
 from ragolex.services.account_service import AccountService, SignedIn, normalise_email
 from ragolex.services.audit import record
 from ragolex.services.connection_service import code_challenge
 from ragolex.services.domain_service import normalise_domain
 
 CALLBACK_PATH = "/api/v1/auth/sso/callback"
+SAML_PATH = "/api/v1/auth/sso/saml"
+PROTOCOLS = ("oidc", "saml")
 # How long someone has to sign in at their identity provider and come back.
 REQUEST_LIFETIME = timedelta(minutes=10)
 ROLES = ("admin", "editor", "viewer")
@@ -63,11 +67,25 @@ class SsoService:
     """
 
     def __init__(self, uow: UnitOfWork, client: OidcClient, *, app_url: str,
-                 session_days: int = 30):
+                 session_days: int = 30, saml: SamlVerifier | None = None,
+                 allow_private_urls: bool = False):
         self.uow = uow
         self.client = client
+        self.saml = saml
         self.app_url = app_url.rstrip("/")
         self.session_days = session_days
+        self.allow_private_urls = allow_private_urls
+
+    @property
+    def service_provider(self) -> SamlServiceProvider:
+        """This server to SAML identity providers: its entity ID is its metadata's address."""
+        return SamlServiceProvider(entity_id=f"{self.app_url}{SAML_PATH}/metadata",
+                                   acs_url=f"{self.app_url}{SAML_PATH}/acs")
+
+    def _saml(self) -> SamlVerifier:
+        if self.saml is None:
+            raise SsoNotConfigured("SAML is not available on this server")
+        return self.saml
 
     @property
     def redirect_uri(self) -> str:
@@ -82,35 +100,68 @@ class SsoService:
         return sorted(d.domain for d in await self.uow.domains.list_for_tenant(tenant_id)
                       if d.verified_at is not None)
 
-    async def configure(self, tenant_id: int, *, issuer: str, client_id: str,
-                        client_secret: str | None, default_role: str, enabled: bool,
-                        required: bool = False, role: str | None = None) -> SsoProvider:
-        """Set the workspace's provider, once its discovery document checks out. Without
-        ``client_secret``, the one it has is kept.
+    async def configure(self, tenant_id: int, *, issuer: str, default_role: str, enabled: bool,
+                        protocol: str = "oidc", client_id: str | None = None,
+                        client_secret: str | None = None, sso_url: str | None = None,
+                        certificate: str | None = None, required: bool = False,
+                        role: str | None = None) -> SsoProvider:
+        """Set the workspace's provider.
+
+        OpenID Connect: ``issuer``, ``client_id`` and ``client_secret``, once the
+        discovery document checks out. SAML: ``issuer`` is the provider's entity
+        ID, with ``sso_url`` and its signing ``certificate``. Left out, the secret
+        or certificate it has is kept.
 
         Only an owner (``role``) requires it or stops requiring it: owners keep their
         passwords, so whoever turns it on cannot lock themselves out. It needs a verified
         domain, or only owners could sign in.
         """
-        issuer = issuer.strip().rstrip("/")
         current = await self.uow.sso.get(tenant_id)
         if required != (current.required if current else False) and role != "owner":
             raise OwnerRequired("Only an owner may require single sign-on, or stop requiring it")
         if required and enabled and not await self.email_domains(tenant_id):
             raise SsoNeedsDomain()
-        await self.client.discover(issuer)
-        if client_secret is None:
-            if current is None:
-                raise SsoSecretRequired()
-            client_secret = current.client_secret
+        kept = current if current and current.protocol == protocol else None
+        if protocol == "saml":
+            issuer = issuer.strip()
+            sso_url = self._check_sso_url((sso_url or "").strip())
+            if certificate is not None:
+                certificate, _ = self._saml().load_certificate(certificate)
+            elif kept is not None:
+                certificate = kept.certificate
+            else:
+                raise SsoCertificateInvalid("Give the identity provider's signing certificate")
+            client_id, client_secret, details = "", "", {"sso_url": sso_url}
+        else:
+            issuer = issuer.strip().rstrip("/")
+            await self.client.discover(issuer)
+            if client_secret is None:
+                if kept is None:
+                    raise SsoSecretRequired()
+                client_secret = kept.client_secret
+            client_id = (client_id or "").strip()
+            sso_url, certificate, details = None, None, {"client_id": client_id}
         provider = await self.uow.sso.save(
-            tenant_id=tenant_id, issuer=issuer, client_id=client_id.strip(),
+            tenant_id=tenant_id, issuer=issuer, client_id=client_id,
             client_secret=client_secret, default_role=default_role, enabled=enabled,
-            required=required)
-        await record(self.uow, tenant_id, "sso.configured", issuer, client_id=provider.client_id,
+            required=required, protocol=protocol, sso_url=sso_url, certificate=certificate)
+        await record(self.uow, tenant_id, "sso.configured", issuer, protocol=protocol, **details,
                      default_role=default_role, enabled=enabled, required=required)
         await self.uow.commit()
         return provider
+
+    def _check_sso_url(self, url: str) -> str:
+        parts = urlsplit(url)
+        local = (parts.hostname or "") in ("localhost", "127.0.0.1", "::1")
+        if not parts.netloc or (parts.scheme != "https" and not (
+                parts.scheme == "http" and local and self.allow_private_urls)):
+            raise SsoFailed("the identity provider's sign-in URL must be an https address")
+        return url
+
+    def certificate_expiry(self, provider: SsoProvider) -> datetime | None:
+        if provider.protocol != "saml" or not provider.certificate or self.saml is None:
+            return None
+        return self.saml.load_certificate(provider.certificate)[1]
 
     async def remove(self, tenant_id: int) -> None:
         provider = await self.uow.sso.get(tenant_id)
@@ -137,13 +188,27 @@ class SsoService:
         provider = await self.uow.sso.get(tenant_id)
         if provider is None or not provider.enabled:
             raise SsoNotConfigured()
+        next_url = await self._return_to(tenant_id, return_to)
+        browser_key, now = secrets.token_urlsafe(32), datetime.now(UTC)
+        if provider.protocol == "saml":
+            assert provider.sso_url is not None
+            # The AuthnRequest's ID, which the assertion answers: an XML name.
+            state = f"_{secrets.token_hex(20)}"
+            await self.uow.sso.add_request(SsoRequest(
+                state_hash=_hash(state), tenant_id=tenant_id, nonce="", code_verifier="",
+                next_url=next_url, browser_hash=_hash(browser_key),
+                expires_at=now + REQUEST_LIFETIME))
+            await self.uow.commit()
+            return SsoStarted(self._saml().authn_request_url(
+                self.service_provider, sso_url=provider.sso_url, request_id=state,
+                relay_state=state, now=now), browser_key)
         metadata = await self.client.discover(provider.issuer)
         state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-        verifier, browser_key = secrets.token_urlsafe(64), secrets.token_urlsafe(32)
+        verifier = secrets.token_urlsafe(64)
         await self.uow.sso.add_request(SsoRequest(
             state_hash=_hash(state), tenant_id=tenant_id, nonce=nonce, code_verifier=verifier,
-            next_url=await self._return_to(tenant_id, return_to),
-            browser_hash=_hash(browser_key), expires_at=datetime.now(UTC) + REQUEST_LIFETIME))
+            next_url=next_url, browser_hash=_hash(browser_key),
+            expires_at=now + REQUEST_LIFETIME))
         await self.uow.commit()
         query = urlencode({"response_type": "code", "client_id": provider.client_id,
                            "redirect_uri": self.redirect_uri, "scope": SCOPES, "state": state,
@@ -159,6 +224,34 @@ class SsoService:
             raise SsoRequestInvalid()
         return request
 
+    async def take_saml_response(self, relay_state: str, saml_response: str) -> SsoRequest:
+        """Check a SAML provider's response (POSTed by the browser) to a sign-in started here,
+        and keep the email it vouches for on that sign-in, once.
+
+        The browser's binding cookie does not come with another site's POST, so the
+        browser that started it then finishes it at the callback, which checks that.
+        """
+        request = await self.uow.sso.find_request(_hash(relay_state)) if relay_state else None
+        if request is None:
+            raise SsoRequestInvalid()
+        provider = await self.uow.sso.get(request.tenant_id)
+        if (provider is None or not provider.enabled or provider.protocol != "saml"
+                or not provider.certificate):
+            raise SsoNotConfigured()
+        assertion = self._saml().verify(
+            self.service_provider, saml_response, idp_entity_id=provider.issuer,
+            certificate=provider.certificate, now=datetime.now(UTC))
+        if not secrets.compare_digest(assertion.in_response_to, relay_state):
+            raise SsoFailed("the assertion answers another sign-in")
+        email = await self._email(request.tenant_id, {"email": assertion.email})
+        if len(email) > 254:
+            raise SsoEmailNotAllowed("the identity provider sent an email that is too long")
+        name = (assertion.name or "").strip()[:200] or None
+        if not await self.uow.sso.vouch(_hash(relay_state), email=email, name=name):
+            raise SsoRequestInvalid()  # Answered already: a replay.
+        await self.uow.commit()
+        return request
+
     async def finish(self, state: str, browser_key: str | None, code: str | None,
                      error: str | None = None) -> tuple[SignedIn, SsoRequest]:
         """Sign in the person the provider vouches for, in the workspace, from the browser that
@@ -168,11 +261,16 @@ class SsoService:
         if request is None or not browser_key or not secrets.compare_digest(
                 request.browser_hash, _hash(browser_key)):
             raise SsoRequestInvalid()
-        if error or not code:
-            raise SsoFailed(f"the identity provider did not sign you in ({error or 'no code'})")
         provider = await self.uow.sso.get(request.tenant_id)
         if provider is None or not provider.enabled:
             raise SsoNotConfigured()
+        if provider.protocol == "saml":
+            if not request.vouched_email:
+                raise SsoFailed("the identity provider did not sign you in")
+            return await self._sign_in(request.tenant_id, provider, request.vouched_email,
+                                       request.vouched_name or ""), request
+        if error or not code:
+            raise SsoFailed(f"the identity provider did not sign you in ({error or 'no code'})")
         metadata = await self.client.discover(provider.issuer)
         token = await self.client.exchange(
             metadata, client_id=provider.client_id, client_secret=provider.client_secret,
