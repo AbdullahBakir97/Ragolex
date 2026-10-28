@@ -1894,6 +1894,23 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Signal: `api_key_scope_missing`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "api_key_scope_missing": {
+                    "value": {
+                      "signal": "api_key_scope_missing"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },

@@ -929,6 +929,7 @@ class FakeBots:
         self.projects = projects
         self.by_id: dict[str, Bot] = {}
         self.deliveries: set[tuple[str, str]] = set()
+        self.chat_messages: list[tuple[str, str, datetime]] = []
         self.chats: dict[tuple[str, str], str] = {}
 
     async def create(self, *, bot_id, project_id, kind, name, account, credentials,
@@ -963,11 +964,16 @@ class FakeBots:
         del self.by_id[bot_id]
         return True
 
-    async def first_delivery(self, bot_id: str, update_id: str) -> bool:
+    async def first_delivery(self, bot_id: str, update_id: str, chat_key: str) -> bool:
         if (bot_id, update_id) in self.deliveries:
             return False
         self.deliveries.add((bot_id, update_id))
+        self.chat_messages.append((bot_id, chat_key, datetime.now(UTC)))
         return True
+
+    async def recent_messages(self, bot_id: str, chat_key: str, seconds: int) -> int:
+        since = datetime.now(UTC) - timedelta(seconds=seconds)
+        return sum(1 for b, c, at in self.chat_messages if (b, c) == (bot_id, chat_key) and at > since)
 
     async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
         return self.chats.get((bot_id, chat_key))
@@ -1192,8 +1198,10 @@ class FakeSources:
 
     async def claim_due(self, lease_seconds: int) -> Source | None:
         now = datetime.now(UTC)
+        busy = {self.by_id[i].connection_id for i in self.locked} - {None}
         due = [s for s in self.by_id.values()
-               if s.next_sync_at and s.next_sync_at <= now and s.id not in self.locked]
+               if s.next_sync_at and s.next_sync_at <= now and s.id not in self.locked
+               and s.connection_id not in busy]
         if not due:
             return None
         source = min(due, key=lambda s: s.next_sync_at)

@@ -26,7 +26,6 @@ from ragolex.domain.models import Bot, IncomingMessage, Project, SearchFilters
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.services.answer_service import Answer, AnswerService
 from ragolex.services.audit import record
-from ragolex.services.domain_service import DomainService
 from ragolex.services.limit_service import LimitService
 from ragolex.services.tag_service import clean_tags
 
@@ -43,6 +42,7 @@ TOP_K = 5
 NO_ANSWER = "I could not find the answer to that in the documents."
 NEW_CONVERSATION = "Starting a new conversation. What would you like to know?"
 LIMIT_REACHED = "I cannot answer more questions right now: this assistant's limit is reached."
+SLOW_DOWN = "That is a lot of questions at once. Please wait a minute, then ask again."
 FAILED = "Sorry, something went wrong while answering. Please try again later."
 
 
@@ -87,16 +87,17 @@ def _command(text: str) -> str | None:
 class BotService:
 
     def __init__(self, uow: UnitOfWork, platforms: Mapping[str, ChatPlatform],
-                 app_url: str = "http://localhost:3000"):
+                 app_url: str = "http://localhost:3000", chat_limit: int = 0):
+        """``chat_limit``: the most messages a chat may send a bot in a minute (0: any)."""
         self.uow = uow
         self.platforms = platforms
         self.app_url = app_url
+        self.chat_limit = chat_limit
 
     async def webhook_url(self, bot: Bot) -> str:
-        """Where the chat app sends the bot's messages: on the workspace's own domain if
-        it has one."""
-        base = await DomainService(self.uow).base_url(bot.tenant_id) or self.app_url
-        return f"{base}/api/v1/bots/{bot.id}/webhook"
+        """Where the chat app sends the bot's messages, with their secret: on this server's
+        address, never a workspace's domain, which may pass to someone else."""
+        return f"{self.app_url}/api/v1/bots/{bot.id}/webhook"
 
     async def create(self, project_name: str, kind: str, name: str,
                      credentials: Mapping[str, Any], tags: Sequence[str] = ()) -> Bot:
@@ -176,12 +177,18 @@ class BotService:
         ``answers`` makes the AnswerService, only for a question (commands need no
         model). A failure is answered with a short apology, and noted on the bot.
         """
-        if not await self.uow.bots.first_delivery(bot.id, message.update_id):
+        if not await self.uow.bots.first_delivery(bot.id, message.update_id, message.chat_key):
             return
         await self.uow.commit()
         command = _command(message.text.strip())
         error: str | None = None
-        if command == "/start":
+        sent = (await self.uow.bots.recent_messages(bot.id, message.chat_key, 60)
+                if self.chat_limit else 0)
+        if sent > self.chat_limit + 1:
+            return  # Told to slow down already: no reply costs anything.
+        if sent == self.chat_limit + 1:
+            reply = SLOW_DOWN
+        elif command == "/start":
             reply = welcome(bot)
         elif command in ("/new", "/reset"):
             await self.uow.bots.set_chat_conversation(bot.id, message.chat_key, None)

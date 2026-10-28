@@ -57,7 +57,13 @@ export function noteRefusal(signal: string) {
  * (`next` comes from the address bar, which anyone can link to).
  */
 export function safeNext(next: unknown): string {
-  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\")
-    ? next
-    : "/";
+  if (typeof next !== "string" || !next.startsWith("/")) return "/";
+  // Resolved as the browser will: it drops tabs and newlines and reads "\\" as "/",
+  // so "/\t/evil.example" is another site even though it starts with one "/".
+  try {
+    const url = new URL(next, window.location.origin);
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : "/";
+  } catch {
+    return "/";
+  }
 }

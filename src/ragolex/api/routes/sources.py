@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from ragolex.api.dependencies import READ, WRITE, SourceServiceDep
+from ragolex.api.dependencies import READ, WRITE, PrincipalDep, SourceServiceDep
 from ragolex.api.schemas import (
     Pagination,
     ProjectId,
@@ -18,6 +18,7 @@ from ragolex.core.errors import (
     ConnectionNotFound,
     ConnectionWrongKind,
     ProjectNotFound,
+    ScopeMissing,
     SourceNotFound,
     SourceUrlNotAllowed,
 )
@@ -48,9 +49,14 @@ def _source(source: Source) -> SourceResponse:
                 "new pages, replacing changed ones and deleting the ones that are gone (a "
                 "feed's older entries stay). The first sync starts at once. The project is "
                 "created if it has no files yet.",
-    responses=error_responses(SourceUrlNotAllowed, ConnectionNotFound, ConnectionWrongKind))
-async def create_source(project_id: ProjectId, request: SourceRequest,
+    responses=error_responses(SourceUrlNotAllowed, ConnectionNotFound, ConnectionWrongKind,
+                              ScopeMissing))
+async def create_source(project_id: ProjectId, request: SourceRequest, principal: PrincipalDep,
                         service: SourceServiceDep) -> SourceResponse:
+    # A connection reads whatever its admin's account can (all of their Drive): only admins
+    # choose what it reads.
+    if request.connection_id is not None and "admin" not in principal.scopes:
+        raise ScopeMissing("Notion and Google Drive sources need the admin scope")
     return _source(await service.create(project_id, str(request.url), request.max_pages,
                                         request.sync_interval_hours, request.tags,
                                         request.kind, request.connection_id))

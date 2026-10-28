@@ -583,8 +583,13 @@ class BotRepository(Protocol):
 
     async def delete(self, project_id: int, bot_id: str) -> bool: ...
 
-    async def first_delivery(self, bot_id: str, update_id: str) -> bool:
-        """Note a message's delivery; False when it was delivered before (a retry)."""
+    async def first_delivery(self, bot_id: str, update_id: str, chat_key: str) -> bool:
+        """Note a message's delivery in its chat; False when it was delivered before (a
+        retry). Deliveries older than a week are forgotten now and then."""
+        ...
+
+    async def recent_messages(self, bot_id: str, chat_key: str, seconds: int) -> int:
+        """How many messages the chat sent the bot in the last ``seconds``."""
         ...
 
     async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
@@ -636,7 +641,8 @@ class SourceRepository(Protocol):
         ...
 
     async def claim_due(self, lease_seconds: int) -> Source | None:
-        """Take the source most overdue for a sync, of any tenant, for ``lease_seconds``."""
+        """Take the source most overdue for a sync, of any tenant, for ``lease_seconds``;
+        not one whose connection another source is syncing through."""
         ...
 
     async def finish_sync(self, source_id: str, *, error: str | None,

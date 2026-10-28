@@ -1,6 +1,7 @@
 """SQLAlchemy implementations of the domain repository interfaces."""
 
 import json
+import random
 import uuid
 from collections import Counter
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
@@ -23,6 +24,7 @@ from sqlalchemy import (
     bindparam,
     case,
     delete,
+    exists,
     func,
     insert,
     literal_column,
@@ -1515,6 +1517,12 @@ def _bot(row: BotRow, project: ProjectRow, tenant_name: str) -> Bot:
                last_error_at=row.last_error_at)
 
 
+# Deliveries are kept a week, to tell a retry from a new message; about one delivery in
+# a hundred also forgets the older ones.
+DELIVERIES_KEPT = timedelta(days=7)
+PRUNE_DELIVERIES_CHANCE = 0.01
+
+
 class SqlBotRepository:
 
     def __init__(self, session: AsyncSession):
@@ -1561,11 +1569,20 @@ class SqlBotRepository:
             delete(BotRow).where(BotRow.id == bot_id, BotRow.project_id == project_id))
         return _affected(result) > 0
 
-    async def first_delivery(self, bot_id: str, update_id: str) -> bool:
+    async def first_delivery(self, bot_id: str, update_id: str, chat_key: str) -> bool:
+        if random.random() < PRUNE_DELIVERIES_CHANCE:
+            await self.session.execute(delete(BotDeliveryRow).where(
+                BotDeliveryRow.created_at < func.now() - DELIVERIES_KEPT))
         noted = await self.session.scalar(
-            pg_insert(BotDeliveryRow).values(bot_id=bot_id, update_id=update_id)
+            pg_insert(BotDeliveryRow).values(bot_id=bot_id, update_id=update_id,
+                                             chat_key=chat_key)
             .on_conflict_do_nothing().returning(BotDeliveryRow.bot_id))
         return noted is not None
+
+    async def recent_messages(self, bot_id: str, chat_key: str, seconds: int) -> int:
+        return await _number(self.session, select(func.count()).select_from(BotDeliveryRow).where(
+            BotDeliveryRow.bot_id == bot_id, BotDeliveryRow.chat_key == chat_key,
+            BotDeliveryRow.created_at > func.now() - timedelta(seconds=seconds)))
 
     async def chat_conversation(self, bot_id: str, chat_key: str) -> str | None:
         return await self.session.scalar(
@@ -1798,10 +1815,17 @@ class SqlSourceRepository:
             update(SourceRow).where(SourceRow.id == source_id).values(next_sync_at=func.now()))
 
     async def claim_due(self, lease_seconds: int) -> Source | None:
+        # Sources sharing a connection sync one at a time, within the service's rate limit
+        # (best effort: two workers claiming at the same moment may still overlap).
+        other = aliased(SourceRow)
+        busy_connection = exists().where(other.connection_id == SourceRow.connection_id,
+                                         other.id != SourceRow.id,
+                                         other.locked_until > func.now())
         due = (select(SourceRow.id)
                .where(SourceRow.next_sync_at <= func.now(),
                       or_(SourceRow.locked_until.is_(None),
-                          SourceRow.locked_until < func.now()))
+                          SourceRow.locked_until < func.now()),
+                      or_(SourceRow.connection_id.is_(None), ~busy_connection))
                .order_by(SourceRow.next_sync_at).limit(1)
                .with_for_update(skip_locked=True).scalar_subquery())
         source_id = await self.session.scalar(

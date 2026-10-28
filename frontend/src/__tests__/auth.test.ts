@@ -69,7 +69,8 @@ describe("Signing in", () => {
 
   it("goes back only to pages of this app", () => {
     expect(safeNext("/projects/docs/ask?x=1")).toBe("/projects/docs/ask?x=1");
-    for (const next of ["https://evil.example", "//evil.example", "/\\evil.example", "javascript:alert(1)", undefined, ["/a"]]) {
+    const tricks = ["/\t/evil.example", "/\n/evil.example", "/\\/evil.example"];
+    for (const next of ["https://evil.example", "//evil.example", "/\\evil.example", "javascript:alert(1)", ...tricks, undefined, ["/a"]]) {
       expect(safeNext(next)).toBe("/");
     }
   });

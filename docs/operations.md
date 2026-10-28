@@ -134,6 +134,29 @@ Rotating a key: put a new key first and keep the old one after it (`ENCRYPTION_K
 
 Readers that need a file as uploaded (processing, malware scanning, the feedback export) get a decrypted copy in a private temporary folder, removed as soon as they are done. Backups of `FILES_DIR` stay encrypted, so restoring one needs the keys that encrypted it.
 
+## Capacity and load testing
+
+`tools/load_test.py` sends concurrent searches and questions to a running server and reports how many it answered a second, with latency percentiles; `--json` keeps the results for comparing runs.
+
+```bash
+python tools/load_test.py --url https://ragolex.example.com --key ragolex_… --project handbook \
+    --concurrency 16 --seconds 30
+```
+
+The numbers below measure Ragolex itself, without a model provider. The models were `tools/fake_models.py`, the project held 20 files (45 chunks), and the API, PostgreSQL 16, the fake models and the load generator shared one 4-vCPU machine.
+
+| API processes | Concurrent clients | Requests a second (search + ask) | Search p50 / p95 | Ask p50 / p95 |
+|---|---|---|---|---|
+| 1 | 1 | 31 | 25 / 34 ms | 37 / 46 ms |
+| 1 | 8 | 40 | 169 / 222 ms | 227 / 286 ms |
+| 1 | 32 | 41 | 696 / 1,049 ms | 783 / 1,207 ms |
+| 4 | 8 | 100 | 64 / 100 ms | 89 / 133 ms |
+| 4 | 32 | 95 | 147 / 792 ms | 200 / 950 ms |
+
+All requests succeeded. One API process tops out at about 40 requests a second, because it runs on one CPU core. Raise `WEB_CONCURRENCY`, the number of processes uvicorn starts (1 by default), towards the number of cores; or run more API containers behind the proxy. Their job workers share the queue safely.
+
+With real models, the provider dominates. An answer takes as long as the model needs to write it (typically 1–5 s), and the provider's rate limits, not the server, set how many people can ask at once. Searches add only an embedding of the query. Each tenant's `requests_per_minute` limit applies to load tests too: give a test tenant no limit to measure the server.
+
 ## Backups and restores
 
 A backup is the database and the uploaded files together, taken at the same time: one without the other cannot be restored. `tools/backup.sh` makes one archive of both and restores it.
@@ -187,7 +210,7 @@ The widgets' allowed origins are the websites that embed them, not this domain. 
 
 ### A domain per workspace
 
-Each workspace can have domains of its own too, such as `help.acme.com` and `docs.zenith.io`, all served by the same deployment. Its admins add one (`POST /api/v1/domains`, or `ragolex domains add help.acme.com --tenant acme`), prove it with the TXT record it shows, and point it at the server with a CNAME to the host in `APP_URL`. Once verified, every request to that domain acts for the workspace: signing in opens it, other workspaces' keys and members are refused, only its widgets answer, and its invitation links use it. See [API › Your own domains](api.md#your-own-domains).
+Each workspace can have domains of its own too, such as `help.acme.com` and `docs.zenith.io`, all served by the same deployment. Its admins add one (`POST /api/v1/domains`, or `ragolex domains add help.acme.com --tenant acme`), prove it with the TXT record it shows, and point it at the server with a CNAME to the host in `APP_URL`. Once verified, every request to that domain acts for the workspace: signing in opens it, other workspaces' keys and members are refused, and only its widgets answer. Links that carry a secret (invitations, password resets, bots' webhooks) use `APP_URL` all the same, since a domain may later pass to someone else. See [API › Your own domains](api.md#your-own-domains).
 
 Certificates for domains you don't know in advance come from Caddy's [on-demand TLS](https://caddyserver.com/docs/automatic-https#on-demand-tls), which first asks the API whether the domain is a workspace's, so it never gets a certificate for a stranger's domain:
 

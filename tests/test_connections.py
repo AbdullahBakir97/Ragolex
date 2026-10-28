@@ -23,7 +23,7 @@ from ragolex.core.errors import ConnectionFailed, CrawlFailed
 from ragolex.domain.crawler import CrawledPage, UnreachablePage
 from ragolex.domain.models import Limits
 from ragolex.persistence.database import create_engine, create_session_factory
-from ragolex.persistence.repositories import unit_of_work_factory
+from ragolex.persistence.repositories import SqlUnitOfWork, unit_of_work_factory
 from ragolex.services.connection_service import code_challenge, with_query
 from ragolex.services.source_syncer import SourceSyncer
 from ragolex.storage.file_storage import FileStorage
@@ -654,3 +654,70 @@ def test_connecting_the_same_account_again_renews_its_connection(client, provide
     actions = [e["action"] for e in client.get(
         "/api/v1/audit", params={"action": "connection"}).json()["items"]]
     assert actions == ["connection.created", "connection.renewed", "connection.created"]
+
+
+def test_sources_sharing_a_connection_sync_one_at_a_time(client, providers, db):
+    connection = connect(client)
+    for url in (PAGE, "https://www.notion.so/"):
+        source(client, kind="notion", url=url, connection_id=connection["id"])
+    client.post("/api/v1/projects/docs/sources", json={"url": "https://docs.example.com/"})
+
+    async def claim_three():
+        engine = create_engine(db)
+        try:
+            unit_of_work = unit_of_work_factory(create_session_factory(engine))
+            claimed = []
+            for _ in range(3):
+                async with unit_of_work() as uow:
+                    found = await uow.sources.claim_due(600)
+                    await uow.commit()
+                claimed.append(found.kind if found else None)
+            return claimed
+        finally:
+            await engine.dispose()
+
+    # One Notion source and the website: the other Notion source waits its turn.
+    assert sorted(map(str, asyncio.run(claim_three()))) == ["None", "notion", "website"]
+
+
+def _keys(db):
+    """An admin key and an editor's (write) key of a new tenant."""
+    from ragolex.services.auth_service import AuthService
+
+    async def work():
+        engine = create_engine(db)
+        try:
+            async with create_session_factory(engine)() as session:
+                service = AuthService(SqlUnitOfWork(session))
+                tenant = await service.create_tenant("acme")
+                admin = (await service.create_key(tenant.id, "admin", ("read", "write", "admin")))[1]
+                editor = (await service.create_key(tenant.id, "editor", ("read", "write")))[1]
+                return admin, editor
+        finally:
+            await engine.dispose()
+    return asyncio.run(work())
+
+
+def test_only_admins_choose_what_a_connection_reads(client, providers, db, monkeypatch):
+    monkeypatch.setenv("AUTH_ENABLED", "true")
+    get_settings.cache_clear()
+    admin, editor = _keys(db)
+    as_admin = {"Authorization": f"Bearer {admin}"}
+    as_editor = {"Authorization": f"Bearer {editor}"}
+    sent = parse_qs(urlsplit(client.post("/api/v1/connections", json={"kind": "google_drive"},
+                                         headers=as_admin).json()["authorize_url"]).query)
+    come_back(client, sent["state"][0], code="code-1")
+    [connection] = client.get("/api/v1/connections", headers=as_admin).json()["items"]
+
+    # A connection reads all its account can: an editor could otherwise read the admin's Drive.
+    listed = client.get("/api/v1/connections", headers=as_editor)
+    assert (listed.status_code, listed.json()["signal"]) == (403, "api_key_scope_missing")
+    body = {"kind": "google_drive", "connection_id": connection["id"]}
+    refused = client.post("/api/v1/projects/docs/sources", json=body, headers=as_editor)
+    assert (refused.status_code, refused.json()["signal"]) == (403, "api_key_scope_missing")
+    assert client.post("/api/v1/projects/docs/sources", json=body,
+                       headers=as_admin).status_code == 201
+    # Other sources stay an editor's to add.
+    assert client.post("/api/v1/projects/docs/sources", json={"url": "https://docs.example.com/"},
+                       headers=as_editor).status_code == 201
+    get_settings.cache_clear()

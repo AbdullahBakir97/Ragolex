@@ -1,5 +1,6 @@
 """Bots: a project's assistant in Telegram, Slack and WhatsApp."""
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -26,6 +27,7 @@ from ragolex.services.bot_service import (
     LIMIT_REACHED,
     NEW_CONVERSATION,
     NO_ANSWER,
+    SLOW_DOWN,
     reply_text,
 )
 
@@ -198,6 +200,52 @@ def test_a_delivery_sent_again_is_answered_once(client, platforms):
     assert len(platforms["telegram"].sent) == 1
 
 
+def test_a_chat_that_sends_too_much_is_asked_to_slow_down_once(client, platforms, llm,
+                                                              monkeypatch):
+    monkeypatch.setenv("BOT_CHAT_MESSAGES_PER_MINUTE", "2")
+    get_settings.cache_clear()
+    bot = add_bot(client).json()
+
+    deliver(client, bot, telegram_update(1))
+    deliver(client, bot, telegram_update(2))
+    calls = len(llm.calls)
+    for update in range(3, 6):
+        deliver(client, bot, telegram_update(update))
+
+    replies = [text for _, text in platforms["telegram"].sent]
+    assert len(replies) == 3 and replies[2] == SLOW_DOWN
+    assert len(llm.calls) == calls  # The model was not asked past the limit.
+    # Other chats are not slowed down.
+    deliver(client, bot, telegram_update(6, chat=43))
+    assert len(platforms["telegram"].sent) == 4
+    get_settings.cache_clear()
+
+
+def test_old_deliveries_are_forgotten(client, platforms, query, monkeypatch, db):
+    monkeypatch.setattr("ragolex.persistence.repositories.PRUNE_DELIVERIES_CHANCE", 1.0)
+    bot = add_bot(client).json()
+    deliver(client, bot, telegram_update(1))
+    asyncio.run(_age_deliveries(db))
+
+    deliver(client, bot, telegram_update(2))
+
+    assert query("SELECT update_id FROM bot_deliveries") == [("2",)]
+
+
+async def _age_deliveries(url):
+    from sqlalchemy import text as sql
+
+    from ragolex.persistence.database import create_engine
+
+    engine = create_engine(url)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                sql("UPDATE bot_deliveries SET created_at = now() - interval '8 days'"))
+    finally:
+        await engine.dispose()
+
+
 def test_start_says_what_the_bot_does(client, platforms, llm):
     bot = add_bot(client).json()
 
@@ -218,6 +266,10 @@ def test_deliveries_not_from_the_app_are_refused(client, platforms):
     assert (missing.status_code, missing.json()) == (404, {"signal": "bot_not_found"})
     huge = client.post(f"/api/v1/bots/{bot['id']}/webhook", content=b"x" * 1_000_001)
     assert huge.status_code == 413
+    # Sent in pieces with no length given, it is cut off once past the limit too.
+    streamed = client.post(f"/api/v1/bots/{bot['id']}/webhook",
+                           content=(b"x" * 100_000 for _ in range(20)))
+    assert streamed.status_code == 413
 
 
 def test_a_bot_turned_off_ignores_messages(client, platforms):
@@ -316,14 +368,15 @@ def test_the_export_lists_bots_without_their_credentials(client, platforms):
     assert "secret-token" not in archive.read("projects/demo/bots.json").decode()
 
 
-def test_bots_answer_with_the_workspaces_domain_in_their_webhook(client, platforms):
+def test_webhooks_stay_on_this_server_even_with_a_domain(client, platforms):
     from ragolex import cli
     assert cli.main(["domains", "add", "help.example.com", "--tenant", "default",
                      "--verified"]) == 0
 
     bot = add_bot(client).json()
 
-    assert bot["webhook_url"].startswith("https://help.example.com/api/v1/bots/")
+    # Messages carry the bot's secret: never to a domain that may pass to someone else.
+    assert bot["webhook_url"].startswith("http://localhost:3000/api/v1/bots/")
 
 
 # Reading deliveries

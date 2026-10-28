@@ -133,7 +133,4 @@ class DomainService:
             return None
         return await self.uow.domains.find_verified(name)
 
-    async def base_url(self, tenant_id: int) -> str | None:
-        """Where the workspace's web app is, on its own domain; None when it has none."""
-        verified = [d for d in await self.uow.domains.list_for_tenant(tenant_id) if d.verified_at]
-        return f"https://{verified[0].domain}" if verified else None
+

@@ -21,7 +21,6 @@ from ragolex.domain.repositories import UnitOfWork
 from ragolex.services.account_service import normalise_email
 from ragolex.services.audit import record
 from ragolex.services.auth_service import hash_key
-from ragolex.services.domain_service import DomainService
 from ragolex.services.emails import invitation_mail
 
 # An invitation link works once, for a week.
@@ -109,9 +108,9 @@ class MemberService:
         await record(self.uow, tenant_id, "invitation.created", address,
                      invitation=invitation.id, role=role)
         await self.uow.commit()
-        # On the workspace's own domain, when it has one.
-        base = await DomainService(self.uow).base_url(tenant_id) or self.app_url
-        link = invitation_link(base, token)
+        # On this server's address, as password reset links are: a workspace's domain may
+        # pass to someone else (it lapses, or is pointed elsewhere), and the link with it.
+        link = invitation_link(self.app_url, token)
         inviter = await self.uow.users.get(principal.user_id) if principal.user_id else None
         return NewInvitation(invitation=invitation, inviter=inviter, link=link,
                              mail=invitation_mail(invitation, link, inviter))

@@ -53,6 +53,8 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `GITHUB_TOKEN` | unset | A GitHub token for [GitHub sources](api.md#feeds-and-github-repositories): reads private repositories (fine-grained, with *Contents: read*) and raises the rate limit from 60 requests an hour to 5000 |
 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | unset | This server's Notion public integration, so workspaces can connect Notion for [Notion sources](api.md#notion-and-google-drive); see [below](#notion-and-google-drive) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | This server's Google OAuth client, so workspaces can connect Google Drive for [Drive sources](api.md#notion-and-google-drive); see [below](#notion-and-google-drive) |
+| `WEB_CONCURRENCY` | `1` | API processes uvicorn starts; raise it towards the number of CPU cores (see [Operations › Capacity](operations.md#capacity-and-load-testing)) |
+| `BOT_CHAT_MESSAGES_PER_MINUTE` | `10` | The most messages one chat may send a [bot](api.md#chat-bots-telegram-slack-and-whatsapp) in a minute; past it, the bot asks once to slow down and ignores the rest of the minute. `0`: no limit |
 | `WEBHOOK_TIMEOUT_SECONDS` | `10` | How long a webhook's receiver has to answer (up to 60) |
 | `BOT_TIMEOUT_SECONDS` | `15` | How long Telegram, Slack and WhatsApp have to answer a [bot](api.md#chat-bots-telegram-slack-and-whatsapp)'s call (up to 60) |
 | `SEARCH_MODE` | `"hybrid"` | `hybrid` ranks chunks by meaning and by the words they share with the question, merged by reciprocal rank fusion; `vector` by meaning only. Scores are the cosine similarity either way |

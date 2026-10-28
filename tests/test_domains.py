@@ -231,14 +231,15 @@ def test_signing_in_on_a_domain_opens_its_workspace(client, db, accounts_on):
         "workspace": None, "accounts_enabled": True, "signup_enabled": True}
 
 
-def test_invitations_link_to_the_workspaces_domain(client, db, accounts_on):
+def test_invitations_link_to_this_server_even_with_a_domain(client, db, accounts_on):
     sign_up(client, workspace="acme")
     verified_domain("acme")
 
     link = client.post("/api/v1/invitations",
                        json={"email": "grace@example.com", "role": "viewer"}).json()["link"]
 
-    assert link.startswith("https://help.acme.com/invite#")
+    # A domain may pass to someone else, and a link carrying a token with it.
+    assert link.startswith("http://localhost:3000/invite#")
 
 
 def test_a_domain_serves_only_its_workspaces_widgets(client, embedder, llm):
@@ -292,8 +293,6 @@ async def test_a_domain_another_workspace_proved_is_not_proved_again():
     assert claim.verified_at is None and claim.checked_at is not None
     assert await service.site("help.acme.com:443") is not None
     assert await service.site("localhost:3000") is None
-    assert await service.base_url(acme.id) is None
-    assert await service.base_url(zenith.id) == "https://help.acme.com"
 
 
 class Answer:

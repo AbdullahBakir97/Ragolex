@@ -181,6 +181,10 @@ class Settings(BaseSettings):
     BOT_TIMEOUT_SECONDS: float = Field(
         default=15, gt=0, le=60, description="How long Telegram, Slack and WhatsApp have to "
                                              "answer a bot's call")
+    BOT_CHAT_MESSAGES_PER_MINUTE: int = Field(
+        default=10, ge=0, le=1000,
+        description="The most messages one chat may send a bot in a minute; past it the bot "
+                    "asks to slow down once, then ignores them for the minute (0: no limit)")
     WEBHOOK_TIMEOUT_SECONDS: float = Field(
         default=10, gt=0, le=60, description="How long a webhook's receiver has to answer")
     ENCRYPTION_KEYS: str = Field(
