@@ -156,4 +156,24 @@ describe("WebsiteSources", () => {
     await wrapper.find("input[type=url]").setValue("https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp");
     expect(wrapper.find("button[type=submit]").attributes("disabled")).toBeDefined();
   });
+
+  it("tells editors that only an admin adds Notion and Google Drive sources", async () => {
+    const queue = [{ items: [] }];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url === "/api/v1/connections"
+            ? Response.json({ signal: "api_key_scope_missing" }, { status: 403 })
+            : Response.json(queue.shift()),
+        ),
+      ),
+    );
+    const wrapper = mount(WebsiteSources, { props: { project: "demo" }, global: { stubs: { RouterLink: RouterLinkStub } } });
+    await flushPromises();
+
+    await wrapper.findAll("select")[0]!.setValue("notion");
+    expect(wrapper.find(".no-connection").text()).toBe("Only an admin adds Notion and Google Drive sources.");
+    expect(wrapper.find("button[type=submit]").attributes("disabled")).toBeDefined();
+  });
 });

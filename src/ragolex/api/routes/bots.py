@@ -126,8 +126,8 @@ async def _find(session: SessionDep, bot_id: str) -> Bot:
 async def bot_webhook(bot_id: BotIdPath, request: Request, session: SessionDep,
                       background: BackgroundTasks) -> Response:
     bot = await _find(session, bot_id)
-    body = await request.body()
-    if len(body) > MAX_DELIVERY_BYTES:
+    body = await _read(request)
+    if body is None:
         return Response(status_code=status.HTTP_413_CONTENT_TOO_LARGE)
     delivery = read_delivery(bot, request.headers, body)
     if delivery.challenge is not None:  # Slack checking the Request URL.
@@ -151,6 +151,19 @@ async def bot_webhook_check(bot_id: BotIdPath, request: Request,
     return PlainTextResponse(whatsapp_challenge(bot, params))
 
 
+async def _read(request: Request) -> bytes | None:
+    """The request's body, or None past MAX_DELIVERY_BYTES, without reading more than that."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_DELIVERY_BYTES:
+        return None
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_DELIVERY_BYTES:
+            return None
+    return bytes(body)
+
+
 async def answer_message(app: FastAPI, bot_id: str, message: IncomingMessage) -> None:
     """Answer one message in its chat, after the webhook answered the app."""
     settings = get_settings()
@@ -162,7 +175,8 @@ async def answer_message(app: FastAPI, bot_id: str, message: IncomingMessage) ->
             log_context.tenant.set(bot.tenant_name)
             uow = SqlUnitOfWork(session, bot.tenant_id)
             limits = LimitService(SqlUnitOfWork(session), settings.default_limits)
-            service = BotService(uow, app.state.chat_platforms, app_url=settings.APP_URL)
+            service = BotService(uow, app.state.chat_platforms, app_url=settings.APP_URL,
+                                 chat_limit=settings.BOT_CHAT_MESSAGES_PER_MINUTE)
             await service.respond(
                 bot, message, lambda: background_answer_service(app, uow, settings, limits),
                 limits)

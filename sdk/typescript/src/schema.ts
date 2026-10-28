@@ -4911,6 +4911,15 @@ export interface operations {
                     "application/json": components["schemas"]["SourceResponse"];
                 };
             };
+            /** @description Signal: `api_key_scope_missing` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Signal: `connection_not_found` */
             404: {
                 headers: {

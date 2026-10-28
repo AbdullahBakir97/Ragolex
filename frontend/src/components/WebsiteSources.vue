@@ -97,14 +97,18 @@ async function load() {
   if (sources.value.some(busy)) timer = setTimeout(load, POLL_MS);
 }
 
-// The workspace's connections; a key without the write scope cannot list them.
+// The workspace's connections. Only admins see them, and only admins add sources that read
+// through one: a connection reads whatever its account can.
 const connections = ref<Connection[]>([]);
+const mayConnect = ref(true);
 
 async function loadConnections() {
   try {
     connections.value = (await api.connections()).items;
-  } catch {
+    mayConnect.value = true;
+  } catch (caught) {
     connections.value = [];
+    mayConnect.value = !(caught instanceof ApiError && caught.signal === "api_key_scope_missing");
   }
 }
 
@@ -269,7 +273,8 @@ defineExpose({ load });
         </select>
       </label>
       <p v-else-if="connected" class="field grow no-connection small" role="status">
-        <span>
+        <span v-if="!mayConnect">Only an admin adds Notion and Google Drive sources.</span>
+        <span v-else>
           The workspace has no {{ kind === "notion" ? "Notion" : "Google Drive" }} connection yet: an admin
           connects one on the <RouterLink to="/admin">Admin page</RouterLink>.
         </span>

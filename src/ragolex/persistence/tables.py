@@ -487,13 +487,20 @@ class BotChatRow(Base):
 
 
 class BotDeliveryRow(Base):
-    """A message a chat app delivered, so a delivery sent again is answered once."""
+    """A message a chat app delivered, so a delivery sent again is answered once, and a
+    chat that sends too many is slowed down. Kept for a week."""
 
     __tablename__ = "bot_deliveries"
+    __table_args__ = (
+        # Counting a chat's recent messages, and forgetting old deliveries.
+        Index("ix_bot_deliveries_chat", "bot_id", "chat_key", "created_at"),
+        Index("ix_bot_deliveries_created_at", "created_at"),
+    )
 
     bot_id: Mapped[str] = mapped_column(
         ForeignKey("bots.id", ondelete="CASCADE"), primary_key=True)
     update_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    chat_key: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = _created_at()
 
 

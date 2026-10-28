@@ -14,7 +14,6 @@ from fastapi.responses import RedirectResponse
 
 from ragolex.api.dependencies import (
     ADMIN,
-    WRITE,
     ConnectionServiceDep,
     PrincipalDep,
     SessionDep,
@@ -63,7 +62,7 @@ def _connection(connection: Connection) -> ConnectionResponse:
                               last_error_at=connection.last_error_at)
 
 
-@router.get("", dependencies=[WRITE], summary="The workspace's connections, oldest first",
+@router.get("", dependencies=[ADMIN], summary="The workspace's connections, oldest first",
             description="With the services this server can connect, and the redirect URI to "
                         "register with their OAuth apps.")
 async def list_connections(principal: PrincipalDep,
