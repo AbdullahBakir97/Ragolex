@@ -1,9 +1,9 @@
-"""People's accounts: signing up, in and out, and the workspaces they work in.
+"""People's accounts: signing up, in and out, the workspaces they work in, and passwords.
 
 A signed-in browser holds a random session token in a cookie; only its
 SHA-256 is stored, as for API keys. What a user may do in a workspace comes
 from their role there (ROLE_SCOPES), so roles and API keys share the same
-checks.
+checks. Invitation and password reset links hold tokens kept the same way.
 """
 
 import secrets
@@ -12,28 +12,59 @@ from datetime import UTC, datetime, timedelta
 
 from ragolex.core import log_context
 from ragolex.core.errors import (
+    AccountDetailsRequired,
     AccountLocked,
+    CurrentPasswordWrong,
     EmailTaken,
+    InvitationForSomeoneElse,
+    InvitationInvalid,
     LoginFailed,
+    PasswordResetInvalid,
     SessionRequired,
     WorkspaceNotFound,
     WorkspaceTaken,
 )
 from ragolex.core.passwords import hash_password, needs_rehash, verify_password
-from ragolex.domain.models import ROLE_SCOPES, Membership, Principal, User, UserSession
+from ragolex.domain.models import (
+    ROLE_SCOPES,
+    Invitation,
+    Mail,
+    Membership,
+    Principal,
+    User,
+    UserSession,
+)
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.services.audit import record
 from ragolex.services.auth_service import hash_key
+from ragolex.services.emails import password_reset_mail
 
 # The 10th failed sign-in in a row locks the account for 15 minutes: slow enough
 # to stop guessing, short enough not to lock someone out for long.
 LOCK_AFTER = 10
 LOCK_FOR = timedelta(minutes=15)
+# A password reset link works for an hour; one is sent at most once a minute per account.
+RESET_FOR = timedelta(hours=1)
+RESET_EVERY = timedelta(minutes=1)
 
 
 def normalise_email(email: str) -> str:
     """One address, one account: email addresses are compared in lower case."""
     return email.strip().lower()
+
+
+def password_reset_link(app_url: str, token: str) -> str:
+    # In the fragment, which browsers never send to a server or in a Referer.
+    return f"{app_url}/reset-password#{token}"
+
+
+@dataclass(frozen=True)
+class InvitationPreview:
+    """What an invitation link offers, for its page: before accepting it."""
+
+    invitation: Invitation
+    inviter: User | None
+    has_account: bool  # Whether the invited email has an account, which signs in to accept.
 
 
 @dataclass(frozen=True)
@@ -49,9 +80,11 @@ class SignedIn:
 
 class AccountService:
 
-    def __init__(self, uow: UnitOfWork, session_days: int):
+    def __init__(self, uow: UnitOfWork, session_days: int,
+                 app_url: str = "http://localhost:3000"):
         self.uow = uow
         self.session_length = timedelta(days=session_days)
+        self.app_url = app_url
 
     async def sign_up(self, *, email: str, password: str, name: str,
                       workspace: str) -> SignedIn:
@@ -117,6 +150,13 @@ class AccountService:
             raise SessionRequired()
         return session, user, membership
 
+    async def _session_or_none(self, token: str | None
+                               ) -> tuple[UserSession, User, Membership] | None:
+        try:
+            return await self._session(token)
+        except SessionRequired:
+            return None
+
     async def authenticate(self, token: str | None) -> Principal:
         """Who a session acts for: its user, with their role in its workspace."""
         session, user, membership = await self._session(token)
@@ -175,3 +215,118 @@ class AccountService:
         await record(self.uow, tenant.id, "member.added", user.email, role=role)
         await self.uow.commit()
         return user, created
+
+    async def invitation(self, token: str) -> InvitationPreview:
+        """The invitation the link is for; raises InvitationInvalid when it does not work."""
+        invitation = await self.uow.invitations.find_pending(hash_key(token))
+        if invitation is None:
+            raise InvitationInvalid()
+        inviter = await self.uow.users.get(invitation.invited_by) if invitation.invited_by else None
+        return InvitationPreview(invitation=invitation, inviter=inviter,
+                                 has_account=await self.uow.users.login(invitation.email) is not None)
+
+    async def accept_invitation(self, token: str, *, session_token: str | None,
+                                name: str | None, password: str | None) -> SignedIn:
+        """Join the invitation's workspace, and work in it.
+
+        A signed-in user accepts for their own email only. Without a session,
+        the invited email gets a new account with ``name`` and ``password``;
+        if it has one, its owner signs in first. The SignedIn has a token
+        only when a new session started.
+        """
+        invitation = await self.uow.invitations.find_pending(hash_key(token))
+        if invitation is None:
+            raise InvitationInvalid()
+        current = await self._session_or_none(session_token)
+        if current is not None:
+            session, user, _ = current
+            if user.email != invitation.email:
+                raise InvitationForSomeoneElse()
+        else:
+            if await self.uow.users.login(invitation.email) is not None:
+                raise SessionRequired("Sign in to accept the invitation")
+            if not name or not name.strip() or not password:
+                raise AccountDetailsRequired()
+            created = await self.uow.users.create(email=invitation.email, name=name.strip(),
+                                                  password_hash=hash_password(password))
+            if created is None:  # Created meanwhile by another request.
+                raise EmailTaken()
+            user = created
+        if not await self.uow.invitations.accept(invitation.id):
+            raise InvitationInvalid()  # Accepted meanwhile by another request.
+        log_context.user.set(user.id)
+        membership = await self.uow.memberships.get(user.id, invitation.tenant_id)
+        if membership is None:
+            membership = await self.uow.memberships.add(
+                user_id=user.id, tenant_id=invitation.tenant_id, role=invitation.role)
+            await record(self.uow, invitation.tenant_id, "member.added", user.email,
+                         role=invitation.role)
+        await record(self.uow, invitation.tenant_id, "invitation.accepted", user.email,
+                     invitation=invitation.id, role=membership.role)
+        if current is None:
+            await self.uow.users.logged_in(user.id)
+            return await self._start(user, membership)
+        await self.uow.user_sessions.switch_tenant(current[0].id, invitation.tenant_id)
+        await self.uow.commit()
+        return SignedIn(user=user, session=current[0], workspace=membership,
+                        workspaces=await self.uow.memberships.list_for_user(user.id), token="")
+
+    async def request_password_reset(self, email: str) -> Mail | None:
+        """The email with a reset link for the account, or None.
+
+        None when no account has the address, or a link was sent less than a
+        minute ago; callers answer alike either way, so nobody learns which
+        addresses have accounts.
+        """
+        login = await self.uow.users.login(normalise_email(email))
+        if login is None:
+            return None
+        latest = await self.uow.password_resets.latest(login.user.id)
+        if latest is not None and latest.created_at > datetime.now(UTC) - RESET_EVERY:
+            return None
+        token = await self._new_reset(login.user.id)
+        await self.uow.commit()
+        return password_reset_mail(login.user, password_reset_link(self.app_url, token))
+
+    async def password_reset_link(self, email: str) -> str | None:
+        """For the command line: a reset link for the account, or None when there is none."""
+        login = await self.uow.users.login(normalise_email(email))
+        if login is None:
+            return None
+        token = await self._new_reset(login.user.id)
+        await self.uow.commit()
+        return password_reset_link(self.app_url, token)
+
+    async def _new_reset(self, user_id: int) -> str:
+        token = secrets.token_urlsafe(32)
+        await self.uow.password_resets.create(user_id=user_id, token_hash=hash_key(token),
+                                              expires_at=datetime.now(UTC) + RESET_FOR)
+        return token
+
+    async def reset_password(self, token: str, password: str) -> None:
+        """Set a new password with a reset link; every session of the account ends."""
+        reset = await self.uow.password_resets.find_active(hash_key(token))
+        if reset is None or not await self.uow.password_resets.use(reset.id):
+            raise PasswordResetInvalid()
+        await self.uow.users.set_password(reset.user_id, hash_password(password))
+        await self.uow.user_sessions.delete_for_user(reset.user_id)
+        await self.uow.commit()
+
+    async def change_password(self, token: str | None, current: str, new: str) -> None:
+        """A signed-in user's new password; their other sessions end.
+
+        A wrong current password counts as a failed sign-in, so a session
+        left open cannot be used to guess it.
+        """
+        session, user, _ = await self._session(token)
+        login = await self.uow.users.login(user.email)
+        assert login is not None
+        if login.locked_until and login.locked_until > datetime.now(UTC):
+            raise AccountLocked()
+        if not verify_password(login.password_hash, current):
+            await self.uow.users.login_failed(user.id, lock_after=LOCK_AFTER, lock_for=LOCK_FOR)
+            await self.uow.commit()
+            raise CurrentPasswordWrong()
+        await self.uow.users.set_password(user.id, hash_password(new))
+        await self.uow.user_sessions.delete_for_user(user.id, keep=session.id)
+        await self.uow.commit()

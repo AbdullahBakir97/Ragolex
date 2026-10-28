@@ -97,11 +97,61 @@ Workspace names are 2 to 64 lower-case letters, digits, `-` and `_`. `GET /api/v
 | No session, or it expired, or the user left the workspace | `401` | `{"signal": "session_required"}` |
 | Not a member of that workspace (or of any) | `404` | `{"signal": "workspace_not_found"}` |
 
-With sign-up off, accounts are added from the command line. A new account asks for its password; an existing one keeps it and gets the role:
+With sign-up off, accounts are added from the command line or by [invitation](#members-and-invitations). A new account asks for its password; an existing one keeps it and gets the role:
 
 ```bash
 docker compose exec app ragolex users add ada@example.com --tenant acme --role owner --name "Ada Lovelace"
 ```
+
+### Members and invitations
+
+A workspace's owners and admins (and API keys with the `admin` scope) manage its members. Only a signed-in **owner** makes someone an owner, or changes or removes an owner, and a workspace always keeps one owner (`409` `last_owner`).
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/v1/members` | The members, by email, with their role, when they joined and last signed in |
+| `PUT /api/v1/members/{user_id}` | Changes a member's role: `{"role": "editor"}`. Their sessions get it with their next request |
+| `DELETE /api/v1/members/{user_id}` | Removes a member (`204`): the account stays, its sessions in the workspace end at once |
+| `POST /api/v1/invitations` | Invites an email with a role: `{"email": "grace@example.com", "role": "editor"}` (`201`) |
+| `GET /api/v1/invitations` | Invitations not accepted yet, newest first (expired ones too) |
+| `DELETE /api/v1/invitations/{invitation_id}` | Revokes an invitation: its link stops working (`204`) |
+
+Inviting answers with a `link` to send, shown only then, such as `http://localhost:3000/invite#Xq2v…`; with `SMTP_HOST` set it is emailed too (`"emailed": true`). The link works once, for a week, and only for the email invited; inviting the address again replaces it. The web app opens it, or a client does it with the token after `#`:
+
+| Endpoint | Does |
+|---|---|
+| `POST /api/v1/auth/invitation` | What the link offers: `{"token": "…"}` → the workspace, role, who invited, and `has_account` |
+| `POST /api/v1/auth/invitation/accept` | Joins the workspace and works in it. Signed in, as the invited email's account; not signed in, it makes that account from `name` and `password` and signs in. An email that has an account signs in first |
+
+Accepting works with `SIGNUP_ENABLED` off: an invitation is the permission.
+
+### Passwords
+
+| Endpoint | Does |
+|---|---|
+| `POST /api/v1/auth/password-reset` | `{"email": "…"}`: emails a link to choose a new password. Always `202`, so it tells nobody which addresses have accounts; at most one link a minute per account |
+| `POST /api/v1/auth/password-reset/confirm` | `{"token": "…", "password": "…"}`: sets the new password (`204`). Every session of the account ends, and a lock from failed sign-ins is lifted |
+| `PUT /api/v1/auth/password` | `{"current_password": "…", "new_password": "…"}`: a signed-in user's new password (`204`). Their other sessions end. A wrong current password counts as a failed sign-in |
+
+A reset link works once, for an hour, and a newer one replaces it. Without email (`SMTP_HOST` empty), operators make one for the account's owner:
+
+```bash
+docker compose exec app ragolex users reset-password ada@example.com
+```
+
+Invitation and reset tokens are sent in request bodies and kept in the link's fragment (after `#`), which browsers never send to a server, so they stay out of access logs; the server keeps only their SHA-256.
+
+| Case | Status | Response |
+|---|---|---|
+| Not an owner, for owners' roles | `403` | `{"signal": "owner_required"}` |
+| The last owner would leave or become less | `409` | `{"signal": "last_owner"}` |
+| No such member, or invitation, in the workspace | `404` | `{"signal": "member_not_found"}`, `{"signal": "invitation_not_found"}` |
+| Inviting a member | `409` | `{"signal": "already_member"}` |
+| The invitation link is wrong, used, revoked or expired | `404` | `{"signal": "invitation_invalid"}` |
+| Signed in as another email than the invited one | `403` | `{"signal": "invitation_for_someone_else"}` |
+| No account yet, and no `name` or `password` for one | `422` | `{"signal": "account_details_required"}` |
+| The reset link is wrong, used or expired | `404` | `{"signal": "password_reset_invalid"}` |
+| The current password is wrong | `403` | `{"signal": "current_password_wrong"}` |
 
 ## Audit log
 
@@ -116,13 +166,14 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | Action | Target | Details |
 |---|---|---|
 | `tenant.created`, `tenant.limits_changed` | The tenant's name | The new limits (`changes`) |
-| `member.added` | The member's email | Their `role` |
+| `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`) |
+| `invitation.created`, `invitation.revoked`, `invitation.accepted` | The invited email | The invitation's id and `role` |
 | `api_key.created`, `api_key.revoked` | The key's id | Name, prefix and scopes, never the key |
 | `webhook.created`, `webhook.deleted` | The webhook's id | Project, URL and events, never the secret |
 | `widget.created`, `widget.updated`, `widget.deleted` | The widget's id | Project, and the settings set or changed |
 | `project.assistant_updated` | The project's name | The assistant's name and instructions |
 | `file.deleted`, `project.deleted` | The file's id, or the project's name | The project |
-| `tenant.exported` | The tenant's name | How many projects, files, conversations, keys and audit events the archive holds |
+| `tenant.exported` | The tenant's name | How many projects, files, conversations, keys, members, invitations and audit events the archive holds |
 
 `actor` is the API key that did it, with its name, and `user` the signed-in user, with their email; both are `null` for the server's operators: the command line, or requests while authentication is off. `request_id` matches the request's `X-Request-ID` and its log lines. Events are kept as long as the tenant; a revoked key still shows by name.
 
@@ -153,6 +204,8 @@ curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/ap
 | `manifest.json` | The format and its version, the tenant, when it was made, how many of each thing it holds, and files the database lists that were no longer on disk |
 | `tenant.json` | The tenant and its limits |
 | `api_keys.json` | Each key's id, name, prefix, scopes and dates; never the key or its hash |
+| `members.json` | Each member's email, name, role, and when they joined and last signed in; never passwords or sessions |
+| `invitations.json` | Each open invitation's email, role and dates; never its link |
 | `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
 | `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
 | `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
@@ -234,6 +287,17 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `POST` | `/api/v1/auth/logout` | Sign out |
 | `GET` | `/api/v1/auth/session` | The signed-in user and their workspaces |
 | `PUT` | `/api/v1/auth/session/workspace` | Work in another of the user's workspaces |
+| `POST` | `/api/v1/auth/invitation` | What an invitation link offers (the token in the body) |
+| `POST` | `/api/v1/auth/invitation/accept` | Accept an invitation, making the account if it has none, and work in its workspace |
+| `POST` | `/api/v1/auth/password-reset` | Email a link to choose a new password (always `202`) |
+| `POST` | `/api/v1/auth/password-reset/confirm` | Choose a new password with a reset link |
+| `PUT` | `/api/v1/auth/password` | Change the signed-in user's password |
+| `GET` | `/api/v1/members` | The workspace's members (`admin`) |
+| `PUT` | `/api/v1/members/{user_id}` | Change a member's role (`admin`; owners' roles: an owner) |
+| `DELETE` | `/api/v1/members/{user_id}` | Remove a member from the workspace (`admin`) |
+| `GET` | `/api/v1/invitations` | Invitations not accepted yet (`admin`) |
+| `POST` | `/api/v1/invitations` | Invite an email, returning the link once (`admin`) |
+| `DELETE` | `/api/v1/invitations/{invitation_id}` | Revoke an invitation (`admin`) |
 | `GET` | `/api/v1/usage` | The tenant's usage this month, against its limits |
 | `GET` | `/api/v1/usage/history` | The tenant's answers and their cost per day, project and model |
 | `GET` | `/api/v1/audit` | The tenant's audit log, most recent first (paged; `?action=` filters; `admin`) |

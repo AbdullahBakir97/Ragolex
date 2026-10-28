@@ -25,8 +25,9 @@ router = APIRouter(prefix="/api/v1", tags=["export"], dependencies=[ADMIN])
     summary="Everything the tenant has, as a ZIP archive",
     description="Every project with its files as uploaded, sources, chat widgets, webhooks "
                 "(without their secrets), conversations with their feedback and answer usage, "
-                "and the tenant's API keys (names and prefixes only) and audit log, as JSON "
-                "files and the files themselves. Chunks and embeddings are left out: "
+                "and the tenant's API keys (names and prefixes only), members, invitations and "
+                "audit log, as JSON files and the files themselves. Chunks and embeddings are "
+                "left out: "
                 "processing the files again makes them. `manifest.json` lists what is inside. "
                 "Recorded in the audit log as `tenant.exported`.",
     response_class=FileResponse,

@@ -29,6 +29,9 @@ CONTRACTS = [
     (interfaces.UserRepository, sql.SqlUserRepository, fakes.FakeUsers),
     (interfaces.MembershipRepository, sql.SqlMembershipRepository, fakes.FakeMemberships),
     (interfaces.UserSessionRepository, sql.SqlUserSessionRepository, fakes.FakeUserSessions),
+    (interfaces.InvitationRepository, sql.SqlInvitationRepository, fakes.FakeInvitations),
+    (interfaces.PasswordResetRepository, sql.SqlPasswordResetRepository,
+     fakes.FakePasswordResets),
     (interfaces.UsageRepository, sql.SqlUsageRepository, fakes.FakeUsage),
     (interfaces.DeckRepository, sql.SqlDeckRepository, fakes.FakeDecks),
     (interfaces.EvaluationRunRepository, sql.SqlEvaluationRunRepository,
@@ -64,7 +67,8 @@ def test_unit_of_work_exposes_the_repositories(implementation):
                                                             "conversations", "jobs", "webhooks",
                                                             "widgets", "audit", "sources", "tenants", "api_keys", "usage", "decks",
                                                             "evaluations", "users",
-                                                            "memberships", "user_sessions"}
+                                                            "memberships", "user_sessions",
+                                                            "invitations", "password_resets"}
     instance = implementation(None) if implementation is sql.SqlUnitOfWork else implementation()
 
     assert all(hasattr(instance, name) for name in interfaces.UnitOfWork.__annotations__)

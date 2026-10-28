@@ -6,6 +6,8 @@ import. It holds what the tenant put in and what was recorded about it:
     manifest.json                       what is inside, and when it was made
     tenant.json                         the tenant and its limits
     api_keys.json                       names, prefixes and scopes; never keys or their hashes
+    members.json                        the people with accounts in it, and their roles
+    invitations.json                    invitations not accepted yet; never their links
     audit.jsonl                         the audit log, oldest first
     projects/<project>/project.json     the project, and its answer usage added up
     projects/<project>/files.json       each file's name, type, size, checksum and tags
@@ -72,7 +74,8 @@ class TenantExport:
             "tenant": self.tenant.name, "exported_at": datetime.now(UTC),
             "counts": self.counts, "missing_files": self.missing_files,
             "left_out": ["chunks and embeddings: process the files again to make them",
-                         "API keys and webhook secrets: only their names and prefixes"],
+                         "API keys and webhook secrets: only their names and prefixes",
+                         "passwords, sessions and invitation links"],
         }
         with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", json.dumps(manifest, indent=2,
@@ -99,9 +102,18 @@ class TenantDataService:
         export.add_json("tenant.json", _plain(tenant))
         keys = await self.uow.api_keys.list_for_tenant(tenant.id)
         export.add_json("api_keys.json", [_plain(key, keep={"id"}) for key in keys])
+        members = await self.uow.memberships.list_for_tenant(tenant.id)
+        export.add_json("members.json", [
+            {"email": m.user.email, "name": m.user.name, "role": m.role,
+             "joined_at": m.joined_at, "last_login_at": m.user.last_login_at} for m in members])
+        invitations = await self.uow.invitations.list_pending(tenant.id)
+        export.add_json("invitations.json", [
+            {"email": i.email, "role": i.role, "created_at": i.created_at,
+             "expires_at": i.expires_at} for i in invitations])
         events = [event async for event in self._audit(tenant.id)]
         export.add_lines("audit.jsonl", [_plain(event, keep={"id"}) for event in reversed(events)])
-        export.counts.update(api_keys=len(keys), audit_events=len(events))
+        export.counts.update(api_keys=len(keys), members=len(members),
+                             invitations=len(invitations), audit_events=len(events))
 
         projects = [project async for project in self._projects()]
         export.counts["projects"] = len(projects)

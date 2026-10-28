@@ -15,9 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from ragolex.core import log_context
 from ragolex.core.config import Settings, get_settings
-from ragolex.core.errors import EmbeddingNotConfigured, LLMNotConfigured, ScopeMissing
+from ragolex.core.errors import (
+    AccountsDisabled,
+    EmbeddingNotConfigured,
+    LLMNotConfigured,
+    ScopeMissing,
+)
 from ragolex.domain.embedder import Embedder
 from ragolex.domain.llm import LLM
+from ragolex.domain.mailer import Mailer
 from ragolex.domain.models import Principal, Scope
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
@@ -32,6 +38,7 @@ from ragolex.services.deletion_service import DeletionService
 from ragolex.services.indexing_service import IndexingService
 from ragolex.services.job_service import JobService
 from ragolex.services.limit_service import LimitService, rate_headers
+from ragolex.services.member_service import MemberService
 from ragolex.services.processing_service import ProcessingService
 from ragolex.services.project_service import ProjectService
 from ragolex.services.search_service import SearchService
@@ -77,8 +84,26 @@ session_cookie = APIKeyCookie(name=SESSION_COOKIE, auto_error=False,
                               description="A signed-in user's session, set by signing in")
 
 
+def accounts_on(settings: SettingsDep) -> None:
+    """Accounts need authentication on; without it everyone is the default tenant."""
+    if not settings.AUTH_ENABLED:
+        raise AccountsDisabled()
+
+
+ACCOUNTS_ON = Depends(accounts_on)
+
+
+def get_mailer(request: Request) -> Mailer | None:
+    """The mail server's client; None when SMTP_HOST is not set, and nothing is emailed."""
+    return request.app.state.mailer
+
+
+MailerDep = Annotated[Mailer | None, Depends(get_mailer)]
+
+
 def get_account_service(session: SessionDep, settings: SettingsDep) -> AccountService:
-    return AccountService(SqlUnitOfWork(session), session_days=settings.SESSION_DAYS)
+    return AccountService(SqlUnitOfWork(session), session_days=settings.SESSION_DAYS,
+                          app_url=settings.APP_URL)
 
 
 AccountServiceDep = Annotated[AccountService, Depends(get_account_service)]
@@ -319,3 +344,10 @@ def get_widget_service(uow: UnitOfWorkDep) -> WidgetService:
 
 
 WidgetServiceDep = Annotated[WidgetService, Depends(get_widget_service)]
+
+
+def get_member_service(uow: UnitOfWorkDep, settings: SettingsDep) -> MemberService:
+    return MemberService(uow, app_url=settings.APP_URL)
+
+
+MemberServiceDep = Annotated[MemberService, Depends(get_member_service)]

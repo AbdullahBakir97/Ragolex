@@ -88,7 +88,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 
 ### Phase 8: Security and privacy
 
-- [ ] User accounts with roles per tenant: sign-up, sign-in and roles are done ([API › User accounts](api.md#user-accounts)); members, invitations and the web app's pages are next.
+- [ ] User accounts with roles per tenant: sign-up, sign-in, roles, members, invitations and password resets are done ([API › User accounts](api.md#user-accounts)); the web app's pages are next.
 - [x] File type checked from content, not the declared type; optional malware scanning with ClamAV.
 - [x] Prompt-injection test cases.
 - [x] Encryption at rest of uploaded files and webhook secrets, with key rotation (`ENCRYPTION_KEYS`, `ragolex encryption`).

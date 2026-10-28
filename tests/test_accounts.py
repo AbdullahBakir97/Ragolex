@@ -96,6 +96,9 @@ class Browser:
     def put(self, path, **kwargs):
         return self.request("PUT", path, **kwargs)
 
+    def delete(self, path, **kwargs):
+        return self.request("DELETE", path, **kwargs)
+
 
 def browser(client):
     return Browser(client)

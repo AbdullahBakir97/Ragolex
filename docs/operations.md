@@ -79,6 +79,14 @@ To try it, set `TRACING_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://ja
 
 Administrative actions (API keys, members, webhooks, chat widgets, projects' assistants, deleted files and projects, tenants' limits) are recorded per tenant, with the key or signed-in user and the request id behind each: `GET /api/v1/audit` with an `admin` key, or `ragolex audit --tenant <name>`. See [API › Audit log](api.md#audit-log).
 
+## Email
+
+Invitations and password reset links are emailed through an SMTP server: set `SMTP_HOST`, `SMTP_FROM` and, if it needs them, `SMTP_USERNAME` and `SMTP_PASSWORD` (see [Configuration](configuration.md)), and `APP_URL` to the web app's address, which the links start with. Emails are sent after the response; one that fails is logged as `An email could not be sent` with the reason, never the address. Without a mail server, invitation links are shown to copy when they are made, and operators make reset links:
+
+```bash
+docker compose exec app ragolex users reset-password ada@example.com
+```
+
 ## Budgets and cost
 
 The Usage page of the web app shows what answers cost: per day over the last 7, 30 or 90 days, per project and per model, from [`GET /api/v1/usage/history`](api.md#cost-history), with the tenant's budget for the month. Costs need the model's prices, `LLM_INPUT_PRICE_PER_MILLION` and `LLM_OUTPUT_PRICE_PER_MILLION`.

@@ -15,7 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from itertools import count
 
-from ragolex.core.errors import EmbeddingFailed, LLMFailed
+from ragolex.core.errors import EmbeddingFailed, LLMFailed, MailFailed
 from ragolex.domain.llm import Completion, Message, TokenUsage
 from ragolex.domain.models import (
     AnswerRecord,
@@ -30,8 +30,12 @@ from ragolex.domain.models import (
     Feedback,
     FeedbackCounts,
     FileRecord,
+    Invitation,
     Job,
+    Mail,
+    Member,
     Membership,
+    PasswordReset,
     Project,
     RatedAnswer,
     Schedule,
@@ -633,13 +637,15 @@ class FakeUsers:
                                        user=replace(login.user, last_login_at=datetime.now(UTC)))
 
     async def set_password(self, user_id: int, password_hash: str) -> None:
-        self.logins[user_id] = replace(self.logins[user_id], password_hash=password_hash)
+        self.logins[user_id] = replace(self.logins[user_id], password_hash=password_hash,
+                                       failed_logins=0, locked_until=None)
 
 
 class FakeMemberships:
 
-    def __init__(self, tenants: "FakeTenants"):
+    def __init__(self, tenants: "FakeTenants", users: "FakeUsers | None" = None):
         self.tenants = tenants
+        self.users = users or FakeUsers()
         self.roles: dict[tuple[int, int], tuple[str, datetime]] = {}
 
     async def _membership(self, user_id: int, tenant_id: int) -> Membership | None:
@@ -664,6 +670,19 @@ class FakeMemberships:
         mine = [await self._membership(user, tenant) for user, tenant in self.roles
                 if user == user_id]
         return sorted((m for m in mine if m), key=lambda m: m.tenant_name)
+
+    async def list_for_tenant(self, tenant_id: int) -> list[Member]:
+        members = [Member(user=self.users.logins[user].user, role=role, joined_at=joined)
+                   for (user, tenant), (role, joined) in self.roles.items()
+                   if tenant == tenant_id and user in self.users.logins]
+        return sorted(members, key=lambda m: m.user.email)
+
+    async def remove(self, user_id: int, tenant_id: int) -> bool:
+        return self.roles.pop((user_id, tenant_id), None) is not None
+
+    async def count_owners(self, tenant_id: int) -> int:
+        return sum(1 for (_, tenant), (role, _) in self.roles.items()
+                   if tenant == tenant_id and role == "owner")
 
 
 class FakeUserSessions:
@@ -691,6 +710,103 @@ class FakeUserSessions:
 
     async def delete(self, session_id: str) -> None:
         self.by_hash = {h: s for h, s in self.by_hash.items() if s.id != session_id}
+
+    async def delete_for_user(self, user_id: int, *, tenant_id: int | None = None,
+                              keep: str | None = None) -> None:
+        def ends(session: UserSession) -> bool:
+            return (session.user_id == user_id and session.id != keep
+                    and tenant_id in (None, session.tenant_id))
+        self.by_hash = {h: s for h, s in self.by_hash.items() if not ends(s)}
+
+
+class FakeInvitations:
+
+    def __init__(self, tenants: "FakeTenants"):
+        self.tenants = tenants
+        self.by_hash: dict[str, Invitation] = {}
+        self.accepted: set[str] = set()
+
+    async def create(self, *, tenant_id, email, role, token_hash, invited_by,
+                     expires_at) -> Invitation:
+        self.by_hash = {h: i for h, i in self.by_hash.items()
+                        if i.id in self.accepted or (i.tenant_id, i.email) != (tenant_id, email)}
+        tenant = await self.tenants.get_by_id(tenant_id)
+        assert tenant is not None
+        invitation = Invitation(id=str(uuid.uuid4()), tenant_id=tenant_id,
+                                tenant_name=tenant.name, email=email, role=role,
+                                invited_by=invited_by, created_at=datetime.now(UTC),
+                                expires_at=expires_at)
+        self.by_hash[token_hash] = invitation
+        return invitation
+
+    async def find_pending(self, token_hash: str) -> Invitation | None:
+        invitation = self.by_hash.get(token_hash)
+        if (invitation is None or invitation.id in self.accepted
+                or invitation.expires_at <= datetime.now(UTC)):
+            return None
+        return invitation
+
+    async def list_pending(self, tenant_id: int) -> list[Invitation]:
+        pending = [i for i in self.by_hash.values()
+                   if i.tenant_id == tenant_id and i.id not in self.accepted]
+        return sorted(pending, key=lambda i: i.created_at, reverse=True)
+
+    async def accept(self, invitation_id: str) -> bool:
+        if invitation_id in self.accepted:
+            return False
+        self.accepted.add(invitation_id)
+        return True
+
+    async def delete(self, tenant_id: int, invitation_id: str) -> bool:
+        found = [h for h, i in self.by_hash.items() if i.id == invitation_id
+                 and i.tenant_id == tenant_id and i.id not in self.accepted]
+        for token_hash in found:
+            del self.by_hash[token_hash]
+        return bool(found)
+
+
+class FakePasswordResets:
+
+    def __init__(self):
+        self.by_hash: dict[str, PasswordReset] = {}
+        self.used: set[str] = set()
+
+    async def create(self, *, user_id, token_hash, expires_at) -> PasswordReset:
+        self.by_hash = {h: r for h, r in self.by_hash.items()
+                        if r.id in self.used or r.user_id != user_id}
+        reset = PasswordReset(id=str(uuid.uuid4()), user_id=user_id,
+                              created_at=datetime.now(UTC), expires_at=expires_at)
+        self.by_hash[token_hash] = reset
+        return reset
+
+    async def latest(self, user_id: int) -> PasswordReset | None:
+        mine = [r for r in self.by_hash.values() if r.user_id == user_id]
+        return max(mine, key=lambda r: r.created_at, default=None)
+
+    async def find_active(self, token_hash: str) -> PasswordReset | None:
+        reset = self.by_hash.get(token_hash)
+        if reset is None or reset.id in self.used or reset.expires_at <= datetime.now(UTC):
+            return None
+        return reset
+
+    async def use(self, reset_id: str) -> bool:
+        if reset_id in self.used:
+            return False
+        self.used.add(reset_id)
+        return True
+
+
+class FakeMailer:
+    """Keeps the emails it is given; with ``fail``, refuses them as a broken server would."""
+
+    def __init__(self, fail: bool = False):
+        self.sent: list[Mail] = []
+        self.fail = fail
+
+    async def send(self, mail: Mail) -> None:
+        if self.fail:
+            raise MailFailed("SMTPServerDisconnected")
+        self.sent.append(mail)
 
 
 class FakeWidgets:
@@ -946,8 +1062,10 @@ class FakeUnitOfWork:
         self.tenants = FakeTenants()
         self.api_keys = FakeApiKeys()
         self.users = FakeUsers()
-        self.memberships = FakeMemberships(self.tenants)
+        self.memberships = FakeMemberships(self.tenants, self.users)
         self.user_sessions = FakeUserSessions()
+        self.invitations = FakeInvitations(self.tenants)
+        self.password_resets = FakePasswordResets()
         self.usage = FakeUsage()
         self.evaluations = FakeEvaluationRuns()
         self.decks = FakeDecks()

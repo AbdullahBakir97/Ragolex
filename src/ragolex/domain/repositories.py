@@ -22,10 +22,13 @@ from .models import (
     Feedback,
     FeedbackCounts,
     FileRecord,
+    Invitation,
     Job,
     JobStage,
     JobStatus,
+    Member,
     Membership,
+    PasswordReset,
     Project,
     RatedAnswer,
     Schedule,
@@ -139,7 +142,9 @@ class UserRepository(Protocol):
         """Note a good sign-in: forget the failed ones and any lock."""
         ...
 
-    async def set_password(self, user_id: int, password_hash: str) -> None: ...
+    async def set_password(self, user_id: int, password_hash: str) -> None:
+        """Change the password's hash, and forget failed sign-ins and any lock."""
+        ...
 
 
 class MembershipRepository(Protocol):
@@ -152,6 +157,21 @@ class MembershipRepository(Protocol):
 
     async def list_for_user(self, user_id: int) -> list[Membership]:
         """The user's workspaces, in name order."""
+        ...
+
+    async def list_for_tenant(self, tenant_id: int) -> list[Member]:
+        """The workspace's members, by email."""
+        ...
+
+    async def remove(self, user_id: int, tenant_id: int) -> bool:
+        """Whether the user was a member, and is no longer."""
+        ...
+
+    async def count_owners(self, tenant_id: int) -> int:
+        """How many owners the tenant has, locking them until the transaction ends.
+
+        So two requests cannot both take away one of the last two owners.
+        """
         ...
 
 
@@ -171,6 +191,55 @@ class UserSessionRepository(Protocol):
     async def switch_tenant(self, session_id: str, tenant_id: int) -> None: ...
 
     async def delete(self, session_id: str) -> None: ...
+
+    async def delete_for_user(self, user_id: int, *, tenant_id: int | None = None,
+                              keep: str | None = None) -> None:
+        """Sign the user out: their sessions in ``tenant_id`` (or all of them), but ``keep``."""
+        ...
+
+
+class InvitationRepository(Protocol):
+
+    async def create(self, *, tenant_id: int, email: str, role: str, token_hash: str,
+                     invited_by: int | None, expires_at: datetime) -> Invitation:
+        """A new invitation, in place of any the email had to the tenant already."""
+        ...
+
+    async def find_pending(self, token_hash: str) -> Invitation | None:
+        """The invitation with this hash, unless it was accepted or has expired."""
+        ...
+
+    async def list_pending(self, tenant_id: int) -> list[Invitation]:
+        """The tenant's invitations not accepted yet, expired ones too, newest first."""
+        ...
+
+    async def accept(self, invitation_id: str) -> bool:
+        """Mark the invitation used; False when it was already, so it works only once."""
+        ...
+
+    async def delete(self, tenant_id: int, invitation_id: str) -> bool:
+        """Whether the tenant had an invitation not accepted yet with that id."""
+        ...
+
+
+class PasswordResetRepository(Protocol):
+
+    async def create(self, *, user_id: int, token_hash: str,
+                     expires_at: datetime) -> PasswordReset:
+        """A new reset link, in place of any unused one the user had."""
+        ...
+
+    async def latest(self, user_id: int) -> PasswordReset | None:
+        """The user's most recent reset, used or not."""
+        ...
+
+    async def find_active(self, token_hash: str) -> PasswordReset | None:
+        """The reset with this hash, unless it was used or has expired."""
+        ...
+
+    async def use(self, reset_id: str) -> bool:
+        """Mark the reset used; False when it was already, so it works only once."""
+        ...
 
 
 class ProjectRepository(Protocol):
@@ -592,6 +661,8 @@ class UnitOfWork(Protocol):
     users: UserRepository
     memberships: MembershipRepository
     user_sessions: UserSessionRepository
+    invitations: InvitationRepository
+    password_resets: PasswordResetRepository
     usage: UsageRepository
     evaluations: EvaluationRunRepository
     decks: DeckRepository

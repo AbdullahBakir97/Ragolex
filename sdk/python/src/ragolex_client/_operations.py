@@ -7,6 +7,7 @@ from typing import Any, Literal, TypeVar
 
 from ._types import UNSET, Unset, _body, _bytes, _list, _none, _path, _raw
 from .models import (
+    AcceptInvitationRequest,
     ApiKeyCreatedResponse,
     ApiKeyRequest,
     ApiKeyResponse,
@@ -37,12 +38,21 @@ from .models import (
     HealthResponse,
     IndexRequest,
     IndexResponse,
+    InvitationCreatedResponse,
+    InvitationPreviewResponse,
+    InvitationRequest,
+    InvitationResponse,
+    InvitationTokenRequest,
     JobListResponse,
     JobRequest,
     JobResponse,
     LoginRequest,
+    MemberResponse,
     MeResponse,
     MessageResponse,
+    PasswordChangeRequest,
+    PasswordResetConfirmRequest,
+    PasswordResetRequest,
     ProcessRequest,
     ProcessResponse,
     ProjectListResponse,
@@ -50,6 +60,7 @@ from .models import (
     ProjectUsageResponse,
     ReviewQueueResponse,
     ReviewRequest,
+    RoleRequest,
     SearchFiltersRequest,
     SearchRequest,
     SearchResponse,
@@ -548,6 +559,65 @@ class Operations:
         """
         return self._request('PUT', '/api/v1/auth/session/workspace', query={}, json=_body(WorkspaceRequest, {'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
+    def invitation(
+        self,
+        *,
+        token: str,
+    ) -> InvitationPreviewResponse:
+        """What an invitation link offers
+
+        For the invitation page, before accepting: the workspace, the role, and whether the email has an account to sign in with. A `POST`, so the token stays out of URLs and logs.
+        """
+        return self._request('POST', '/api/v1/auth/invitation', query={}, json=_body(InvitationTokenRequest, {'token': token}, optional=False), response=InvitationPreviewResponse.model_validate)
+
+    def accept_invitation(
+        self,
+        *,
+        token: str,
+        name: str | None | Unset = UNSET,
+        password: str | None | Unset = UNSET,
+    ) -> SessionResponse:
+        """Accept an invitation, and work in its workspace
+
+        Signed in, the invitation must be for the user's email. Not signed in, it makes the invited email's account from `name` and `password`, and signs in (setting the session cookie); an email that has an account signs in first. Works even with `SIGNUP_ENABLED` off.
+        """
+        return self._request('POST', '/api/v1/auth/invitation/accept', query={}, json=_body(AcceptInvitationRequest, {'token': token, 'name': name, 'password': password}, optional=False), response=SessionResponse.model_validate)
+
+    def request_password_reset(
+        self,
+        *,
+        email: str,
+    ) -> None:
+        """Email a link to choose a new password
+
+        Always answers `202`, whether the address has an account or not, so it tells nobody which do. With `SMTP_HOST` set, the account gets a link that works once, for an hour; at most one a minute is sent. Without email, operators make a link with `ragolex users reset-password`.
+        """
+        return self._request('POST', '/api/v1/auth/password-reset', query={}, json=_body(PasswordResetRequest, {'email': email}, optional=False), response=_none)
+
+    def reset_password(
+        self,
+        *,
+        token: str,
+        password: str,
+    ) -> None:
+        """Choose a new password with a reset link
+
+        Every session of the account ends; sign in with the new password.
+        """
+        return self._request('POST', '/api/v1/auth/password-reset/confirm', query={}, json=_body(PasswordResetConfirmRequest, {'token': token, 'password': password}, optional=False), response=_none)
+
+    def change_password(
+        self,
+        *,
+        current_password: str,
+        new_password: str,
+    ) -> None:
+        """Change the signed-in user's password
+
+        Needs the current password; a wrong one counts as a failed sign-in. The user's other sessions end; this one stays.
+        """
+        return self._request('PUT', '/api/v1/auth/password', query={}, json=_body(PasswordChangeRequest, {'current_password': current_password, 'new_password': new_password}, optional=False), response=_none)
+
     def me(
         self,
     ) -> MeResponse:
@@ -602,6 +672,66 @@ class Operations:
         """
         return self._request('GET', '/api/v1/usage/history', query={'days': days}, json=None, response=UsageHistoryResponse.model_validate)
 
+    def list_members(
+        self,
+    ) -> list[MemberResponse]:
+        """The workspace's members, by email
+        """
+        return self._request('GET', '/api/v1/members', query={}, json=None, response=_list(MemberResponse))
+
+    def change_role(
+        self,
+        user_id: int,
+        *,
+        role: Literal['owner', 'admin', 'editor', 'viewer'] | str,
+    ) -> MemberResponse:
+        """Change a member's role
+
+        Their sessions get the new role with their next request.
+        """
+        return self._request('PUT', f'/api/v1/members/{_path(user_id)}', query={}, json=_body(RoleRequest, {'role': role}, optional=False), response=MemberResponse.model_validate)
+
+    def remove_member(
+        self,
+        user_id: int,
+    ) -> None:
+        """Remove a member from the workspace
+
+        Their account stays; their sessions in this workspace end at once.
+        """
+        return self._request('DELETE', f'/api/v1/members/{_path(user_id)}', query={}, json=None, response=_none)
+
+    def list_invitations(
+        self,
+    ) -> list[InvitationResponse]:
+        """Invitations not accepted yet, newest first
+
+        Expired ones too, until they are revoked or sent again.
+        """
+        return self._request('GET', '/api/v1/invitations', query={}, json=None, response=_list(InvitationResponse))
+
+    def invite(
+        self,
+        *,
+        email: str,
+        role: Literal['owner', 'admin', 'editor', 'viewer'] | str,
+    ) -> InvitationCreatedResponse:
+        """Invite someone to the workspace by email
+
+        Returns a link to send them, valid once for a week; with `SMTP_HOST` set, it is emailed to them too. Inviting the same address again replaces its earlier link.
+        """
+        return self._request('POST', '/api/v1/invitations', query={}, json=_body(InvitationRequest, {'email': email, 'role': role}, optional=False), response=InvitationCreatedResponse.model_validate)
+
+    def revoke_invitation(
+        self,
+        invitation_id: str,
+    ) -> None:
+        """Revoke an invitation
+
+        Its link stops working at once.
+        """
+        return self._request('DELETE', f'/api/v1/invitations/{_path(invitation_id)}', query={}, json=None, response=_none)
+
     def list_audit_events(
         self,
         *,
@@ -633,7 +763,7 @@ class Operations:
     ) -> bytes:
         """Everything the tenant has, as a ZIP archive
 
-        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only), members, invitations and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
         """
         return self._request('GET', '/api/v1/export', query={}, json=None, response=_bytes)
 
@@ -1342,6 +1472,65 @@ class AsyncOperations:
         """
         return await self._request('PUT', '/api/v1/auth/session/workspace', query={}, json=_body(WorkspaceRequest, {'workspace': workspace}, optional=False), response=SessionResponse.model_validate)
 
+    async def invitation(
+        self,
+        *,
+        token: str,
+    ) -> InvitationPreviewResponse:
+        """What an invitation link offers
+
+        For the invitation page, before accepting: the workspace, the role, and whether the email has an account to sign in with. A `POST`, so the token stays out of URLs and logs.
+        """
+        return await self._request('POST', '/api/v1/auth/invitation', query={}, json=_body(InvitationTokenRequest, {'token': token}, optional=False), response=InvitationPreviewResponse.model_validate)
+
+    async def accept_invitation(
+        self,
+        *,
+        token: str,
+        name: str | None | Unset = UNSET,
+        password: str | None | Unset = UNSET,
+    ) -> SessionResponse:
+        """Accept an invitation, and work in its workspace
+
+        Signed in, the invitation must be for the user's email. Not signed in, it makes the invited email's account from `name` and `password`, and signs in (setting the session cookie); an email that has an account signs in first. Works even with `SIGNUP_ENABLED` off.
+        """
+        return await self._request('POST', '/api/v1/auth/invitation/accept', query={}, json=_body(AcceptInvitationRequest, {'token': token, 'name': name, 'password': password}, optional=False), response=SessionResponse.model_validate)
+
+    async def request_password_reset(
+        self,
+        *,
+        email: str,
+    ) -> None:
+        """Email a link to choose a new password
+
+        Always answers `202`, whether the address has an account or not, so it tells nobody which do. With `SMTP_HOST` set, the account gets a link that works once, for an hour; at most one a minute is sent. Without email, operators make a link with `ragolex users reset-password`.
+        """
+        return await self._request('POST', '/api/v1/auth/password-reset', query={}, json=_body(PasswordResetRequest, {'email': email}, optional=False), response=_none)
+
+    async def reset_password(
+        self,
+        *,
+        token: str,
+        password: str,
+    ) -> None:
+        """Choose a new password with a reset link
+
+        Every session of the account ends; sign in with the new password.
+        """
+        return await self._request('POST', '/api/v1/auth/password-reset/confirm', query={}, json=_body(PasswordResetConfirmRequest, {'token': token, 'password': password}, optional=False), response=_none)
+
+    async def change_password(
+        self,
+        *,
+        current_password: str,
+        new_password: str,
+    ) -> None:
+        """Change the signed-in user's password
+
+        Needs the current password; a wrong one counts as a failed sign-in. The user's other sessions end; this one stays.
+        """
+        return await self._request('PUT', '/api/v1/auth/password', query={}, json=_body(PasswordChangeRequest, {'current_password': current_password, 'new_password': new_password}, optional=False), response=_none)
+
     async def me(
         self,
     ) -> MeResponse:
@@ -1396,6 +1585,66 @@ class AsyncOperations:
         """
         return await self._request('GET', '/api/v1/usage/history', query={'days': days}, json=None, response=UsageHistoryResponse.model_validate)
 
+    async def list_members(
+        self,
+    ) -> list[MemberResponse]:
+        """The workspace's members, by email
+        """
+        return await self._request('GET', '/api/v1/members', query={}, json=None, response=_list(MemberResponse))
+
+    async def change_role(
+        self,
+        user_id: int,
+        *,
+        role: Literal['owner', 'admin', 'editor', 'viewer'] | str,
+    ) -> MemberResponse:
+        """Change a member's role
+
+        Their sessions get the new role with their next request.
+        """
+        return await self._request('PUT', f'/api/v1/members/{_path(user_id)}', query={}, json=_body(RoleRequest, {'role': role}, optional=False), response=MemberResponse.model_validate)
+
+    async def remove_member(
+        self,
+        user_id: int,
+    ) -> None:
+        """Remove a member from the workspace
+
+        Their account stays; their sessions in this workspace end at once.
+        """
+        return await self._request('DELETE', f'/api/v1/members/{_path(user_id)}', query={}, json=None, response=_none)
+
+    async def list_invitations(
+        self,
+    ) -> list[InvitationResponse]:
+        """Invitations not accepted yet, newest first
+
+        Expired ones too, until they are revoked or sent again.
+        """
+        return await self._request('GET', '/api/v1/invitations', query={}, json=None, response=_list(InvitationResponse))
+
+    async def invite(
+        self,
+        *,
+        email: str,
+        role: Literal['owner', 'admin', 'editor', 'viewer'] | str,
+    ) -> InvitationCreatedResponse:
+        """Invite someone to the workspace by email
+
+        Returns a link to send them, valid once for a week; with `SMTP_HOST` set, it is emailed to them too. Inviting the same address again replaces its earlier link.
+        """
+        return await self._request('POST', '/api/v1/invitations', query={}, json=_body(InvitationRequest, {'email': email, 'role': role}, optional=False), response=InvitationCreatedResponse.model_validate)
+
+    async def revoke_invitation(
+        self,
+        invitation_id: str,
+    ) -> None:
+        """Revoke an invitation
+
+        Its link stops working at once.
+        """
+        return await self._request('DELETE', f'/api/v1/invitations/{_path(invitation_id)}', query={}, json=None, response=_none)
+
     async def list_audit_events(
         self,
         *,
@@ -1427,7 +1676,7 @@ class AsyncOperations:
     ) -> bytes:
         """Everything the tenant has, as a ZIP archive
 
-        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
+        Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only), members, invitations and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.
         """
         return await self._request('GET', '/api/v1/export', query={}, json=None, response=_bytes)
 

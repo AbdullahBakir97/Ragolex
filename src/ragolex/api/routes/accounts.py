@@ -1,22 +1,31 @@
-"""Signing up, in and out: people's accounts and the workspaces they work in.
+"""Signing up, in and out: people's accounts, the workspaces they work in, and passwords.
 
 A signed-in browser gets an HttpOnly session cookie; it acts in one of the
 user's workspaces at a time, with what their role there allows. API keys
-work as before, alongside.
+work as before, alongside. Invitation and reset tokens travel in request
+bodies, never in URLs, so they stay out of access logs.
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, BackgroundTasks, Response, Security, status
 
 from ragolex.api.dependencies import (
+    ACCOUNTS_ON,
     SESSION_COOKIE,
     AccountServiceDep,
+    MailerDep,
     SettingsDep,
     session_cookie,
 )
 from ragolex.api.schemas import (
+    AcceptInvitationRequest,
+    InvitationPreviewResponse,
+    InvitationTokenRequest,
     LoginRequest,
+    PasswordChangeRequest,
+    PasswordResetConfirmRequest,
+    PasswordResetRequest,
     SessionResponse,
     SignupRequest,
     UserResponse,
@@ -24,12 +33,17 @@ from ragolex.api.schemas import (
     WorkspaceResponse,
     error_responses,
 )
-from ragolex.core.config import Settings, get_settings
+from ragolex.core.config import Settings
 from ragolex.core.errors import (
+    AccountDetailsRequired,
     AccountLocked,
     AccountsDisabled,
+    CurrentPasswordWrong,
     EmailTaken,
+    InvitationForSomeoneElse,
+    InvitationInvalid,
     LoginFailed,
+    PasswordResetInvalid,
     SessionRequired,
     SignupDisabled,
     WorkspaceNotFound,
@@ -37,15 +51,9 @@ from ragolex.core.errors import (
 )
 from ragolex.domain.models import Membership
 from ragolex.services.account_service import SignedIn
+from ragolex.services.emails import send_mail
 
-
-def accounts_on(settings: Annotated[Settings, Depends(get_settings)]) -> None:
-    """Accounts need authentication on; without it everyone is the default tenant."""
-    if not settings.AUTH_ENABLED:
-        raise AccountsDisabled()
-
-
-router = APIRouter(prefix="/api/v1/auth", tags=["accounts"], dependencies=[Depends(accounts_on)])
+router = APIRouter(prefix="/api/v1/auth", tags=["accounts"], dependencies=[ACCOUNTS_ON])
 
 CookieDep = Annotated[str | None, Security(session_cookie)]
 
@@ -120,3 +128,75 @@ async def current_session(cookie: CookieDep, accounts: AccountServiceDep) -> Ses
 async def switch_workspace(request: WorkspaceRequest, cookie: CookieDep,
                            accounts: AccountServiceDep) -> SessionResponse:
     return _session(await accounts.switch_workspace(cookie, request.workspace))
+
+
+@router.post("/invitation", summary="What an invitation link offers",
+             description="For the invitation page, before accepting: the workspace, the role, "
+                         "and whether the email has an account to sign in with. A `POST`, so "
+                         "the token stays out of URLs and logs.",
+             responses=error_responses(AccountsDisabled, InvitationInvalid))
+async def invitation(request: InvitationTokenRequest,
+                     accounts: AccountServiceDep) -> InvitationPreviewResponse:
+    preview = await accounts.invitation(request.token)
+    found = preview.invitation
+    return InvitationPreviewResponse(
+        workspace=found.tenant_name, email=found.email, role=found.role,  # type: ignore[arg-type]
+        invited_by=preview.inviter.name if preview.inviter else None,
+        expires_at=found.expires_at, has_account=preview.has_account)
+
+
+@router.post("/invitation/accept", summary="Accept an invitation, and work in its workspace",
+             description="Signed in, the invitation must be for the user's email. Not signed "
+                         "in, it makes the invited email's account from `name` and `password`, "
+                         "and signs in (setting the session cookie); an email that has an "
+                         "account signs in first. Works even with `SIGNUP_ENABLED` off.",
+             responses=error_responses(AccountsDisabled, InvitationInvalid,
+                                       InvitationForSomeoneElse, SessionRequired,
+                                       AccountDetailsRequired, EmailTaken))
+async def accept_invitation(request: AcceptInvitationRequest, response: Response,
+                            cookie: CookieDep, accounts: AccountServiceDep,
+                            settings: SettingsDep) -> SessionResponse:
+    signed_in = await accounts.accept_invitation(request.token, session_token=cookie,
+                                                 name=request.name, password=request.password)
+    if signed_in.token:
+        _set_cookie(response, signed_in, settings)
+    return _session(signed_in)
+
+
+@router.post("/password-reset", status_code=status.HTTP_202_ACCEPTED,
+             summary="Email a link to choose a new password",
+             description="Always answers `202`, whether the address has an account or not, so "
+                         "it tells nobody which do. With `SMTP_HOST` set, the account gets a "
+                         "link that works once, for an hour; at most one a minute is sent. "
+                         "Without email, operators make a link with `ragolex users "
+                         "reset-password`.",
+             responses=error_responses(AccountsDisabled))
+async def request_password_reset(request: PasswordResetRequest, accounts: AccountServiceDep,
+                                 mailer: MailerDep, background: BackgroundTasks) -> Response:
+    if mailer is not None:
+        mail = await accounts.request_password_reset(request.email)
+        if mail is not None:
+            background.add_task(send_mail, mailer, mail)
+    return Response(status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT,
+             summary="Choose a new password with a reset link",
+             description="Every session of the account ends; sign in with the new password.",
+             responses=error_responses(AccountsDisabled, PasswordResetInvalid))
+async def reset_password(request: PasswordResetConfirmRequest,
+                         accounts: AccountServiceDep) -> Response:
+    await accounts.reset_password(request.token, request.password)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/password", status_code=status.HTTP_204_NO_CONTENT,
+            summary="Change the signed-in user's password",
+            description="Needs the current password; a wrong one counts as a failed sign-in. "
+                        "The user's other sessions end; this one stays.",
+            responses=error_responses(AccountsDisabled, SessionRequired, CurrentPasswordWrong,
+                                      AccountLocked))
+async def change_password(request: PasswordChangeRequest, cookie: CookieDep,
+                          accounts: AccountServiceDep) -> Response:
+    await accounts.change_password(cookie, request.current_password, request.new_password)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

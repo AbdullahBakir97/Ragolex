@@ -4114,6 +4114,443 @@
         ]
       }
     },
+    "/api/v1/auth/invitation": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "What an invitation link offers",
+        "description": "For the invitation page, before accepting: the workspace, the role, and whether the email has an account to sign in with. A `POST`, so the token stays out of URLs and logs.",
+        "operationId": "invitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreviewResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `invitation_invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "invitation_invalid": {
+                    "value": {
+                      "signal": "invitation_invalid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/invitation/accept": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Accept an invitation, and work in its workspace",
+        "description": "Signed in, the invitation must be for the user's email. Not signed in, it makes the invited email's account from `name` and `password`, and signs in (setting the session cookie); an email that has an account signs in first. Works even with `SIGNUP_ENABLED` off.",
+        "operationId": "accept_invitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`, `email_taken`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  },
+                  "email_taken": {
+                    "value": {
+                      "signal": "email_taken"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `invitation_invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "invitation_invalid": {
+                    "value": {
+                      "signal": "invitation_invalid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `invitation_for_someone_else`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "invitation_for_someone_else": {
+                    "value": {
+                      "signal": "invitation_for_someone_else"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `session_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "session_required": {
+                    "value": {
+                      "signal": "session_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `account_details_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "account_details_required": {
+                    "value": {
+                      "signal": "account_details_required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/password-reset": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Email a link to choose a new password",
+        "description": "Always answers `202`, whether the address has an account or not, so it tells nobody which do. With `SMTP_HOST` set, the account gets a link that works once, for an hour; at most one a minute is sent. Without email, operators make a link with `ragolex users reset-password`.",
+        "operationId": "request_password_reset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password-reset/confirm": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Choose a new password with a reset link",
+        "description": "Every session of the account ends; sign in with the new password.",
+        "operationId": "reset_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `password_reset_invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "password_reset_invalid": {
+                    "value": {
+                      "signal": "password_reset_invalid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password": {
+      "put": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change the signed-in user's password",
+        "description": "Needs the current password; a wrong one counts as a failed sign-in. The user's other sessions end; this one stays.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `session_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "session_required": {
+                    "value": {
+                      "signal": "session_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `current_password_wrong`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "current_password_wrong": {
+                    "value": {
+                      "signal": "current_password_wrong"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Signal: `account_locked`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "account_locked": {
+                    "value": {
+                      "signal": "account_locked"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -4389,6 +4826,499 @@
         }
       }
     },
+    "/api/v1/members": {
+      "get": {
+        "tags": [
+          "members"
+        ],
+        "summary": "The workspace's members, by email",
+        "operationId": "list_members",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Members"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/members/{user_id}": {
+      "put": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Change a member's role",
+        "description": "Their sessions get the new role with their next request.",
+        "operationId": "change_role",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The member's user id.",
+              "title": "User Id"
+            },
+            "description": "The member's user id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `last_owner`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "last_owner": {
+                    "value": {
+                      "signal": "last_owner"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `member_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "member_not_found": {
+                    "value": {
+                      "signal": "member_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `owner_required`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "owner_required": {
+                    "value": {
+                      "signal": "owner_required"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Remove a member from the workspace",
+        "description": "Their account stays; their sessions in this workspace end at once.",
+        "operationId": "remove_member",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The member's user id.",
+              "title": "User Id"
+            },
+            "description": "The member's user id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Signal: `last_owner`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "last_owner": {
+                    "value": {
+                      "signal": "last_owner"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `member_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "member_not_found": {
+                    "value": {
+                      "signal": "member_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `owner_required`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "owner_required": {
+                    "value": {
+                      "signal": "owner_required"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invitations": {
+      "get": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Invitations not accepted yet, newest first",
+        "description": "Expired ones too, until they are revoked or sent again.",
+        "operationId": "list_invitations",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Invitations"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Invite someone to the workspace by email",
+        "description": "Returns a link to send them, valid once for a week; with `SMTP_HOST` set, it is emailed to them too. Inviting the same address again replaces its earlier link.",
+        "operationId": "invite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationCreatedResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `already_member`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "already_member": {
+                    "value": {
+                      "signal": "already_member"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `owner_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "owner_required": {
+                    "value": {
+                      "signal": "owner_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/invitations/{invitation_id}": {
+      "delete": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Revoke an invitation",
+        "description": "Its link stops working at once.",
+        "operationId": "revoke_invitation",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The invitation's id.",
+              "title": "Invitation Id"
+            },
+            "description": "The invitation's id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `invitation_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invitation_not_found": {
+                    "value": {
+                      "signal": "invitation_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "tags": [
@@ -4577,7 +5507,7 @@
           "export"
         ],
         "summary": "Everything the tenant has, as a ZIP archive",
-        "description": "Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only) and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.",
+        "description": "Every project with its files as uploaded, sources, chat widgets, webhooks (without their secrets), conversations with their feedback and answer usage, and the tenant's API keys (names and prefixes only), members, invitations and audit log, as JSON files and the files themselves. Chunks and embeddings are left out: processing the files again makes them. `manifest.json` lists what is inside. Recorded in the audit log as `tenant.exported`.",
         "operationId": "export_tenant",
         "responses": {
           "200": {
@@ -6782,6 +7712,50 @@
   },
   "components": {
     "schemas": {
+      "AcceptInvitationRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "description": "The part of the invitation link after `#`."
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "For a new account; leave out when signed in."
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "For a new account. At least 10 characters. Only an Argon2 hash is stored."
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "AcceptInvitationRequest"
+      },
       "ApiKeyCreatedResponse": {
         "properties": {
           "id": {
@@ -8603,6 +9577,230 @@
         ],
         "title": "IndexResponse"
       },
+      "InvitationCreatedResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Role"
+          },
+          "invited_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who invited; null for an API key, or an account that is gone."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "The link works until then (a week)."
+          },
+          "link": {
+            "type": "string",
+            "title": "Link",
+            "description": "The link to send: shown only now, so copy it."
+          },
+          "emailed": {
+            "type": "boolean",
+            "title": "Emailed",
+            "description": "Whether the link is on its way by email too (the server has `SMTP_HOST` set)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "role",
+          "invited_by",
+          "created_at",
+          "expires_at",
+          "link",
+          "emailed"
+        ],
+        "title": "InvitationCreatedResponse"
+      },
+      "InvitationPreviewResponse": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "title": "Workspace"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "description": "The address invited; it accepts as this account."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Role"
+          },
+          "invited_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invited By",
+            "description": "The name of who invited, if a user."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "has_account": {
+            "type": "boolean",
+            "title": "Has Account",
+            "description": "Whether the email has an account: it signs in to accept. Without one, accepting makes it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace",
+          "email",
+          "role",
+          "invited_by",
+          "expires_at",
+          "has_account"
+        ],
+        "title": "InvitationPreviewResponse"
+      },
+      "InvitationRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "examples": [
+              "grace@example.com"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Role",
+            "description": "Only an owner invites an owner.",
+            "examples": [
+              "editor"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "role"
+        ],
+        "title": "InvitationRequest"
+      },
+      "InvitationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Role"
+          },
+          "invited_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who invited; null for an API key, or an account that is gone."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "The link works until then (a week)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "role",
+          "invited_by",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "InvitationResponse"
+      },
+      "InvitationTokenRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "description": "The part of the invitation link after `#`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "InvitationTokenRequest"
+      },
       "JobListResponse": {
         "properties": {
           "total": {
@@ -8915,6 +10113,60 @@
         ],
         "title": "MeResponse"
       },
+      "MemberResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "The user's id."
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Role"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Joined At"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "name",
+          "role",
+          "joined_at",
+          "last_login_at"
+        ],
+        "title": "MemberResponse"
+      },
       "MessageResponse": {
         "properties": {
           "id": {
@@ -9069,6 +10321,70 @@
           "model"
         ],
         "title": "ModelShareResponse"
+      },
+      "PasswordChangeRequest": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Current Password"
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "New Password",
+            "description": "At least 10 characters. Only an Argon2 hash is stored."
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordChangeRequest"
+      },
+      "PasswordResetConfirmRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "description": "The part of the reset link after `#`."
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Password",
+            "description": "At least 10 characters. Only an Argon2 hash is stored."
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "PasswordResetConfirmRequest"
+      },
+      "PasswordResetRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "title": "Email",
+            "examples": [
+              "ada@example.com"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "PasswordResetRequest"
       },
       "ProcessRequest": {
         "properties": {
@@ -9440,6 +10756,16 @@
           "account_locked",
           "session_required",
           "workspace_not_found",
+          "current_password_wrong",
+          "member_not_found",
+          "owner_required",
+          "last_owner",
+          "already_member",
+          "invitation_not_found",
+          "invitation_invalid",
+          "invitation_for_someone_else",
+          "account_details_required",
+          "password_reset_invalid",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",
@@ -9586,6 +10912,26 @@
           "grade"
         ],
         "title": "ReviewRequest"
+      },
+      "RoleRequest": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Role",
+            "description": "Only an owner makes someone an owner, or changes an owner's role."
+          }
+        },
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "RoleRequest"
       },
       "SearchFiltersRequest": {
         "properties": {

@@ -115,6 +115,24 @@ class Settings(BaseSettings):
         default=True, description="Send the session cookie over HTTPS only (browsers treat "
                                   "localhost as secure); turn off only to sign in over plain "
                                   "HTTP on another host")
+    APP_URL: str = Field(
+        default="http://localhost:3000", pattern=r"^https?://[^/\s]+(/[^\s]*)?$",
+        description="Where people open the web app: invitation and password reset links "
+                    "start with it")
+    SMTP_HOST: str = Field(
+        default="", description="Mail server for invitations and password resets; empty sends "
+                                "no email (invitation links are still shown to copy)")
+    SMTP_PORT: int = Field(default=587, ge=1, le=65535)
+    SMTP_SECURITY: Literal["starttls", "tls", "none"] = Field(
+        default="starttls", description="starttls: upgrade the connection (port 587); tls: "
+                                        "encrypted from the start (port 465); none: plain, "
+                                        "for a local relay only")
+    SMTP_USERNAME: str = Field(default="", description="Empty for a server without sign-in")
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = Field(
+        default="", description='The sender, e.g. "Ragolex <ragolex@example.com>"; needed '
+                                "with SMTP_HOST")
+    SMTP_TIMEOUT_SECONDS: float = Field(default=10, gt=0, le=60)
     RATE_LIMIT_PER_MINUTE: int = Field(
         default=0, ge=0, description="Requests per minute per tenant; 0 is unlimited")
     ANSWERS_PER_MONTH: int = Field(
@@ -178,6 +196,17 @@ class Settings(BaseSettings):
         if not url.startswith("postgresql+asyncpg://"):
             raise ValueError("DATABASE_URL must start with postgresql+asyncpg://")
         return url
+
+    @model_validator(mode="after")
+    def check_mail_sender(self) -> "Settings":
+        if self.SMTP_HOST and not self.SMTP_FROM:
+            raise ValueError("SMTP_HOST needs SMTP_FROM, the address emails are sent from")
+        return self
+
+    @field_validator("APP_URL")
+    @classmethod
+    def no_trailing_slash(cls, url: str) -> str:
+        return url.rstrip("/")
 
     @field_validator("ENCRYPTION_KEYS")
     @classmethod
