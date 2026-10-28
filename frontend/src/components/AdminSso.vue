@@ -9,6 +9,7 @@ import { formatRelative } from "@/lib/format";
 
 // Single sign-on: the workspace's OpenID Connect identity provider. People whose email is on
 // one of the workspace's verified domains sign in through it.
+const props = defineProps<{ myRole: string | null }>();
 const emit = defineEmits<{ changed: [] }>();
 
 const ROLES: { role: SsoRole; label: string }[] = [
@@ -22,7 +23,14 @@ const settings = ref<SsoSettings | null>(null);
 const error = ref<string | null>(null);
 const saving = ref(false);
 const copied = ref(false);
-const form = reactive({ issuer: "", client_id: "", client_secret: "", default_role: "viewer" as SsoRole, enabled: true });
+const form = reactive({
+  issuer: "",
+  client_id: "",
+  client_secret: "",
+  default_role: "viewer" as SsoRole,
+  enabled: true,
+  required: false,
+});
 
 const message = (caught: unknown) => (caught instanceof ApiError ? caught.message : undefined);
 
@@ -34,6 +42,7 @@ function fill(loaded: SsoSettings) {
   form.client_secret = "";
   form.default_role = provider?.default_role ?? "viewer";
   form.enabled = provider?.enabled ?? true;
+  form.required = provider?.required ?? false;
 }
 
 async function load() {
@@ -58,6 +67,7 @@ async function save() {
         ...(secret ? { client_secret: secret } : {}),
         default_role: form.default_role,
         enabled: form.enabled,
+        required: form.required,
       }),
     );
     toasts.success("Single sign-on saved", form.enabled ? "People can sign in through it now." : "It is turned off.");
@@ -151,6 +161,17 @@ async function copy(text: string) {
           <input v-model="form.enabled" type="checkbox" /> Turned on
         </label>
         <div class="field wide">
+          <label class="check small">
+            <input v-model="form.required" type="checkbox" :disabled="props.myRole !== 'owner' || !settings.email_domains.length" />
+            Require it: members sign in only through the provider, not with a password, and join through it, not by invitation
+          </label>
+          <span class="subtle small hint">
+            {{ props.myRole === "owner"
+              ? "Owners keep their passwords, so a broken provider cannot lock you out. Members signed in with a password are signed out."
+              : "Only an owner turns this on or off." }}
+          </span>
+        </div>
+        <div class="field wide">
           <span>Redirect URI to register with the provider</span>
           <span class="value">
             <code class="mono">{{ settings.redirect_uri }}</code>
@@ -197,6 +218,10 @@ async function copy(text: string) {
 
 .wide {
   grid-column: 1 / -1;
+}
+
+.hint {
+  font-weight: 400;
 }
 
 .check {

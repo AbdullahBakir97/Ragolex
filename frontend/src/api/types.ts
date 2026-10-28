@@ -472,6 +472,8 @@ export interface SsoProvider {
   client_id: string;
   default_role: SsoRole;
   enabled: boolean;
+  /** Members other than owners sign in only through the provider; only owners change it. */
+  required: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -8,6 +8,7 @@ const PROVIDER = {
   client_id: "ragolex",
   default_role: "editor",
   enabled: true,
+  required: false,
   created_at: "2026-10-28T10:00:00Z",
   updated_at: "2026-10-28T10:00:00Z",
 };
@@ -28,7 +29,7 @@ function serve(provider: unknown, domains = ["acme.com"]) {
 describe("AdminSso", () => {
   it("sets the provider, with its secret the first time", async () => {
     const fetch = serve(null);
-    const wrapper = mount(AdminSso);
+    const wrapper = mount(AdminSso, { props: { myRole: "admin" } });
     await flushPromises();
 
     expect(wrapper.text()).toContain("Emails on acme.com sign in through it.");
@@ -48,13 +49,14 @@ describe("AdminSso", () => {
       client_secret: "s3cret",
       default_role: "editor",
       enabled: true,
+      required: false,
     });
     expect(wrapper.emitted("changed")).toHaveLength(1);
   });
 
   it("keeps the saved secret when it is left empty, and warns without a verified domain", async () => {
     const fetch = serve(PROVIDER, []);
-    const wrapper = mount(AdminSso);
+    const wrapper = mount(AdminSso, { props: { myRole: "admin" } });
     await flushPromises();
 
     expect(wrapper.find(".alert-warning").text()).toContain("verify it first");
@@ -65,10 +67,30 @@ describe("AdminSso", () => {
     expect(JSON.parse(String(init!.body))).not.toHaveProperty("client_secret");
   });
 
+  it("lets only an owner require it", async () => {
+    const fetch = serve(PROVIDER);
+    const admin = mount(AdminSso, { props: { myRole: "admin" } });
+    await flushPromises();
+    const box = () => admin.findAll('input[type="checkbox"]')[1]!;
+    expect(box().attributes("disabled")).toBeDefined();
+    expect(admin.text()).toContain("Only an owner turns this on or off.");
+
+    const owner = mount(AdminSso, { props: { myRole: "owner" } });
+    await flushPromises();
+    const required = owner.findAll('input[type="checkbox"]')[1]!;
+    expect(required.attributes("disabled")).toBeUndefined();
+    expect(owner.text()).toContain("Owners keep their passwords");
+    await required.setValue(true);
+    await owner.find("form").trigger("submit");
+    await flushPromises();
+    const [, init] = fetch.mock.calls.find(([, i]) => i?.method === "PUT")!;
+    expect(JSON.parse(String(init!.body))).toMatchObject({ required: true });
+  });
+
   it("removes it after confirming", async () => {
     const fetch = serve(PROVIDER);
     vi.stubGlobal("confirm", () => true);
-    const wrapper = mount(AdminSso);
+    const wrapper = mount(AdminSso, { props: { myRole: "admin" } });
     await flushPromises();
 
     await wrapper.findAll("button").find((b) => b.text() === "Remove")!.trigger("click");

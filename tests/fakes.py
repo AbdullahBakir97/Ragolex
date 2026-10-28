@@ -705,9 +705,11 @@ class FakeUserSessions:
     def __init__(self):
         self.by_hash: dict[str, UserSession] = {}
 
-    async def create(self, *, user_id, tenant_id, token_hash, expires_at) -> UserSession:
+    async def create(self, *, user_id, tenant_id, token_hash, expires_at,
+                     sso_tenant_id=None) -> UserSession:
         session = UserSession(id=str(uuid.uuid4()), user_id=user_id, tenant_id=tenant_id,
-                              created_at=datetime.now(UTC), expires_at=expires_at)
+                              created_at=datetime.now(UTC), expires_at=expires_at,
+                              sso_tenant_id=sso_tenant_id)
         self.by_hash[token_hash] = session
         return session
 
@@ -1065,13 +1067,13 @@ class FakeSso:
         return self.providers.get(tenant_id)
 
     async def save(self, *, tenant_id, issuer, client_id, client_secret, default_role,
-                   enabled) -> SsoProvider:
+                   enabled, required=False) -> SsoProvider:
         now = datetime.now(UTC)
         old = self.providers.get(tenant_id)
         self.providers[tenant_id] = SsoProvider(
             tenant_id=tenant_id, issuer=issuer, client_id=client_id,
             client_secret=client_secret, default_role=default_role, enabled=enabled,
-            created_at=old.created_at if old else now, updated_at=now)
+            created_at=old.created_at if old else now, updated_at=now, required=required)
         return self.providers[tenant_id]
 
     async def delete(self, tenant_id: int) -> bool:

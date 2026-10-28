@@ -95,7 +95,7 @@ function ratio(used: number, limit: number | null): number | null {
     <template v-else-if="me">
       <AdminMembers v-if="me.auth_enabled" :my-role="me.role ?? null" :my-user-id="me.user?.id ?? null" @changed="audit?.refresh()" />
       <AdminDomains @changed="audit?.refresh()" />
-      <AdminSso v-if="me.auth_enabled" @changed="audit?.refresh()" />
+      <AdminSso v-if="me.auth_enabled" :my-role="me.role ?? null" @changed="audit?.refresh()" />
       <AdminConnections @changed="audit?.refresh()" />
       <AdminKeys :current-key-id="me.key_id" @changed="audit?.refresh()" />
       <AdminEvaluations />

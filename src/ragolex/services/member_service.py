@@ -15,6 +15,7 @@ from ragolex.core.errors import (
     LastOwner,
     MemberNotFound,
     OwnerRequired,
+    SsoRequired,
 )
 from ragolex.domain.models import Invitation, Mail, Member, Principal, User
 from ragolex.domain.repositories import UnitOfWork
@@ -97,6 +98,9 @@ class MemberService:
         """An invitation for ``email``, in place of any it had; refused for members."""
         self._check_owner(principal, role)
         tenant_id = principal.tenant_id
+        provider = await self.uow.sso.get(tenant_id)
+        if provider is not None and provider.enforced:
+            raise SsoRequired("This workspace's members join through single sign-on")
         address = normalise_email(email)
         login = await self.uow.users.login(address)
         if login and await self.uow.memberships.get(login.user.id, tenant_id):

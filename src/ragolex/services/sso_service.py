@@ -6,8 +6,10 @@ from urllib.parse import urlencode, urlsplit
 
 from ragolex.core.errors import (
     DomainInvalid,
+    OwnerRequired,
     SsoEmailNotAllowed,
     SsoFailed,
+    SsoNeedsDomain,
     SsoNotConfigured,
     SsoRequestInvalid,
     SsoSecretRequired,
@@ -81,22 +83,32 @@ class SsoService:
                       if d.verified_at is not None)
 
     async def configure(self, tenant_id: int, *, issuer: str, client_id: str,
-                        client_secret: str | None, default_role: str,
-                        enabled: bool) -> SsoProvider:
+                        client_secret: str | None, default_role: str, enabled: bool,
+                        required: bool = False, role: str | None = None) -> SsoProvider:
         """Set the workspace's provider, once its discovery document checks out. Without
-        ``client_secret``, the one it has is kept."""
+        ``client_secret``, the one it has is kept.
+
+        Only an owner (``role``) requires it or stops requiring it: owners keep their
+        passwords, so whoever turns it on cannot lock themselves out. It needs a verified
+        domain, or only owners could sign in.
+        """
         issuer = issuer.strip().rstrip("/")
+        current = await self.uow.sso.get(tenant_id)
+        if required != (current.required if current else False) and role != "owner":
+            raise OwnerRequired("Only an owner may require single sign-on, or stop requiring it")
+        if required and enabled and not await self.email_domains(tenant_id):
+            raise SsoNeedsDomain()
         await self.client.discover(issuer)
         if client_secret is None:
-            current = await self.uow.sso.get(tenant_id)
             if current is None:
                 raise SsoSecretRequired()
             client_secret = current.client_secret
         provider = await self.uow.sso.save(
             tenant_id=tenant_id, issuer=issuer, client_id=client_id.strip(),
-            client_secret=client_secret, default_role=default_role, enabled=enabled)
+            client_secret=client_secret, default_role=default_role, enabled=enabled,
+            required=required)
         await record(self.uow, tenant_id, "sso.configured", issuer, client_id=provider.client_id,
-                     default_role=default_role, enabled=enabled)
+                     default_role=default_role, enabled=enabled, required=required)
         await self.uow.commit()
         return provider
 

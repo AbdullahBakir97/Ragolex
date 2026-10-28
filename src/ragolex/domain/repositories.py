@@ -185,7 +185,8 @@ class MembershipRepository(Protocol):
 class UserSessionRepository(Protocol):
 
     async def create(self, *, user_id: int, tenant_id: int, token_hash: str,
-                     expires_at: datetime) -> UserSession: ...
+                     expires_at: datetime, sso_tenant_id: int | None = None
+                     ) -> UserSession: ...
 
     async def find_active(self, token_hash: str) -> UserSession | None:
         """The session with this hash, unless it has expired."""
@@ -717,7 +718,7 @@ class SsoRepository(Protocol):
         ...
 
     async def save(self, *, tenant_id: int, issuer: str, client_id: str, client_secret: str,
-                   default_role: str, enabled: bool) -> SsoProvider:
+                   default_role: str, enabled: bool, required: bool = False) -> SsoProvider:
         """Set the workspace's identity provider, in place of any it had."""
         ...
 

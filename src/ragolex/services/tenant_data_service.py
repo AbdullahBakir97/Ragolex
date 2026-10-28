@@ -128,7 +128,8 @@ class TenantDataService:
         export.add_json("sso.json", {
             "issuer": provider.issuer, "client_id": provider.client_id,
             "default_role": provider.default_role, "enabled": provider.enabled,
-            "created_at": provider.created_at} if provider else None)
+            "required": provider.required, "created_at": provider.created_at}
+            if provider else None)
         export.counts.update(api_keys=len(keys), members=len(members),
                              invitations=len(invitations), domains=len(domains),
                              connections=len(connections), audit_events=len(events))

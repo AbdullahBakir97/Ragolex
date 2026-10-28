@@ -139,6 +139,22 @@ describe("SignInView", () => {
     expect(reloadAt).toHaveBeenCalledWith("/api/v1/auth/sso/start?workspace=acme&next=%2Fprojects%2Fdocs");
   });
 
+  it("offers single sign-on when the workspace requires it", async () => {
+    serve({ "POST /auth/login": refuse("sso_required", 403) });
+    const router = routerAt("/signin");
+    await router.isReady();
+    const wrapper = mount(SignInView, { global: { plugins: [router] } });
+
+    await fill(wrapper, { 'input[type="email"]': "grace@acme.com", 'input[type="password"]': "a-password-1" });
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    expect(wrapper.find('p[role="alert"]').text()).toContain("signs its members in through single sign-on");
+    expect(wrapper.find(".password").exists()).toBe(false);
+    expect((wrapper.find('input[type="email"]').element as HTMLInputElement).value).toBe("grace@acme.com");
+    expect(reloadAt).not.toHaveBeenCalled();
+  });
+
   it("says why single sign-on did not work", async () => {
     serve({ "POST /auth/sso/discover": refuse("sso_not_configured", 404) });
     const router = routerAt("/signin?sso_error=sso_email_not_allowed");

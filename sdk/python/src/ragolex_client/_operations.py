@@ -934,12 +934,13 @@ class Operations:
         client_secret: str | None | Unset = UNSET,
         default_role: Literal['admin', 'editor', 'viewer'] | str | Unset = UNSET,
         enabled: bool | Unset = UNSET,
+        required: bool | Unset = UNSET,
     ) -> SsoSettingsResponse:
         """Set the workspace's OpenID Connect identity provider
 
         Its discovery document is read first, so a wrong issuer is refused.
         """
-        return self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled}, optional=False), response=SsoSettingsResponse.model_validate)
+        return self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled, 'required': required}, optional=False), response=SsoSettingsResponse.model_validate)
 
     def delete_sso(
         self,
@@ -2062,12 +2063,13 @@ class AsyncOperations:
         client_secret: str | None | Unset = UNSET,
         default_role: Literal['admin', 'editor', 'viewer'] | str | Unset = UNSET,
         enabled: bool | Unset = UNSET,
+        required: bool | Unset = UNSET,
     ) -> SsoSettingsResponse:
         """Set the workspace's OpenID Connect identity provider
 
         Its discovery document is read first, so a wrong issuer is refused.
         """
-        return await self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled}, optional=False), response=SsoSettingsResponse.model_validate)
+        return await self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled, 'required': required}, optional=False), response=SsoSettingsResponse.model_validate)
 
     async def delete_sso(
         self,

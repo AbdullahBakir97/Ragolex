@@ -59,6 +59,8 @@ async function signIn() {
     reloadAt(next.value);
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : "Signing in failed.";
+    // The workspace signs its members in through its identity provider: offer that instead.
+    if (caught instanceof ApiError && caught.signal === "sso_required") sso.value = true;
     busy.value = false;
   }
 }

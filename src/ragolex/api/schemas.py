@@ -660,6 +660,11 @@ class SsoSettingsRequest(BaseModel):
     default_role: SsoRole = Field(default="viewer",
                                   description="The role of people added by their first sign-in.")
     enabled: bool = True
+    required: bool = Field(
+        default=False,
+        description="Members other than owners sign in only through the provider: not with a "
+                    "password, nor by invitation. Only an owner changes it, and it needs a "
+                    "verified domain.")
 
 
 class SsoProviderResponse(BaseModel):
@@ -667,6 +672,7 @@ class SsoProviderResponse(BaseModel):
     client_id: str
     default_role: SsoRole
     enabled: bool
+    required: bool
     created_at: datetime
     updated_at: datetime
 

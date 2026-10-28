@@ -81,6 +81,8 @@ const MESSAGES: Record<string, string> = {
   sso_email_not_allowed: "Your organisation's sign-in vouched for an email this workspace does not sign in.",
   sso_request_invalid: "That sign-in was used already, expired, or started in another browser. Start again.",
   sso_secret_required: "Give the client secret the first time.",
+  sso_required: "This workspace signs its members in through single sign-on: continue with your organisation's account.",
+  sso_needs_domain: "Verify your organisation's email domain under Domains first, or no one but owners could sign in.",
   rate_limited: "Too many requests this minute. Wait a moment and try again.",
   answer_quota_exceeded: "This month's answers are used up. Ask the administrator for a higher quota.",
   budget_exceeded: "This month's budget for answers is spent. Ask the administrator to raise it.",

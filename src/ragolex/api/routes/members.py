@@ -32,6 +32,7 @@ from ragolex.core.errors import (
     LastOwner,
     MemberNotFound,
     OwnerRequired,
+    SsoRequired,
 )
 from ragolex.domain.models import Invitation, Member, User
 from ragolex.services.emails import send_mail
@@ -91,7 +92,7 @@ async def list_invitations(principal: PrincipalDep,
              description="Returns a link to send them, valid once for a week; with "
                          "`SMTP_HOST` set, it is emailed to them too. Inviting the same "
                          "address again replaces its earlier link.",
-             responses=error_responses(OwnerRequired, AlreadyMember))
+             responses=error_responses(OwnerRequired, AlreadyMember, SsoRequired))
 async def invite(request: InvitationRequest, principal: PrincipalDep, service: MemberServiceDep,
                  mailer: MailerDep, background: BackgroundTasks) -> InvitationCreatedResponse:
     new = await service.invite(principal, request.email, request.role)

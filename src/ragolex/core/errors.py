@@ -475,6 +475,22 @@ class SsoRequestInvalid(AppError):
     status_code = HTTPStatus.BAD_REQUEST
 
 
+class SsoRequired(AppError):
+    """The workspace signs its members in only through its identity provider: not with a
+    password, nor by invitation."""
+
+    signal = ResponseSignal.SSO_REQUIRED
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class SsoNeedsDomain(AppError):
+    """Single sign-on can be required only once the workspace has a verified domain, or no
+    one but its owners could sign in."""
+
+    signal = ResponseSignal.SSO_NEEDS_DOMAIN
+    status_code = HTTPStatus.CONFLICT
+
+
 class RateLimited(AppError):
     """The tenant made too many requests this minute; Retry-After says when to try again."""
 

@@ -21,6 +21,7 @@ from ragolex.core.errors import (
     LoginFailed,
     PasswordResetInvalid,
     SessionRequired,
+    SsoRequired,
     WorkspaceNotFound,
     WorkspaceTaken,
     WrongDomain,
@@ -136,17 +137,35 @@ class AccountService:
         if not workspaces:
             await self.uow.commit()
             raise WorkspaceNotFound("You are not a member of this workspace")
-        return await self._start(user, workspaces[0])
+        # A password works only in workspaces that do not require their identity provider.
+        allowed = [m for m in workspaces if await self._allows(m, sso_tenant_id=None)]
+        if not allowed:
+            await self.uow.commit()
+            raise SsoRequired()
+        return await self._start(user, allowed[0])
 
     async def start_session(self, user: User, membership: Membership) -> SignedIn:
-        """A new session for a user someone else vouched for (single sign-on)."""
-        return await self._start(user, membership)
+        """A new session for a user the workspace's identity provider vouched for."""
+        return await self._start(user, membership, sso_tenant_id=membership.tenant_id)
 
-    async def _start(self, user: User, membership: Membership) -> SignedIn:
+    async def _allows(self, membership: Membership, *, sso_tenant_id: int | None) -> bool:
+        """Whether a session signed in this way (through which workspace's identity provider,
+        or None for a password) may work in the membership's workspace.
+
+        A workspace that requires its provider lets its members in only through it;
+        its owners also with a password, so a broken provider cannot lock it.
+        """
+        if membership.role == "owner" or sso_tenant_id == membership.tenant_id:
+            return True
+        provider = await self.uow.sso.get(membership.tenant_id)
+        return provider is None or not provider.enforced
+
+    async def _start(self, user: User, membership: Membership, *,
+                     sso_tenant_id: int | None = None) -> SignedIn:
         token = secrets.token_urlsafe(32)
         session = await self.uow.user_sessions.create(
             user_id=user.id, tenant_id=membership.tenant_id, token_hash=hash_key(token),
-            expires_at=datetime.now(UTC) + self.session_length)
+            expires_at=datetime.now(UTC) + self.session_length, sso_tenant_id=sso_tenant_id)
         workspaces = await self.uow.memberships.list_for_user(user.id)
         await self.uow.commit()
         return SignedIn(user=user, session=session, workspace=membership,
@@ -167,10 +186,13 @@ class AccountService:
             membership = await self.uow.memberships.get(user.id, tenant_id)
             if membership is None:
                 raise WrongDomain()
-            return session, user, membership
-        membership = await self.uow.memberships.get(user.id, session.tenant_id)
-        if membership is None:
-            raise SessionRequired()
+        else:
+            membership = await self.uow.memberships.get(user.id, session.tenant_id)
+            if membership is None:
+                raise SessionRequired()
+        if not await self._allows(membership, sso_tenant_id=session.sso_tenant_id):
+            # Required since this session signed in: it signs in again, through the provider.
+            raise SessionRequired("This workspace signs its members in through single sign-on")
         return session, user, membership
 
     async def _session_or_none(self, token: str | None
@@ -203,6 +225,8 @@ class AccountService:
         target = next((m for m in workspaces if m.tenant_name == workspace), None)
         if target is None:
             raise WorkspaceNotFound()
+        if not await self._allows(target, sso_tenant_id=session.sso_tenant_id):
+            raise SsoRequired()
         await self.uow.user_sessions.switch_tenant(session.id, target.tenant_id)
         await self.uow.commit()
         return SignedIn(user=user, session=session, workspace=target, workspaces=workspaces,
@@ -261,6 +285,9 @@ class AccountService:
         invitation = await self.uow.invitations.find_pending(hash_key(token))
         if invitation is None:
             raise InvitationInvalid()
+        provider = await self.uow.sso.get(invitation.tenant_id)
+        if provider is not None and provider.enforced:
+            raise SsoRequired("This workspace's members join through single sign-on")
         current = await self._session_or_none(session_token)
         if current is not None:
             session, user, _ = current
