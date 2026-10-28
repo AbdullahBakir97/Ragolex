@@ -44,6 +44,8 @@ dependencies = [
     "argon2-cffi==25.1.0",
     # TXT lookups that prove a workspace owns its custom domain.
     "dnspython==2.9.0",
+    # Checks the ID tokens of single sign-on (OpenID Connect).
+    "PyJWT[crypto]==2.15.0",
 ]
 
 [project.optional-dependencies]

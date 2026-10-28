@@ -270,6 +270,41 @@ class ConnectionRequestRow(Base):
     browser_hash: Mapped[str] = mapped_column(String(64))
 
 
+class SsoProviderRow(Base):
+    """A workspace's OpenID Connect identity provider, which its people sign in through."""
+
+    __tablename__ = "sso_providers"
+    __table_args__ = (
+        CheckConstraint("default_role IN ('admin', 'editor', 'viewer')", name="default_role"),
+    )
+
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    issuer: Mapped[str] = mapped_column(Text)
+    client_id: Mapped[str] = mapped_column(String(255))
+    # Encrypted with ENCRYPTION_KEYS when set.
+    client_secret: Mapped[str] = mapped_column(EncryptedString())
+    default_role: Mapped[str] = mapped_column(String(16))
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = _created_at()
+
+
+class SsoRequestRow(Base):
+    """A sign-in through a workspace's identity provider, for minutes, until it comes back."""
+
+    __tablename__ = "sso_requests"
+
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    nonce: Mapped[str] = mapped_column(String(64))
+    code_verifier: Mapped[str] = mapped_column(String(128))
+    next_url: Mapped[str] = mapped_column(Text)
+    browser_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class SourceRow(Base):
     """A website a project's documents are crawled from and kept in sync with."""
 

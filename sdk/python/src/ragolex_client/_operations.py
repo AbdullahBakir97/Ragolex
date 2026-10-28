@@ -80,6 +80,10 @@ from .models import (
     SourcePagesResponse,
     SourceRequest,
     SourceResponse,
+    SsoDiscoverRequest,
+    SsoDiscoverResponse,
+    SsoSettingsRequest,
+    SsoSettingsResponse,
     StudyRequest,
     StudyResponse,
     TagListResponse,
@@ -914,6 +918,48 @@ class Operations:
         Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.
         """
         return self._request('DELETE', f'/api/v1/connections/{_path(connection_id)}', query={}, json=None, response=_none)
+
+    def get_sso(
+        self,
+    ) -> SsoSettingsResponse:
+        """The workspace's single sign-on
+        """
+        return self._request('GET', '/api/v1/sso', query={}, json=None, response=SsoSettingsResponse.model_validate)
+
+    def set_sso(
+        self,
+        *,
+        issuer: str,
+        client_id: str,
+        client_secret: str | None | Unset = UNSET,
+        default_role: Literal['admin', 'editor', 'viewer'] | str | Unset = UNSET,
+        enabled: bool | Unset = UNSET,
+    ) -> SsoSettingsResponse:
+        """Set the workspace's OpenID Connect identity provider
+
+        Its discovery document is read first, so a wrong issuer is refused.
+        """
+        return self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled}, optional=False), response=SsoSettingsResponse.model_validate)
+
+    def delete_sso(
+        self,
+    ) -> None:
+        """Remove the workspace's single sign-on
+
+        Accounts made by it stay, and can set a password with a reset link.
+        """
+        return self._request('DELETE', '/api/v1/sso', query={}, json=None, response=_none)
+
+    def discover(
+        self,
+        *,
+        email: str,
+    ) -> SsoDiscoverResponse:
+        """Which workspace signs this email in
+
+        The workspace that verified the email's domain and has single sign-on turned on.
+        """
+        return self._request('POST', '/api/v1/auth/sso/discover', query={}, json=_body(SsoDiscoverRequest, {'email': email}, optional=False), response=SsoDiscoverResponse.model_validate)
 
     def list_audit_events(
         self,
@@ -2000,6 +2046,48 @@ class AsyncOperations:
         Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.
         """
         return await self._request('DELETE', f'/api/v1/connections/{_path(connection_id)}', query={}, json=None, response=_none)
+
+    async def get_sso(
+        self,
+    ) -> SsoSettingsResponse:
+        """The workspace's single sign-on
+        """
+        return await self._request('GET', '/api/v1/sso', query={}, json=None, response=SsoSettingsResponse.model_validate)
+
+    async def set_sso(
+        self,
+        *,
+        issuer: str,
+        client_id: str,
+        client_secret: str | None | Unset = UNSET,
+        default_role: Literal['admin', 'editor', 'viewer'] | str | Unset = UNSET,
+        enabled: bool | Unset = UNSET,
+    ) -> SsoSettingsResponse:
+        """Set the workspace's OpenID Connect identity provider
+
+        Its discovery document is read first, so a wrong issuer is refused.
+        """
+        return await self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled}, optional=False), response=SsoSettingsResponse.model_validate)
+
+    async def delete_sso(
+        self,
+    ) -> None:
+        """Remove the workspace's single sign-on
+
+        Accounts made by it stay, and can set a password with a reset link.
+        """
+        return await self._request('DELETE', '/api/v1/sso', query={}, json=None, response=_none)
+
+    async def discover(
+        self,
+        *,
+        email: str,
+    ) -> SsoDiscoverResponse:
+        """Which workspace signs this email in
+
+        The workspace that verified the email's domain and has single sign-on turned on.
+        """
+        return await self._request('POST', '/api/v1/auth/sso/discover', query={}, json=_body(SsoDiscoverRequest, {'email': email}, optional=False), response=SsoDiscoverResponse.model_validate)
 
     async def list_audit_events(
         self,

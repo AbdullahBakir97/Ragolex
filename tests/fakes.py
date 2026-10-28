@@ -55,6 +55,8 @@ from ragolex.domain.models import (
     SearchFilters,
     Source,
     SourcePage,
+    SsoProvider,
+    SsoRequest,
     TagCount,
     Tenant,
     TenantDomain,
@@ -1052,6 +1054,41 @@ class FakeConnections:
         return request if request and request.expires_at > datetime.now(UTC) else None
 
 
+class FakeSso:
+    """Workspaces' identity providers, and the sign-ins started through them."""
+
+    def __init__(self):
+        self.providers: dict[int, SsoProvider] = {}
+        self.requests: dict[str, SsoRequest] = {}
+
+    async def get(self, tenant_id: int) -> SsoProvider | None:
+        return self.providers.get(tenant_id)
+
+    async def save(self, *, tenant_id, issuer, client_id, client_secret, default_role,
+                   enabled) -> SsoProvider:
+        now = datetime.now(UTC)
+        old = self.providers.get(tenant_id)
+        self.providers[tenant_id] = SsoProvider(
+            tenant_id=tenant_id, issuer=issuer, client_id=client_id,
+            client_secret=client_secret, default_role=default_role, enabled=enabled,
+            created_at=old.created_at if old else now, updated_at=now)
+        return self.providers[tenant_id]
+
+    async def delete(self, tenant_id: int) -> bool:
+        return self.providers.pop(tenant_id, None) is not None
+
+    async def add_request(self, request: SsoRequest) -> None:
+        self.requests[request.state_hash] = request
+
+    async def find_request(self, state_hash: str) -> SsoRequest | None:
+        request = self.requests.get(state_hash)
+        return request if request and request.expires_at > datetime.now(UTC) else None
+
+    async def take_request(self, state_hash: str) -> SsoRequest | None:
+        request = self.requests.pop(state_hash, None)
+        return request if request and request.expires_at > datetime.now(UTC) else None
+
+
 class FakeOAuthProvider:
     """Notion or Google: its codes and refresh tokens, and the calls made to it."""
 
@@ -1349,6 +1386,7 @@ class FakeUnitOfWork:
         self.domains = FakeDomains(self.tenants)
         self.bots = FakeBots(self.projects)
         self.connections = FakeConnections(self.sources)
+        self.sso = FakeSso()
         self.usage = FakeUsage()
         self.evaluations = FakeEvaluationRuns()
         self.decks = FakeDecks()

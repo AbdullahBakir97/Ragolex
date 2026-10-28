@@ -614,6 +614,44 @@ class ConnectionRequest:
 
 
 @dataclass(frozen=True)
+class SsoProvider:
+    """A workspace's OpenID Connect identity provider (Entra ID, Google, Okta, Keycloak…).
+
+    People whose email is on one of the workspace's verified domains sign in
+    through it; a first sign-in makes their account, or adds it to the
+    workspace, with ``default_role``. ``client_secret`` is stored encrypted.
+    """
+
+    tenant_id: int
+    issuer: str
+    client_id: str
+    client_secret: str
+    default_role: str
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class SsoRequest:
+    """A sign-in through a workspace's identity provider, started and not finished yet.
+
+    Like a connection's: the ``state`` is kept as a hash, ``code_verifier`` is
+    PKCE's, ``nonce`` ties the ID token to this sign-in, and only the browser
+    holding the cookie behind ``browser_hash`` can finish it. ``next_url`` is
+    where the web app opens after.
+    """
+
+    state_hash: str
+    tenant_id: int
+    nonce: str
+    code_verifier: str
+    next_url: str
+    browser_hash: str
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
 class SourcePage:
     """A page a source's sync stored as a file. ``owns_file`` when the sync created the file
     (rather than finding the project had that content already)."""

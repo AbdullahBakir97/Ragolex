@@ -13,7 +13,7 @@ PACKAGE = Path(__file__).resolve().parents[1] / "src" / "ragolex"
 # Only embeddings, llm and ocr may use a model provider's SDK.
 ALLOWED_LAYERS = {
     "api": {"api", "core", "domain", "services", "storage", "loaders", "text", "persistence",
-            "embeddings", "llm", "rerankers", "webhooks", "scanners", "connectors", "ocr", "mail", "dns", "bots"},
+            "embeddings", "llm", "rerankers", "webhooks", "scanners", "connectors", "ocr", "mail", "dns", "bots", "identity"},
     # Services use the repository interfaces in domain, never persistence.
     "services": {"core", "domain", "storage", "loaders", "text", "prompts", "evaluation"},
     "persistence": {"core", "domain"},
@@ -36,6 +36,7 @@ ALLOWED_LAYERS = {
     "scanners": {"core", "domain"},
     # Fetch documents from elsewhere (websites); services use the Crawler interface.
     "connectors": {"core", "domain"},
+    "identity": {"core", "domain"},
     "text": set(),
     "prompts": {"domain"},
     # Datasets and metrics; services run them, the CLI wires them up.

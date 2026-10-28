@@ -29,6 +29,7 @@ from ragolex.domain.llm import LLM
 from ragolex.domain.mailer import Mailer
 from ragolex.domain.models import Principal, Scope, TenantDomain
 from ragolex.domain.oauth import OAuthProvider
+from ragolex.domain.oidc import OidcClient
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
 from ragolex.ocr.factory import create_ocr
@@ -50,6 +51,7 @@ from ragolex.services.processing_service import ProcessingService
 from ragolex.services.project_service import ProjectService
 from ragolex.services.search_service import SearchService
 from ragolex.services.source_service import SourceService
+from ragolex.services.sso_service import SsoService
 from ragolex.services.tag_service import TagService
 from ragolex.services.upload_service import UploadService
 from ragolex.services.webhook_service import WebhookService
@@ -413,6 +415,18 @@ def get_connection_service(
 
 
 ConnectionServiceDep = Annotated[ConnectionService, Depends(get_connection_service)]
+
+
+def get_oidc_client(request: Request) -> OidcClient:
+    return request.app.state.oidc_client
+
+
+def get_sso_service(uow: UnitOfWorkDep, settings: SettingsDep,
+                    client: Annotated[OidcClient, Depends(get_oidc_client)]) -> SsoService:
+    return SsoService(uow, client, app_url=settings.APP_URL, session_days=settings.SESSION_DAYS)
+
+
+SsoServiceDep = Annotated[SsoService, Depends(get_sso_service)]
 
 
 def background_answer_service(app: FastAPI, uow: UnitOfWork, settings: Settings,

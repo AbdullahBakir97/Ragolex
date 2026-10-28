@@ -437,6 +437,44 @@ class ConnectionFailed(AppError):
     status_code = HTTPStatus.BAD_GATEWAY
 
 
+class SsoNotConfigured(AppError):
+    """The workspace (or the email's domain) has no single sign-on set up and turned on."""
+
+    signal = ResponseSignal.SSO_NOT_CONFIGURED
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class SsoFailed(AppError):
+    """The identity provider could not be reached, refused the code, or sent back something
+    that is not valid OpenID Connect; the message says what."""
+
+    signal = ResponseSignal.SSO_FAILED
+    status_code = HTTPStatus.BAD_GATEWAY
+
+
+class SsoEmailNotAllowed(AppError):
+    """The identity provider vouched for an email outside the workspace's verified domains,
+    or one it has not verified itself."""
+
+    signal = ResponseSignal.SSO_EMAIL_NOT_ALLOWED
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class SsoSecretRequired(AppError):
+    """A workspace's first identity provider needs its client secret."""
+
+    signal = ResponseSignal.SSO_SECRET_REQUIRED
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class SsoRequestInvalid(AppError):
+    """A sign-in came back with a state that is unknown, used, expired, or from another
+    browser."""
+
+    signal = ResponseSignal.SSO_REQUEST_INVALID
+    status_code = HTTPStatus.BAD_REQUEST
+
+
 class RateLimited(AppError):
     """The tenant made too many requests this minute; Retry-After says when to try again."""
 

@@ -119,6 +119,39 @@ describe("SignInView", () => {
     expect(wrapper.findComponent({ name: "ApiKeyDialog" }).props("next")).toBe("/");
     expect(signInNeeded.value).toBe(false);
   });
+
+  it("signs in with single sign-on, found by the email's domain", async () => {
+    const fetch = serve({
+      "POST /auth/sso/discover": () => Response.json({ workspace: "acme", start_url: "/api/v1/auth/sso/start?workspace=acme" }),
+    });
+    const router = routerAt("/signin?next=/projects/docs");
+    await router.isReady();
+    const wrapper = mount(SignInView, { global: { plugins: [router] } });
+
+    await wrapper.findAll("button").find((b) => b.text() === "Sign in with single sign-on")!.trigger("click");
+    expect(wrapper.find(".password").exists()).toBe(false);
+    await fill(wrapper, { 'input[type="email"]': " grace@acme.com " });
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    const discover = fetch.mock.calls.find(([url]) => String(url).endsWith("/auth/sso/discover"))!;
+    expect(JSON.parse(String(discover[1]!.body))).toEqual({ email: "grace@acme.com" });
+    expect(reloadAt).toHaveBeenCalledWith("/api/v1/auth/sso/start?workspace=acme&next=%2Fprojects%2Fdocs");
+  });
+
+  it("says why single sign-on did not work", async () => {
+    serve({ "POST /auth/sso/discover": refuse("sso_not_configured", 404) });
+    const router = routerAt("/signin?sso_error=sso_email_not_allowed");
+    await router.isReady();
+    const wrapper = mount(SignInView, { global: { plugins: [router] } });
+
+    expect(wrapper.find(".alert-danger").text()).toContain("vouched for an email this workspace does not sign in");
+    await fill(wrapper, { 'input[type="email"]': "x@unknown.example" });
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+    expect(wrapper.find('p[role="alert"]').text()).toContain("not set up for this email's domain");
+    expect(reloadAt).not.toHaveBeenCalled();
+  });
 });
 
 describe("SignUpView", () => {
@@ -424,7 +457,7 @@ describe("AdminView", () => {
         }),
     });
     const wrapper = mount(AdminView, {
-      global: { stubs: { AdminMembers: true, AdminConnections: true, AdminKeys: true, AdminEvaluations: true, AdminAudit: true } },
+      global: { stubs: { AdminMembers: true, AdminConnections: true, AdminSso: true, AdminKeys: true, AdminEvaluations: true, AdminAudit: true } },
     });
     await flushPromises();
 

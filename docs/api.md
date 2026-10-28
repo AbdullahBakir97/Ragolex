@@ -153,6 +153,18 @@ Invitation and reset tokens are sent in request bodies and kept in the link's fr
 | The reset link is wrong, used or expired | `404` | `{"signal": "password_reset_invalid"}` |
 | The current password is wrong | `403` | `{"signal": "current_password_wrong"}` |
 
+### Single sign-on
+
+A workspace can have people sign in with their organisation's account, through any OpenID Connect identity provider: Microsoft Entra ID, Google Workspace, Okta, Keycloak and others.
+
+1. Add the organisation's email domain, such as `acme.com`, under [your own domains](#your-own-domains) and verify it with its TXT record. A workspace's provider signs in only emails on its verified domains, so no workspace can sign in someone else's account.
+2. Register an app (a "web" client) with the provider, with the redirect URI that `GET /api/v1/sso` shows (`APP_URL` + `/api/v1/auth/sso/callback`) and the scopes `openid email profile`.
+3. `PUT /api/v1/sso` (`admin`) with `{"issuer": "https://login.microsoftonline.com/<tenant>/v2.0", "client_id": "…", "client_secret": "…", "default_role": "viewer"}`. The provider's discovery document is read first, so a wrong issuer is refused (`502` `{"signal": "sso_failed"}`); the first time needs `client_secret` (`422` `{"signal": "sso_secret_required"}`); later, leaving it out keeps it. It is stored encrypted and never returned. `"enabled": false` turns it off; `DELETE` removes it.
+
+People then choose **Sign in with single sign-on** in the web app and give their email: `POST /api/v1/auth/sso/discover` finds the workspace that verified its domain (`404` `{"signal": "sso_not_configured"}` when none has single sign-on on), and the browser goes through the provider and back to the callback, which signs them in and opens the page they were going to. Their first sign-in makes their account (named as the provider names them), or adds an existing account with that email to the workspace, with `default_role`; members keep their roles. Accounts made this way can set a password with a reset link.
+
+The sign-in uses the authorization code flow with PKCE, a single-use state and a nonce, and only the browser that started it can finish it. The ID token's signature is checked with the provider's published keys (never with the client secret, nor unsigned), as are its issuer, audience, expiry and nonce. An email the provider marks unverified, or one outside the workspace's verified domains, is refused (`sso_email_not_allowed`). With Entra ID, the sign-in name (`preferred_username`) counts as the email when there is no `email` claim. Errors come back to the sign-in page as `?sso_error=<signal>`. The provider must be on a public address, unless `SSO_ALLOW_PRIVATE_URLS` is on (a Keycloak on the server's own network). Single sign-on needs `AUTH_ENABLED`.
+
 ### Your own domains
 
 A workspace can serve on domains of its own, such as `help.acme.com`: its web app, its API and its chat widgets, all from the same deployment. An `admin` key, or an owner's or admin's session, manages them:
@@ -197,7 +209,8 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 | Action | Target | Details |
 |---|---|---|
 | `tenant.created`, `tenant.limits_changed` | The tenant's name | The new limits (`changes`) |
-| `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`) |
+| `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`); `"via": "sso"` for someone added by their first single sign-on |
+| `sso.configured`, `sso.removed` | The identity provider's issuer | Its client id, default role and whether it is on; never the secret |
 | `invitation.created`, `invitation.revoked`, `invitation.accepted` | The invited email | The invitation's id and `role` |
 | `domain.added`, `domain.verified`, `domain.removed` | The domain | |
 | `bot.created`, `bot.updated`, `bot.deleted` | The bot's id | Project, kind, name and what changed; never its credentials |
@@ -242,6 +255,7 @@ curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/ap
 | `invitations.json` | Each open invitation's email, role and dates; never its link |
 | `domains.json` | The workspace's own domains, and when each was verified |
 | `connections.json` | Its Notion and Google Drive connections: kind, account, who connected it and when; never their tokens |
+| `sso.json` | Its single sign-on provider (issuer, client id, default role, on or off), or `null`; never the secret |
 | `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
 | `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
 | `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
@@ -326,6 +340,8 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `POST` | `/api/v1/auth/invitation` | What an invitation link offers (the token in the body) |
 | `POST` | `/api/v1/auth/invitation/accept` | Accept an invitation, making the account if it has none, and work in its workspace |
 | `POST` | `/api/v1/auth/password-reset` | Email a link to choose a new password (always `202`) |
+| `POST` | `/api/v1/auth/sso/discover` | Which workspace signs an email in with single sign-on, and where to start |
+| `GET`, `PUT`, `DELETE` | `/api/v1/sso` | The workspace's OpenID Connect identity provider (`admin`) |
 | `POST` | `/api/v1/auth/password-reset/confirm` | Choose a new password with a reset link |
 | `PUT` | `/api/v1/auth/password` | Change the signed-in user's password |
 | `GET` | `/api/v1/members` | The workspace's members (`admin`) |

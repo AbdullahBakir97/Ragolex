@@ -10,6 +10,7 @@ import AdminDomains from "@/components/AdminDomains.vue";
 import AdminEvaluations from "@/components/AdminEvaluations.vue";
 import AdminKeys from "@/components/AdminKeys.vue";
 import AdminMembers from "@/components/AdminMembers.vue";
+import AdminSso from "@/components/AdminSso.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { formatBytes, formatCost, formatNumber } from "@/lib/format";
 
@@ -94,6 +95,7 @@ function ratio(used: number, limit: number | null): number | null {
     <template v-else-if="me">
       <AdminMembers v-if="me.auth_enabled" :my-role="me.role ?? null" :my-user-id="me.user?.id ?? null" @changed="audit?.refresh()" />
       <AdminDomains @changed="audit?.refresh()" />
+      <AdminSso v-if="me.auth_enabled" @changed="audit?.refresh()" />
       <AdminConnections @changed="audit?.refresh()" />
       <AdminKeys :current-key-id="me.key_id" @changed="audit?.refresh()" />
       <AdminEvaluations />

@@ -1161,6 +1161,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sso": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's single sign-on */
+        get: operations["get_sso"];
+        /**
+         * Set the workspace's OpenID Connect identity provider
+         * @description Its discovery document is read first, so a wrong issuer is refused.
+         */
+        put: operations["set_sso"];
+        post?: never;
+        /**
+         * Remove the workspace's single sign-on
+         * @description Accounts made by it stay, and can set a password with a reset link.
+         */
+        delete: operations["delete_sso"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Which workspace signs this email in
+         * @description The workspace that verified the email's domain and has single sign-on turned on.
+         */
+        post: operations["discover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -3118,7 +3163,7 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "current_password_wrong" | "member_not_found" | "owner_required" | "last_owner" | "already_member" | "invitation_not_found" | "invitation_invalid" | "invitation_for_someone_else" | "account_details_required" | "password_reset_invalid" | "domain_invalid" | "domain_not_found" | "domain_exists" | "domain_taken" | "domain_not_verified" | "wrong_domain" | "dns_lookup_failed" | "bot_not_found" | "bot_credentials_invalid" | "bot_platform_failed" | "bot_signature_invalid" | "connection_not_found" | "connection_in_use" | "connection_wrong_kind" | "connector_not_configured" | "connection_request_invalid" | "connection_denied" | "connection_failed" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "current_password_wrong" | "member_not_found" | "owner_required" | "last_owner" | "already_member" | "invitation_not_found" | "invitation_invalid" | "invitation_for_someone_else" | "account_details_required" | "password_reset_invalid" | "domain_invalid" | "domain_not_found" | "domain_exists" | "domain_taken" | "domain_not_verified" | "wrong_domain" | "dns_lookup_failed" | "bot_not_found" | "bot_credentials_invalid" | "bot_platform_failed" | "bot_signature_invalid" | "connection_not_found" | "connection_in_use" | "connection_wrong_kind" | "connector_not_configured" | "connection_request_invalid" | "connection_denied" | "connection_failed" | "sso_not_configured" | "sso_failed" | "sso_email_not_allowed" | "sso_request_invalid" | "sso_secret_required" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
         /** ReviewCardResponse */
         ReviewCardResponse: {
             /** Id */
@@ -3492,6 +3537,91 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** SsoDiscoverRequest */
+        SsoDiscoverRequest: {
+            /**
+             * Email
+             * @example ada@acme.com
+             */
+            email: string;
+        };
+        /** SsoDiscoverResponse */
+        SsoDiscoverResponse: {
+            /** Workspace */
+            workspace: string;
+            /**
+             * Start Url
+             * @description Open it in the browser, with `&next=<path>` for the page to open after signing in.
+             */
+            start_url: string;
+        };
+        /** SsoProviderResponse */
+        SsoProviderResponse: {
+            /** Issuer */
+            issuer: string;
+            /** Client Id */
+            client_id: string;
+            /**
+             * Default Role
+             * @enum {string}
+             */
+            default_role: "admin" | "editor" | "viewer";
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SsoSettingsRequest */
+        SsoSettingsRequest: {
+            /**
+             * Issuer
+             * @description The identity provider's issuer URL, whose `/.well-known/openid-configuration` is read.
+             * @example https://login.microsoftonline.com/<tenant id>/v2.0
+             */
+            issuer: string;
+            /** Client Id */
+            client_id: string;
+            /**
+             * Client Secret
+             * @description Needed the first time; leave it out to keep the one already set. Stored encrypted and never returned.
+             */
+            client_secret?: string | null;
+            /**
+             * Default Role
+             * @description The role of people added by their first sign-in.
+             * @default viewer
+             * @enum {string}
+             */
+            default_role?: "admin" | "editor" | "viewer";
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled?: boolean;
+        };
+        /** SsoSettingsResponse */
+        SsoSettingsResponse: {
+            /** @description Null until one is set. */
+            provider: components["schemas"]["SsoProviderResponse"] | null;
+            /**
+             * Redirect Uri
+             * @description The redirect URI to register with the provider.
+             */
+            redirect_uri: string;
+            /**
+             * Email Domains
+             * @description The workspace's verified domains: only emails on them sign in through the provider. Add the company's email domain (`acme.com`) under domains and prove it with its TXT record.
+             */
+            email_domains: string[];
         };
         /** StudyRequest */
         StudyRequest: {
@@ -7431,6 +7561,137 @@ export interface operations {
             };
             /** @description Signal: `connection_in_use` */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sso: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoSettingsResponse"];
+                };
+            };
+        };
+    };
+    set_sso: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SsoSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoSettingsResponse"];
+                };
+            };
+            /** @description Signal: `sso_secret_required` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `sso_failed` */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_sso: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Signal: `sso_not_configured` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SsoDiscoverRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoDiscoverResponse"];
+                };
+            };
+            /** @description Signal: `sso_not_configured` */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -40,6 +40,8 @@ from .models import (
     SearchFilters,
     Source,
     SourcePage,
+    SsoProvider,
+    SsoRequest,
     TagCount,
     Tenant,
     TenantDomain,
@@ -708,6 +710,31 @@ class ConnectionRepository(Protocol):
         ...
 
 
+class SsoRepository(Protocol):
+
+    async def get(self, tenant_id: int) -> SsoProvider | None:
+        """The workspace's identity provider, if it has one."""
+        ...
+
+    async def save(self, *, tenant_id: int, issuer: str, client_id: str, client_secret: str,
+                   default_role: str, enabled: bool) -> SsoProvider:
+        """Set the workspace's identity provider, in place of any it had."""
+        ...
+
+    async def delete(self, tenant_id: int) -> bool: ...
+
+    async def add_request(self, request: SsoRequest) -> None: ...
+
+    async def find_request(self, state_hash: str) -> SsoRequest | None:
+        """The sign-in with this state, left in place; None when unknown or expired."""
+        ...
+
+    async def take_request(self, state_hash: str) -> SsoRequest | None:
+        """The sign-in with this state, removed so it is finished once; None when unknown or
+        expired. Expired ones are removed too."""
+        ...
+
+
 class DeckRepository(Protocol):
 
     async def create(self, *, deck_id: str, project_id: int, name: str) -> Deck: ...
@@ -786,6 +813,7 @@ class UnitOfWork(Protocol):
     domains: DomainRepository
     bots: BotRepository
     connections: ConnectionRepository
+    sso: SsoRepository
     usage: UsageRepository
     evaluations: EvaluationRunRepository
     decks: DeckRepository
