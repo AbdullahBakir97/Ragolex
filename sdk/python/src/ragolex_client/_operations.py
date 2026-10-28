@@ -25,6 +25,9 @@ from .models import (
     CardResponse,
     CardsRequest,
     ChunkListResponse,
+    ConnectionListResponse,
+    ConnectionStartRequest,
+    ConnectionStartResponse,
     ConversationCreateRequest,
     ConversationDetailResponse,
     ConversationListResponse,
@@ -304,17 +307,18 @@ class Operations:
         self,
         project_id: str,
         *,
-        url: str,
-        kind: Literal['website', 'feed', 'github'] | str | Unset = UNSET,
+        kind: Literal['website', 'feed', 'github', 'notion', 'google_drive'] | str | Unset = UNSET,
+        url: str | None | Unset = UNSET,
+        connection_id: str | None | Unset = UNSET,
         max_pages: int | Unset = UNSET,
         sync_interval_hours: int | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
     ) -> SourceResponse:
-        """Keep a website's pages, a feed's entries or a GitHub repository's documents
+        """Keep a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files
 
-        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
+        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched; Notion pages and Google Drive files are read through one of the workspace's connections. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
         """
-        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
+        return self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'connection_id': connection_id, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
 
     def list_sources(
         self,
@@ -880,6 +884,37 @@ class Operations:
         """
         return self._request('GET', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_bytes)
 
+    def list_connections(
+        self,
+    ) -> ConnectionListResponse:
+        """The workspace's connections, oldest first
+
+        With the services this server can connect, and the redirect URI to register with their OAuth apps.
+        """
+        return self._request('GET', '/api/v1/connections', query={}, json=None, response=ConnectionListResponse.model_validate)
+
+    def start_connection(
+        self,
+        *,
+        kind: Literal['notion', 'google_drive'] | str,
+        return_to: str | None | Unset = UNSET,
+    ) -> ConnectionStartResponse:
+        """Start connecting Notion or Google Drive
+
+        Send the person to `authorize_url`, in the browser that made this request: it keeps a cookie that finishing the sign-in needs. Once they sign in and allow reading, they come back to `return_to` with `connected=<id>`, or with `connection_error=<signal>`.
+        """
+        return self._request('POST', '/api/v1/connections', query={}, json=_body(ConnectionStartRequest, {'kind': kind, 'return_to': return_to}, optional=False), response=ConnectionStartResponse.model_validate)
+
+    def delete_connection(
+        self,
+        connection_id: str,
+    ) -> None:
+        """Remove a connection
+
+        Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.
+        """
+        return self._request('DELETE', f'/api/v1/connections/{_path(connection_id)}', query={}, json=None, response=_none)
+
     def list_audit_events(
         self,
         *,
@@ -1358,17 +1393,18 @@ class AsyncOperations:
         self,
         project_id: str,
         *,
-        url: str,
-        kind: Literal['website', 'feed', 'github'] | str | Unset = UNSET,
+        kind: Literal['website', 'feed', 'github', 'notion', 'google_drive'] | str | Unset = UNSET,
+        url: str | None | Unset = UNSET,
+        connection_id: str | None | Unset = UNSET,
         max_pages: int | Unset = UNSET,
         sync_interval_hours: int | Unset = UNSET,
         tags: list[str] | Unset = UNSET,
     ) -> SourceResponse:
-        """Keep a website's pages, a feed's entries or a GitHub repository's documents
+        """Keep a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files
 
-        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
+        A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched; Notion pages and Google Drive files are read through one of the workspace's connections. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
         """
-        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
+        return await self._request('POST', f'/api/v1/projects/{_path(project_id)}/sources', query={}, json=_body(SourceRequest, {'kind': kind, 'url': url, 'connection_id': connection_id, 'max_pages': max_pages, 'sync_interval_hours': sync_interval_hours, 'tags': tags}, optional=False), response=SourceResponse.model_validate)
 
     async def list_sources(
         self,
@@ -1933,6 +1969,37 @@ class AsyncOperations:
         Echoes `hub.challenge` when `hub.verify_token` is the bot's verify token.
         """
         return await self._request('GET', f'/api/v1/bots/{_path(bot_id)}/webhook', query={}, json=None, response=_bytes)
+
+    async def list_connections(
+        self,
+    ) -> ConnectionListResponse:
+        """The workspace's connections, oldest first
+
+        With the services this server can connect, and the redirect URI to register with their OAuth apps.
+        """
+        return await self._request('GET', '/api/v1/connections', query={}, json=None, response=ConnectionListResponse.model_validate)
+
+    async def start_connection(
+        self,
+        *,
+        kind: Literal['notion', 'google_drive'] | str,
+        return_to: str | None | Unset = UNSET,
+    ) -> ConnectionStartResponse:
+        """Start connecting Notion or Google Drive
+
+        Send the person to `authorize_url`, in the browser that made this request: it keeps a cookie that finishing the sign-in needs. Once they sign in and allow reading, they come back to `return_to` with `connected=<id>`, or with `connection_error=<signal>`.
+        """
+        return await self._request('POST', '/api/v1/connections', query={}, json=_body(ConnectionStartRequest, {'kind': kind, 'return_to': return_to}, optional=False), response=ConnectionStartResponse.model_validate)
+
+    async def delete_connection(
+        self,
+        connection_id: str,
+    ) -> None:
+        """Remove a connection
+
+        Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.
+        """
+        return await self._request('DELETE', f'/api/v1/connections/{_path(connection_id)}', query={}, json=None, response=_none)
 
     async def list_audit_events(
         self,

@@ -165,6 +165,13 @@ class Settings(BaseSettings):
     # GitHub sources: a token reads private repositories and raises the
     # API's rate limit (60 requests an hour without one, 5000 with).
     GITHUB_TOKEN: str | None = None
+    # Notion and Google Drive sources: the server's OAuth app with each, whose
+    # redirect URI is APP_URL + /api/v1/connections/callback. Unset, that
+    # service cannot be connected.
+    NOTION_CLIENT_ID: str | None = None
+    NOTION_CLIENT_SECRET: str | None = None
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
     # OCR reads PDF pages that are pictures of text (scans): with "tesseract",
     # the tesseract program; with "vision", LLM_BASE_URL's model or OCR_MODEL.
     OCR_ENGINE: Literal["", "tesseract", "vision"] = ""

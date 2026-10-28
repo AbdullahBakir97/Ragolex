@@ -63,7 +63,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 - [x] OCR for scanned PDFs, with Tesseract or a vision model.
 - [x] A website connector: crawled within its site and folder, obeying robots.txt, synced on a schedule, adding, replacing and removing pages.
 - [x] RSS and Atom feeds, and GitHub repositories' documents, as sources synced like websites.
-- [ ] Connectors that need each user's sign-in (OAuth): Notion, Google Drive.
+- [x] Notion and Google Drive sources, read through a workspace's sign-in to them (OAuth), with tokens refreshed and encrypted ([API › Notion and Google Drive](api.md#notion-and-google-drive)).
 - [x] Signed outgoing webhooks for automation tools such as n8n, Make and Zapier.
 - [x] Telegram, Slack and WhatsApp bots that answer from a project's documents, with sources and follow-up questions ([API › Chat bots](api.md#chat-bots-telegram-slack-and-whatsapp)).
 

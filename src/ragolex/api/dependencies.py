@@ -28,6 +28,7 @@ from ragolex.domain.embedder import Embedder
 from ragolex.domain.llm import LLM
 from ragolex.domain.mailer import Mailer
 from ragolex.domain.models import Principal, Scope, TenantDomain
+from ragolex.domain.oauth import OAuthProvider
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
 from ragolex.ocr.factory import create_ocr
@@ -37,6 +38,7 @@ from ragolex.services.answer_service import AnswerService
 from ragolex.services.assistant_service import AssistantService
 from ragolex.services.auth_service import AuthService
 from ragolex.services.bot_service import BotService
+from ragolex.services.connection_service import ConnectionService
 from ragolex.services.conversation_service import ConversationService
 from ragolex.services.deletion_service import DeletionService
 from ragolex.services.domain_service import DomainService
@@ -397,6 +399,20 @@ def get_bot_service(uow: UnitOfWorkDep, settings: SettingsDep,
 
 
 BotServiceDep = Annotated[BotService, Depends(get_bot_service)]
+
+
+def get_oauth_providers(request: Request) -> Mapping[str, OAuthProvider]:
+    return request.app.state.oauth_providers
+
+
+def get_connection_service(
+        uow: UnitOfWorkDep, settings: SettingsDep,
+        providers: Annotated[Mapping[str, OAuthProvider], Depends(get_oauth_providers)],
+) -> ConnectionService:
+    return ConnectionService(uow, providers, app_url=settings.APP_URL)
+
+
+ConnectionServiceDep = Annotated[ConnectionService, Depends(get_connection_service)]
 
 
 def background_answer_service(app: FastAPI, uow: UnitOfWork, settings: Settings,

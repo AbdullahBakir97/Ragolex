@@ -17,6 +17,7 @@ from itertools import count
 
 from ragolex.core.errors import (
     BotPlatformFailed,
+    ConnectionFailed,
     DnsLookupFailed,
     EmbeddingFailed,
     LLMFailed,
@@ -30,6 +31,9 @@ from ragolex.domain.models import (
     Bot,
     Card,
     Chunk,
+    Connection,
+    ConnectionRequest,
+    ConnectionTokens,
     Conversation,
     ConversationMessage,
     Deck,
@@ -42,6 +46,7 @@ from ragolex.domain.models import (
     Mail,
     Member,
     Membership,
+    OAuthGrant,
     PasswordReset,
     Project,
     RatedAnswer,
@@ -982,6 +987,106 @@ class FakeBots:
                                         if error is not None else {}))
 
 
+class FakeConnections:
+    """Connections to Notion and Google Drive, and the sign-ins started for them."""
+
+    def __init__(self, sources: "FakeSources"):
+        self.sources = sources
+        self.by_id: dict[str, Connection] = {}
+        self.stored_tokens: dict[str, ConnectionTokens] = {}
+        self.requests: dict[str, ConnectionRequest] = {}
+
+    def _view(self, connection: Connection) -> Connection:
+        used = sum(1 for s in self.sources.by_id.values() if s.connection_id == connection.id)
+        return replace(connection, sources_count=used)
+
+    async def create(self, *, connection_id, tenant_id, kind, account, tokens,
+                     created_by_user_id) -> Connection:
+        connection = Connection(id=connection_id, tenant_id=tenant_id, kind=kind,
+                                account=account, created_at=datetime.now(UTC))
+        self.by_id[connection_id] = connection
+        self.stored_tokens[connection_id] = tokens
+        return self._view(connection)
+
+    async def list_for_tenant(self, tenant_id: int) -> list[Connection]:
+        return [self._view(c) for c in self.by_id.values() if c.tenant_id == tenant_id]
+
+    async def get(self, tenant_id: int, connection_id: str) -> Connection | None:
+        connection = self.by_id.get(connection_id)
+        return self._view(connection) if connection and connection.tenant_id == tenant_id else None
+
+    async def tokens(self, connection_id: str, *, lock: bool = False) -> ConnectionTokens | None:
+        return self.stored_tokens.get(connection_id)
+
+    async def set_tokens(self, connection_id: str, tokens: ConnectionTokens) -> None:
+        self.stored_tokens[connection_id] = tokens
+        self.by_id[connection_id] = replace(self.by_id[connection_id], last_error=None,
+                                            last_error_at=None)
+
+    async def failed(self, connection_id: str, error: str) -> None:
+        self.by_id[connection_id] = replace(self.by_id[connection_id], last_error=error,
+                                            last_error_at=datetime.now(UTC))
+
+    async def delete(self, tenant_id: int, connection_id: str) -> bool:
+        if await self.get(tenant_id, connection_id) is None:
+            return False
+        del self.by_id[connection_id]
+        self.stored_tokens.pop(connection_id, None)
+        return True
+
+    async def add_request(self, request: ConnectionRequest) -> None:
+        self.requests[request.state_hash] = request
+
+    async def find_request(self, state_hash: str) -> ConnectionRequest | None:
+        request = self.requests.get(state_hash)
+        return request if request and request.expires_at > datetime.now(UTC) else None
+
+    async def take_request(self, state_hash: str) -> ConnectionRequest | None:
+        request = self.requests.pop(state_hash, None)
+        return request if request and request.expires_at > datetime.now(UTC) else None
+
+
+class FakeOAuthProvider:
+    """Notion or Google: its codes and refresh tokens, and the calls made to it."""
+
+    def __init__(self, kind: str = "notion", account: str = "Acme wiki",
+                 expires_in: int | None = None):
+        self.kind = kind
+        self.account = account
+        self.expires_in = expires_in
+        self.exchanged: list[dict[str, str]] = []
+        self.refreshed: list[str] = []
+        self.refuse: str | None = None  # Refuse every code and refresh, with this message.
+
+    def _grant(self, number: int) -> OAuthGrant:
+        expires = (datetime.now(UTC) + timedelta(seconds=self.expires_in)
+                   if self.expires_in is not None else None)
+        return OAuthGrant(tokens=ConnectionTokens(access_token=f"access-{number}",
+                                                  refresh_token="refresh-1" if expires else None,
+                                                  expires_at=expires),
+                          account=self.account)
+
+    def authorize_url(self, *, state: str, redirect_uri: str, code_challenge: str) -> str:
+        return (f"https://{self.kind}.example.com/authorize?state={state}"
+                f"&redirect_uri={redirect_uri}&code_challenge={code_challenge}")
+
+    async def exchange(self, *, code: str, redirect_uri: str, code_verifier: str) -> OAuthGrant:
+        self.exchanged.append({"code": code, "redirect_uri": redirect_uri,
+                               "code_verifier": code_verifier})
+        if self.refuse:
+            raise ConnectionFailed(self.refuse)
+        return self._grant(len(self.exchanged))
+
+    async def refresh(self, refresh_token: str) -> OAuthGrant:
+        self.refreshed.append(refresh_token)
+        if self.refuse:
+            raise ConnectionFailed(self.refuse)
+        return self._grant(100 + len(self.refreshed))
+
+    async def aclose(self) -> None:
+        pass
+
+
 class FakeChatPlatform:
     """A chat app: what was sent where, and how the bot was registered."""
 
@@ -1058,13 +1163,13 @@ class FakeSources:
                        syncing=source.id in self.locked)
 
     async def create(self, *, project_id, kind, url, max_pages, sync_interval_hours,
-                     tags=()) -> Source:
+                     tags=(), connection_id=None) -> Source:
         project = self._project(project_id)
         now = datetime.now(UTC)
         source = Source(id=str(uuid.uuid4()), tenant_id=project.tenant_id, project_id=project_id,
                         project_name=project.name, kind=kind, url=url, max_pages=max_pages,
                         sync_interval_hours=sync_interval_hours, created_at=now, next_sync_at=now,
-                        tags=tuple(tags))
+                        tags=tuple(tags), connection_id=connection_id)
         self.by_id[source.id] = source
         return self._view(source)
 
@@ -1235,6 +1340,7 @@ class FakeUnitOfWork:
         self.password_resets = FakePasswordResets()
         self.domains = FakeDomains(self.tenants)
         self.bots = FakeBots(self.projects)
+        self.connections = FakeConnections(self.sources)
         self.usage = FakeUsage()
         self.evaluations = FakeEvaluationRuns()
         self.decks = FakeDecks()

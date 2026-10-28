@@ -8,6 +8,8 @@ import type {
   Assistant,
   BotKind,
   ChatBot,
+  ConnectionKind,
+  ConnectionList,
   ChatWidget,
   ChatWidgetSettings,
   Chunk,
@@ -335,10 +337,22 @@ export const api = {
       offset: page.offset ?? 0,
       limit: page.limit ?? 10,
     }),
+  connections: () => get<ConnectionList>("/connections"),
+  /** Where to send the admin to sign in; they come back to `returnTo`. */
+  startConnection: (kind: ConnectionKind, returnTo: string) =>
+    post<{ authorize_url: string }>("/connections", { kind, return_to: returnTo }),
+  deleteConnection: (id: string) => remove(`/connections/${encodeURIComponent(id)}`),
   sources: (name: string) => get<{ items: WebsiteSource[] }>(`/projects/${project(name)}/sources`),
   createSource: (
     name: string,
-    body: { kind: SourceKind; url: string; max_pages: number; sync_interval_hours: number; tags: string[] },
+    body: {
+      kind: SourceKind;
+      url?: string;
+      connection_id?: string;
+      max_pages: number;
+      sync_interval_hours: number;
+      tags: string[];
+    },
   ) =>
     post<WebsiteSource>(`/projects/${project(name)}/sources`, body),
   syncSource: (name: string, sourceId: string) =>

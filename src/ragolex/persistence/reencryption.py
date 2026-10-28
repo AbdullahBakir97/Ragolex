@@ -7,12 +7,13 @@ from sqlalchemy import String, select, type_coerce, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ragolex.core.encryption import KeyRing, value_key_id
-from ragolex.persistence.tables import BotRow, WebhookRow
+from ragolex.persistence.tables import BotRow, ConnectionRow, WebhookRow
 
 # The secrets stored encrypted: webhooks' signing secrets, and bots' credentials and
 # webhook secrets.
 ENCRYPTED_COLUMNS: list[tuple[Any, str]] = [
-    (WebhookRow, "secret"), (BotRow, "credentials"), (BotRow, "webhook_secret")]
+    (WebhookRow, "secret"), (BotRow, "credentials"), (BotRow, "webhook_secret"),
+    (ConnectionRow, "credentials")]
 
 
 async def secret_keys(session: AsyncSession) -> Counter[str | None]:

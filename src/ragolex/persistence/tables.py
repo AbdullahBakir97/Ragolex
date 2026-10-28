@@ -226,6 +226,50 @@ class PasswordResetRow(Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ConnectionRow(Base):
+    """A tenant's sign-in to Notion or Google Drive, which its sources read through."""
+
+    __tablename__ = "connections"
+    __table_args__ = (
+        CheckConstraint("kind IN ('notion', 'google_drive')", name="kind"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    # The Notion workspace's name, or the Google account's email.
+    account: Mapped[str] = mapped_column(String(255))
+    # The access and refresh tokens as JSON, encrypted with ENCRYPTION_KEYS when set.
+    credentials: Mapped[str] = mapped_column(EncryptedString())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    created_at: Mapped[datetime] = _created_at()
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ConnectionRequestRow(Base):
+    """A sign-in to Notion or Google Drive that was started, for minutes, until it comes back."""
+
+    __tablename__ = "connection_requests"
+
+    # SHA-256 of the state sent to the provider.
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"),
+                                                index=True)
+    # Useless without the code, which only the provider's redirect carries.
+    code_verifier: Mapped[str] = mapped_column(String(128))
+    return_to: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # SHA-256 of the cookie of the browser that started it, which must finish it.
+    browser_hash: Mapped[str] = mapped_column(String(64))
+
+
 class SourceRow(Base):
     """A website a project's documents are crawled from and kept in sync with."""
 
@@ -251,6 +295,10 @@ class SourceRow(Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    # Notion and Google Drive sources read through a connection, which cannot be
+    # removed while they do (checked at the end of a statement, so deleting a
+    # tenant removes both).
+    connection_id: Mapped[str | None] = mapped_column(ForeignKey("connections.id"), index=True)
 
 
 class SourcePageRow(Base):

@@ -5,6 +5,7 @@ import { computed, onMounted, ref } from "vue";
 import { ApiError, api } from "@/api/client";
 import type { Me, TenantUsage } from "@/api/types";
 import AdminAudit from "@/components/AdminAudit.vue";
+import AdminConnections from "@/components/AdminConnections.vue";
 import AdminDomains from "@/components/AdminDomains.vue";
 import AdminEvaluations from "@/components/AdminEvaluations.vue";
 import AdminKeys from "@/components/AdminKeys.vue";
@@ -13,7 +14,7 @@ import PageHeader from "@/components/PageHeader.vue";
 import { formatBytes, formatCost, formatNumber } from "@/lib/format";
 
 // The tenant at a glance: this month's usage against its limits, its members,
-// domains, API keys, evaluation scores and audit log. Everything but usage needs the admin
+// domains, connections, API keys, evaluation scores and audit log. Everything but usage needs the admin
 // scope: an admin key, or an owner's or admin's sign-in.
 const me = ref<Me | null>(null);
 const audit = ref<InstanceType<typeof AdminAudit> | null>(null);
@@ -93,6 +94,7 @@ function ratio(used: number, limit: number | null): number | null {
     <template v-else-if="me">
       <AdminMembers v-if="me.auth_enabled" :my-role="me.role ?? null" :my-user-id="me.user?.id ?? null" @changed="audit?.refresh()" />
       <AdminDomains @changed="audit?.refresh()" />
+      <AdminConnections @changed="audit?.refresh()" />
       <AdminKeys :current-key-id="me.key_id" @changed="audit?.refresh()" />
       <AdminEvaluations />
       <AdminAudit ref="audit" />

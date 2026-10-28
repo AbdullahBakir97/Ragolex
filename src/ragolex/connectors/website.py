@@ -104,8 +104,9 @@ class WebsiteCrawler:
         self._client = http_client or httpx2.AsyncClient(timeout=timeout_seconds,
                                                          follow_redirects=False)
 
-    async def crawl(self, start_url: str,
-                    max_pages: int) -> AsyncIterator[CrawledPage | UnreachablePage]:
+    async def crawl(self, start_url: str, max_pages: int,
+                    access_token: str | None = None,
+                    ) -> AsyncIterator[CrawledPage | UnreachablePage]:
         start = normalize(start_url)
         if start is None:
             raise CrawlFailed(f"{start_url} is not an http or https URL")

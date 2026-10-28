@@ -214,6 +214,32 @@ class CitationResponse(Model):
     text: str
 
 
+class ConnectionListResponse(Model):
+    items: list[ConnectionResponse]
+    available: list[Literal['notion', 'google_drive'] | str] = Field(description='The services this server can connect (it has an OAuth app with them).')
+    redirect_uri: str = Field(description='The redirect URI to register with each OAuth app.')
+
+
+class ConnectionResponse(Model):
+    id: str
+    kind: Literal['notion', 'google_drive'] | str
+    account: str = Field(description="The Notion workspace, or the Google account's email.")
+    created_by: str | None = Field(default=None, description='The email of who connected it.')
+    sources_count: int = Field(description='Sources that read through it.')
+    created_at: datetime
+    last_error: str | None = Field(default=None, description='Why the service last refused its tokens; connect again to fix it.')
+    last_error_at: datetime | None = Field(default=None)
+
+
+class ConnectionStartRequest(Model):
+    kind: Literal['notion', 'google_drive'] | str
+    return_to: str | None = Field(default=None, description="The web app page to come back to after signing in, on this server or one of the workspace's verified domains; the Admin page otherwise. `connected=<id>` or `connection_error=<signal>` is added to it.")
+
+
+class ConnectionStartResponse(Model):
+    authorize_url: str = Field(description='Send the person here to sign in and allow reading; it is valid for 15 minutes, once.')
+
+
 class ConversationCreateRequest(Model):
     title: str | None = Field(default=None, description='Omit to title it after the first question.')
 
@@ -592,7 +618,7 @@ class RatedAnswerResponse(Model):
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
-ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'ocr_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'accounts_disabled', 'signup_disabled', 'email_taken', 'workspace_taken', 'login_failed', 'account_locked', 'session_required', 'workspace_not_found', 'current_password_wrong', 'member_not_found', 'owner_required', 'last_owner', 'already_member', 'invitation_not_found', 'invitation_invalid', 'invitation_for_someone_else', 'account_details_required', 'password_reset_invalid', 'domain_invalid', 'domain_not_found', 'domain_exists', 'domain_taken', 'domain_not_verified', 'wrong_domain', 'dns_lookup_failed', 'bot_not_found', 'bot_credentials_invalid', 'bot_platform_failed', 'bot_signature_invalid', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'ocr_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'accounts_disabled', 'signup_disabled', 'email_taken', 'workspace_taken', 'login_failed', 'account_locked', 'session_required', 'workspace_not_found', 'current_password_wrong', 'member_not_found', 'owner_required', 'last_owner', 'already_member', 'invitation_not_found', 'invitation_invalid', 'invitation_for_someone_else', 'account_details_required', 'password_reset_invalid', 'domain_invalid', 'domain_not_found', 'domain_exists', 'domain_taken', 'domain_not_verified', 'wrong_domain', 'dns_lookup_failed', 'bot_not_found', 'bot_credentials_invalid', 'bot_platform_failed', 'bot_signature_invalid', 'connection_not_found', 'connection_in_use', 'connection_wrong_kind', 'connector_not_configured', 'connection_request_invalid', 'connection_denied', 'connection_failed', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
 
 
 class ReviewCardResponse(Model):
@@ -699,8 +725,9 @@ class SourcePagesResponse(Model):
 
 
 class SourceRequest(Model):
-    kind: Literal['website', 'feed', 'github'] | str = Field(default='website', description="`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.")
-    url: str = Field(description="The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.")
+    kind: Literal['website', 'feed', 'github', 'notion', 'google_drive'] | str = Field(default='website', description="`website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it. `notion`: the Notion pages a connection can read, or one page and the pages under it. `google_drive`: the files of a Google Drive folder and its subfolders. Notion and Google Drive sources need a `connection_id`.")
+    url: str | None = Field(default=None, description="The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`. For Notion, a page's address (omit it for every page the connection can read); for Google Drive, a folder's address (omit it for all of My Drive). Required for the other kinds.")
+    connection_id: str | None = Field(default=None, description="The workspace's connection a Notion or Google Drive source reads through, from `GET /api/v1/connections`.")
     max_pages: int = Field(default=50, description='Most pages to keep.')
     sync_interval_hours: int = Field(default=24, description='Sync again after this many hours; 0 syncs only when asked.')
     tags: list[str] | None = Field(default=None, description='Given to the pages it stores.')
@@ -708,8 +735,9 @@ class SourceRequest(Model):
 
 class SourceResponse(Model):
     id: str
-    kind: Literal['website', 'feed', 'github'] | str
+    kind: Literal['website', 'feed', 'github', 'notion', 'google_drive'] | str
     url: str
+    connection_id: str | None = Field(default=None, description='The connection a Notion or Google Drive source reads through.')
     max_pages: int
     sync_interval_hours: int
     pages_count: int = Field(description='Pages stored by the last syncs.')
@@ -896,5 +924,5 @@ class WorkspaceResponse(Model):
     role: Literal['owner', 'admin', 'editor', 'viewer'] | str
 
 
-for _model in (AcceptInvitationRequest, ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, AuditUser, BodyUploadData, BotListResponse, BotRequest, BotResponse, BotUpdateRequest, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, DnsRecord, DomainRequest, DomainResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, InvitationCreatedResponse, InvitationPreviewResponse, InvitationRequest, InvitationResponse, InvitationTokenRequest, JobListResponse, JobRequest, JobResponse, KeyPointResponse, LoginRequest, MeResponse, MemberResponse, MessageResponse, Meter, ModelShareResponse, PasswordChangeRequest, PasswordResetConfirmRequest, PasswordResetRequest, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, RoleRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SessionResponse, SignupRequest, SiteResponse, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, UserResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest, WorkspaceRequest, WorkspaceResponse,):
+for _model in (AcceptInvitationRequest, ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, AuditUser, BodyUploadData, BotListResponse, BotRequest, BotResponse, BotUpdateRequest, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConnectionListResponse, ConnectionResponse, ConnectionStartRequest, ConnectionStartResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, DnsRecord, DomainRequest, DomainResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, InvitationCreatedResponse, InvitationPreviewResponse, InvitationRequest, InvitationResponse, InvitationTokenRequest, JobListResponse, JobRequest, JobResponse, KeyPointResponse, LoginRequest, MeResponse, MemberResponse, MessageResponse, Meter, ModelShareResponse, PasswordChangeRequest, PasswordResetConfirmRequest, PasswordResetRequest, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, RoleRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SessionResponse, SignupRequest, SiteResponse, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, UserResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest, WorkspaceRequest, WorkspaceResponse,):
     _model.model_rebuild()

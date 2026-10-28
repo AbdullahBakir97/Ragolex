@@ -2,15 +2,23 @@ from collections.abc import Sequence
 from urllib.parse import urlsplit
 
 from ragolex.core.errors import (
+    ConnectionNotFound,
     FileNotFound,
     ProjectNotFound,
     SourceNotFound,
     SourceUrlNotAllowed,
 )
 from ragolex.core.network import is_local_host
-from ragolex.domain.models import Project, Source, SourceKind, SourcePage
+from ragolex.domain.models import (
+    CONNECTED_SOURCE_KINDS,
+    Project,
+    Source,
+    SourceKind,
+    SourcePage,
+)
 from ragolex.domain.repositories import UnitOfWork
 from ragolex.services.audit import record
+from ragolex.services.connection_service import ConnectionService
 from ragolex.services.deletion_service import DeletionService
 from ragolex.services.tag_service import clean_tags
 from ragolex.storage.file_storage import FileStorage
@@ -26,22 +34,31 @@ class SourceService:
 
     async def create(self, project_name: str, url: str, max_pages: int,
                      sync_interval_hours: int, tags: Sequence[str] = (),
-                     kind: SourceKind = "website") -> Source:
+                     kind: SourceKind = "website", connection_id: str | None = None) -> Source:
         """Add a source, synced at once; the project is created if it has no files yet.
 
-        Its pages get ``tags``.
+        Its pages get ``tags``. Notion and Google Drive sources read through
+        ``connection_id``, one of the workspace's connections of that kind.
         """
         host = urlsplit(url).hostname or ""
         if not self.allow_private_urls and is_local_host(host):
             raise SourceUrlNotAllowed()
         project = await self.uow.projects.get_or_create(project_name)
+        if kind in CONNECTED_SOURCE_KINDS:
+            if connection_id is None:
+                raise ConnectionNotFound(f"a {kind} source needs a connection_id")
+            await ConnectionService(self.uow, {}).get(project.tenant_id, connection_id, kind)
+        else:
+            connection_id = None
         source = await self.uow.sources.create(project_id=project.id, kind=kind, url=url,
                                                max_pages=max_pages,
                                                sync_interval_hours=sync_interval_hours,
-                                               tags=clean_tags(tags))
+                                               tags=clean_tags(tags),
+                                               connection_id=connection_id)
         await record(self.uow, project.tenant_id, "source.created", source.id,
                      project=project.name, kind=kind, url=url, max_pages=max_pages,
-                     sync_interval_hours=sync_interval_hours, tags=list(source.tags))
+                     sync_interval_hours=sync_interval_hours, tags=list(source.tags),
+                     connection_id=connection_id)
         await self.uow.commit()
         return source
 

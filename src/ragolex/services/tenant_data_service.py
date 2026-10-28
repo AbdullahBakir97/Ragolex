@@ -9,6 +9,7 @@ import. It holds what the tenant put in and what was recorded about it:
     members.json                        the people with accounts in it, and their roles
     invitations.json                    invitations not accepted yet; never their links
     domains.json                        its own domains, and whether each is verified
+    connections.json                    its Notion and Google Drive connections; never tokens
     audit.jsonl                         the audit log, oldest first
     projects/<project>/project.json     the project, and its answer usage added up
     projects/<project>/files.json       each file's name, type, size, checksum and tags
@@ -118,9 +119,13 @@ class TenantDataService:
         export.add_json("domains.json", [
             {"domain": d.domain, "created_at": d.created_at, "verified_at": d.verified_at}
             for d in domains])
+        connections = await self.uow.connections.list_for_tenant(tenant.id)
+        export.add_json("connections.json", [
+            {"id": c.id, "kind": c.kind, "account": c.account, "created_by": c.created_by,
+             "created_at": c.created_at} for c in connections])
         export.counts.update(api_keys=len(keys), members=len(members),
                              invitations=len(invitations), domains=len(domains),
-                             audit_events=len(events))
+                             connections=len(connections), audit_events=len(events))
 
         projects = [project async for project in self._projects()]
         export.counts["projects"] = len(projects)

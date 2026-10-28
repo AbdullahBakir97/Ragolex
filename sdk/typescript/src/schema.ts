@@ -328,8 +328,8 @@ export interface paths {
         get: operations["list_sources"];
         put?: never;
         /**
-         * Keep a website's pages, a feed's entries or a GitHub repository's documents
-         * @description A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
+         * Keep a website's pages, a feed's entries, a GitHub repository's documents, Notion pages or a Google Drive folder's files
+         * @description A website's pages under the URL's folder are crawled, following their links (robots.txt is obeyed); a feed's entries are read; a GitHub repository's documents are listed and fetched; Notion pages and Google Drive files are read through one of the workspace's connections. Each page is stored as a file and processed and indexed in the background; then again every `sync_interval_hours`, adding new pages, replacing changed ones and deleting the ones that are gone (a feed's older entries stay). The first sync starts at once. The project is created if it has no files yet.
          */
         post: operations["create_source"];
         delete?: never;
@@ -1112,6 +1112,50 @@ export interface paths {
          */
         post: operations["bot_webhook"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The workspace's connections, oldest first
+         * @description With the services this server can connect, and the redirect URI to register with their OAuth apps.
+         */
+        get: operations["list_connections"];
+        put?: never;
+        /**
+         * Start connecting Notion or Google Drive
+         * @description Send the person to `authorize_url`, in the browser that made this request: it keeps a cookie that finishing the sign-in needs. Once they sign in and allow reading, they come back to `return_to` with `connected=<id>`, or with `connection_error=<signal>`.
+         */
+        post: operations["start_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a connection
+         * @description Its tokens are forgotten. Remove the sources that read through it first; revoke the access at the service too, if you like.
+         */
+        delete: operations["delete_connection"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2027,6 +2071,79 @@ export interface components {
             score: number;
             /** Text */
             text: string;
+        };
+        /** ConnectionListResponse */
+        ConnectionListResponse: {
+            /** Items */
+            items: components["schemas"]["ConnectionResponse"][];
+            /**
+             * Available
+             * @description The services this server can connect (it has an OAuth app with them).
+             */
+            available: ("notion" | "google_drive")[];
+            /**
+             * Redirect Uri
+             * @description The redirect URI to register with each OAuth app.
+             */
+            redirect_uri: string;
+        };
+        /** ConnectionResponse */
+        ConnectionResponse: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "notion" | "google_drive";
+            /**
+             * Account
+             * @description The Notion workspace, or the Google account's email.
+             */
+            account: string;
+            /**
+             * Created By
+             * @description The email of who connected it.
+             */
+            created_by: string | null;
+            /**
+             * Sources Count
+             * @description Sources that read through it.
+             */
+            sources_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Last Error
+             * @description Why the service last refused its tokens; connect again to fix it.
+             */
+            last_error: string | null;
+            /** Last Error At */
+            last_error_at: string | null;
+        };
+        /** ConnectionStartRequest */
+        ConnectionStartRequest: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "notion" | "google_drive";
+            /**
+             * Return To
+             * @description The web app page to come back to after signing in, on this server or one of the workspace's verified domains; the Admin page otherwise. `connected=<id>` or `connection_error=<signal>` is added to it.
+             */
+            return_to?: string | null;
+        };
+        /** ConnectionStartResponse */
+        ConnectionStartResponse: {
+            /**
+             * Authorize Url
+             * @description Send the person here to sign in and allow reading; it is valid for 15 minutes, once.
+             */
+            authorize_url: string;
         };
         /** ConversationCreateRequest */
         ConversationCreateRequest: {
@@ -3001,7 +3118,7 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "current_password_wrong" | "member_not_found" | "owner_required" | "last_owner" | "already_member" | "invitation_not_found" | "invitation_invalid" | "invitation_for_someone_else" | "account_details_required" | "password_reset_invalid" | "domain_invalid" | "domain_not_found" | "domain_exists" | "domain_taken" | "domain_not_verified" | "wrong_domain" | "dns_lookup_failed" | "bot_not_found" | "bot_credentials_invalid" | "bot_platform_failed" | "bot_signature_invalid" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "current_password_wrong" | "member_not_found" | "owner_required" | "last_owner" | "already_member" | "invitation_not_found" | "invitation_invalid" | "invitation_for_someone_else" | "account_details_required" | "password_reset_invalid" | "domain_invalid" | "domain_not_found" | "domain_exists" | "domain_taken" | "domain_not_verified" | "wrong_domain" | "dns_lookup_failed" | "bot_not_found" | "bot_credentials_invalid" | "bot_platform_failed" | "bot_signature_invalid" | "connection_not_found" | "connection_in_use" | "connection_wrong_kind" | "connector_not_configured" | "connection_request_invalid" | "connection_denied" | "connection_failed" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
         /** ReviewCardResponse */
         ReviewCardResponse: {
             /** Id */
@@ -3285,18 +3402,22 @@ export interface components {
         SourceRequest: {
             /**
              * Kind
-             * @description `website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it.
+             * @description `website`: the site's pages under the URL's folder, found by following their links. `feed`: an RSS or Atom feed's entries. `github`: the documents (Markdown, text, HTML, PDF) of a GitHub repository, or of one folder of it. `notion`: the Notion pages a connection can read, or one page and the pages under it. `google_drive`: the files of a Google Drive folder and its subfolders. Notion and Google Drive sources need a `connection_id`.
              * @default website
              * @enum {string}
              */
-            kind?: "website" | "feed" | "github";
+            kind?: "website" | "feed" | "github" | "notion" | "google_drive";
             /**
              * Url
-             * Format: uri
-             * @description The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`.
+             * @description The website's start page, the feed's address, or the repository's: `https://github.com/owner/repo`, optionally with `/tree/<branch>/<folder>`. For Notion, a page's address (omit it for every page the connection can read); for Google Drive, a folder's address (omit it for all of My Drive). Required for the other kinds.
              * @example https://docs.example.com/guide/
              */
-            url: string;
+            url?: string | null;
+            /**
+             * Connection Id
+             * @description The workspace's connection a Notion or Google Drive source reads through, from `GET /api/v1/connections`.
+             */
+            connection_id?: string | null;
             /**
              * Max Pages
              * @description Most pages to keep.
@@ -3327,9 +3448,14 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "website" | "feed" | "github";
+            kind: "website" | "feed" | "github" | "notion" | "google_drive";
             /** Url */
             url: string;
+            /**
+             * Connection Id
+             * @description The connection a Notion or Google Drive source reads through.
+             */
+            connection_id: string | null;
             /** Max Pages */
             max_pages: number;
             /** Sync Interval Hours */
@@ -4785,7 +4911,16 @@ export interface operations {
                     "application/json": components["schemas"]["SourceResponse"];
                 };
             };
-            /** @description Signal: `source_url_not_allowed` */
+            /** @description Signal: `connection_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `source_url_not_allowed`, `connection_wrong_kind` */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7177,6 +7312,116 @@ export interface operations {
             };
             /** @description Signal: `bot_not_found` */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_connections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionListResponse"];
+                };
+            };
+        };
+    };
+    start_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectionStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionStartResponse"];
+                };
+            };
+            /** @description Signal: `connector_not_configured` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connection's id. */
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Signal: `connection_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `connection_in_use` */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
