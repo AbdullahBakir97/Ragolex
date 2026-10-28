@@ -114,7 +114,7 @@ async def _empty_tables(url: str) -> None:
     try:
         async with engine.begin() as connection:
             await connection.execute(sql_text(
-                "TRUNCATE projects, files, chunks, answers, conversations, conversation_messages, jobs, webhooks, webhook_deliveries, tenants, api_keys RESTART IDENTITY CASCADE"))
+                "TRUNCATE projects, files, chunks, answers, conversations, conversation_messages, jobs, webhooks, webhook_deliveries, tenants, api_keys, users RESTART IDENTITY CASCADE"))
     finally:
         await engine.dispose()
 

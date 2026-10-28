@@ -77,7 +77,7 @@ To try it, set `TRACING_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://ja
 
 ## Audit log
 
-Administrative actions (API keys, webhooks, chat widgets, projects' assistants, deleted files and projects, tenants' limits) are recorded per tenant, with the key and the request id behind each: `GET /api/v1/audit` with an `admin` key, or `ragolex audit --tenant <name>`. See [API › Audit log](api.md#audit-log).
+Administrative actions (API keys, members, webhooks, chat widgets, projects' assistants, deleted files and projects, tenants' limits) are recorded per tenant, with the key or signed-in user and the request id behind each: `GET /api/v1/audit` with an `admin` key, or `ragolex audit --tenant <name>`. See [API › Audit log](api.md#audit-log).
 
 ## Budgets and cost
 

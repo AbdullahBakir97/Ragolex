@@ -88,6 +88,7 @@ class AuditEventResponse(Model):
     actor: AuditActor | None = Field(default=None, description="The API key that did it; null for the server's operators (the command line, or requests while authentication is off).")
     request_id: str | None = Field(default=None, description='The request it came from, as in the logs.')
     created_at: datetime
+    user: AuditUser | None = Field(default=None, description="The signed-in user that did it; null for API keys and the server's operators.")
 
 
 class AuditListResponse(Model):
@@ -95,6 +96,11 @@ class AuditListResponse(Model):
     offset: int
     limit: int
     items: list[AuditEventResponse]
+
+
+class AuditUser(Model):
+    id: int
+    email: str | None = Field(default=None, description="The user's email; null once the account is gone.")
 
 
 class BodyUploadData(Model):
@@ -360,11 +366,18 @@ class KeyPointResponse(Model):
     sources: list[int]
 
 
+class LoginRequest(Model):
+    email: str
+    password: str
+
+
 class MeResponse(Model):
     tenant: str
     scopes: list[str]
-    key_id: str | None = Field(default=None, description='Null when authentication is off.')
+    key_id: str | None = Field(default=None, description='The API key used; null for a signed-in user and when authentication is off.')
     auth_enabled: bool
+    user: UserResponse | None = Field(default=None, description='The signed-in user; null for API keys and when authentication is off.')
+    role: Literal['owner', 'admin', 'editor', 'viewer'] | str | None = Field(default=None, description="The signed-in user's role in the workspace.")
 
 
 class MessageResponse(Model):
@@ -456,7 +469,7 @@ class RatedAnswerResponse(Model):
     citations: list[CitationResponse]
     feedback: FeedbackResponse
 
-ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'ocr_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
+ResponseSignal = Literal['file_type_not_supported', 'file_size_exceeded', 'file_uploaded_successfully', 'file_already_uploaded', 'file_upload_failed', 'file_not_found', 'project_not_found', 'file_has_no_text', 'file_not_processed', 'deck_not_found', 'card_not_found', 'deck_full', 'processing_success', 'processing_failed', 'indexing_success', 'search_success', 'answer_success', 'no_answer', 'conversation_not_found', 'message_not_found', 'embedding_not_configured', 'embedding_failed', 'llm_not_configured', 'llm_failed', 'ocr_failed', 'rerank_failed', 'job_not_found', 'job_not_failed', 'job_abandoned', 'job_failed', 'webhook_not_found', 'webhook_url_not_allowed', 'source_not_found', 'source_url_not_allowed', 'widget_not_found', 'widget_origin_invalid', 'tag_invalid', 'origin_not_allowed', 'api_key_required', 'api_key_invalid', 'api_key_scope_missing', 'api_key_not_found', 'accounts_disabled', 'signup_disabled', 'email_taken', 'workspace_taken', 'login_failed', 'account_locked', 'session_required', 'workspace_not_found', 'rate_limited', 'answer_quota_exceeded', 'budget_exceeded', 'storage_quota_exceeded', 'internal_error', 'file_content_mismatch', 'file_infected', 'malware_scan_failed'] | str
 
 
 class ReviewCardResponse(Model):
@@ -519,6 +532,20 @@ class SearchResult(Model):
 class SearchStepResponse(Model):
     query: str = Field(description='What was searched for.')
     results: int = Field(description='How many chunks the search found.')
+
+
+class SessionResponse(Model):
+    user: UserResponse
+    workspace: WorkspaceResponse = Field(description='The workspace the session works in.')
+    workspaces: list[WorkspaceResponse] = Field(description='Every workspace the user is a member of, by name.')
+    expires_at: datetime = Field(description='When the sign-in ends.')
+
+
+class SignupRequest(Model):
+    email: str
+    password: str = Field(description='At least 10 characters. Only an Argon2 hash is stored.')
+    name: str
+    workspace: str = Field(description="The new workspace's name: 2 to 64 lower-case letters, digits, `-` and `_`. You become its owner.")
 
 
 class SourceListResponse(Model):
@@ -626,6 +653,12 @@ class UsageResponse(Model):
     cost_usd: float | None = Field(default=None, description="US dollars; null when the usage or the model's prices (LLM_*_PRICE_PER_MILLION) are unknown.")
 
 
+class UserResponse(Model):
+    id: int
+    email: str
+    name: str
+
+
 class ValidationError(Model):
     loc: list[str | int]
     msg: str
@@ -721,5 +754,14 @@ class WidgetUpdateRequest(Model):
     logo_url: str | None = Field(default=None, description="An https URL of an image shown in the widget's header (square, at least 64 pixels); null for none.")
 
 
-for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, BodyUploadData, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, MeResponse, MessageResponse, Meter, ModelShareResponse, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest,):
+class WorkspaceRequest(Model):
+    workspace: str
+
+
+class WorkspaceResponse(Model):
+    name: str
+    role: Literal['owner', 'admin', 'editor', 'viewer'] | str
+
+
+for _model in (ApiKeyCreatedResponse, ApiKeyRequest, ApiKeyResponse, AskRequest, AskResponse, AssistantResponse, AssistantUpdateRequest, AuditActor, AuditEventResponse, AuditListResponse, AuditUser, BodyUploadData, CardListResponse, CardRequest, CardResponse, CardSourceResponse, CardsRequest, ChunkListResponse, ChunkResponse, CitationResponse, ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, DayUsageResponse, DeckRequest, DeckResponse, DeliveryListResponse, DeliveryResponse, ErrorResponse, EvaluationRunListResponse, EvaluationRunResponse, FeedbackListResponse, FeedbackRequest, FeedbackResponse, FileListResponse, FileResponse, FileTagsRequest, FlashcardResponse, HTTPValidationError, HealthResponse, IndexRequest, IndexResponse, JobListResponse, JobRequest, JobResponse, KeyPointResponse, LoginRequest, MeResponse, MessageResponse, Meter, ModelShareResponse, ProcessRequest, ProcessResponse, ProjectListItem, ProjectListResponse, ProjectResponse, ProjectShareResponse, ProjectUsageResponse, QuizQuestionResponse, RatedAnswerResponse, ReviewCardResponse, ReviewQueueResponse, ReviewRequest, SearchFiltersRequest, SearchRequest, SearchResponse, SearchResult, SearchStepResponse, SessionResponse, SignupRequest, SourceListResponse, SourcePageResponse, SourcePagesResponse, SourceRequest, SourceResponse, StudyRequest, StudyResponse, StudySourceResponse, TagListResponse, TagResponse, TenantUsageResponse, UploadResponse, UsageHistoryResponse, UsageResponse, UserResponse, ValidationError, WebhookCreatedResponse, WebhookListResponse, WebhookRequest, WebhookResponse, WelcomeResponse, WidgetAskRequest, WidgetConfigResponse, WidgetListResponse, WidgetRequest, WidgetResponse, WidgetUpdateRequest, WorkspaceRequest, WorkspaceResponse,):
     _model.model_rebuild()

@@ -553,6 +553,11 @@ class AuditActor(BaseModel):
     name: str | None = Field(description="The key's name; null once the key is gone.")
 
 
+class AuditUser(BaseModel):
+    id: int
+    email: str | None = Field(description="The user's email; null once the account is gone.")
+
+
 class AuditEventResponse(BaseModel):
     id: int
     action: str = Field(examples=["api_key.created"],
@@ -565,6 +570,9 @@ class AuditEventResponse(BaseModel):
                                                  "requests while authentication is off).")
     request_id: str | None = Field(description="The request it came from, as in the logs.")
     created_at: datetime
+    user: AuditUser | None = Field(
+        default=None, description="The signed-in user that did it; null for API keys and the "
+                                  "server's operators.")
 
 
 class AuditListResponse(BaseModel):
@@ -596,11 +604,61 @@ class ApiKeyCreatedResponse(ApiKeyResponse):
     key: str = Field(description="The key itself: shown only now, so keep it safe.")
 
 
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    name: str
+
+
 class MeResponse(BaseModel):
     tenant: str
     scopes: list[str]
-    key_id: str | None = Field(description="Null when authentication is off.")
+    key_id: str | None = Field(description="The API key used; null for a signed-in user and "
+                                           "when authentication is off.")
     auth_enabled: bool
+    user: UserResponse | None = Field(
+        default=None, description="The signed-in user; null for API keys and when "
+                                  "authentication is off.")
+    role: Literal["owner", "admin", "editor", "viewer"] | None = Field(
+        default=None, description="The signed-in user's role in the workspace.")
+
+
+# Workspace (tenant) names a person can choose: lower case, digits, `-` and `_`.
+WORKSPACE_NAME = r"^[a-z0-9][a-z0-9_-]{1,63}$"
+# Enough to catch typos; whether the address works is up to its owner.
+EMAIL = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+class SignupRequest(BaseModel):
+    email: str = Field(max_length=254, pattern=EMAIL, examples=["ada@example.com"])
+    password: str = Field(min_length=10, max_length=128,
+                          description="At least 10 characters. Only an Argon2 hash is stored.")
+    name: str = Field(min_length=1, max_length=100, examples=["Ada Lovelace"])
+    workspace: str = Field(pattern=WORKSPACE_NAME, examples=["acme"],
+                           description="The new workspace's name: 2 to 64 lower-case letters, "
+                                       "digits, `-` and `_`. You become its owner.")
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(max_length=254, examples=["ada@example.com"])
+    password: str = Field(min_length=1, max_length=128)
+
+
+class WorkspaceRequest(BaseModel):
+    workspace: str = Field(min_length=1, max_length=64, examples=["acme"])
+
+
+class WorkspaceResponse(BaseModel):
+    name: str
+    role: Literal["owner", "admin", "editor", "viewer"]
+
+
+class SessionResponse(BaseModel):
+    user: UserResponse
+    workspace: WorkspaceResponse = Field(description="The workspace the session works in.")
+    workspaces: list[WorkspaceResponse] = Field(description="Every workspace the user is a "
+                                                            "member of, by name.")
+    expires_at: datetime = Field(description="When the sign-in ends.")
 
 
 class Meter(BaseModel):

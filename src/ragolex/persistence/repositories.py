@@ -21,6 +21,7 @@ from sqlalchemy import (
     and_,
     any_,
     bindparam,
+    case,
     delete,
     func,
     insert,
@@ -54,6 +55,7 @@ from ragolex.domain.models import (
     Job,
     JobStage,
     JobStatus,
+    Membership,
     Project,
     RatedAnswer,
     Rating,
@@ -72,6 +74,9 @@ from ragolex.domain.models import (
     UsageHistory,
     UsageTotal,
     UsageTotals,
+    User,
+    UserLogin,
+    UserSession,
     Webhook,
     WebhookDelivery,
     Widget,
@@ -86,10 +91,13 @@ from ragolex.domain.repositories import (
     EvaluationRunRepository,
     FileRepository,
     JobRepository,
+    MembershipRepository,
     ProjectRepository,
     SourceRepository,
     TenantRepository,
     UsageRepository,
+    UserRepository,
+    UserSessionRepository,
     WebhookRepository,
     WidgetRepository,
 )
@@ -108,11 +116,14 @@ from .tables import (
     EvaluationRunRow,
     FileRow,
     JobRow,
+    MembershipRow,
     ProjectRow,
     RequestCountRow,
     SourcePageRow,
     SourceRow,
     TenantRow,
+    UserRow,
+    UserSessionRow,
     WebhookDeliveryRow,
     WebhookRow,
     WidgetRow,
@@ -244,6 +255,12 @@ class SqlTenantRepository:
             pg_insert(TenantRow).values(name=name).on_conflict_do_nothing(index_elements=["name"]))
         return _tenant((await self.session.execute(
             select(TenantRow).where(TenantRow.name == name))).scalar_one())
+
+    async def create(self, name: str) -> Tenant | None:
+        row = await self.session.scalar(
+            pg_insert(TenantRow).values(name=name)
+            .on_conflict_do_nothing(index_elements=["name"]).returning(TenantRow))
+        return _tenant(row) if row else None
 
     async def list_all(self) -> list[Tenant]:
         rows = await self.session.scalars(select(TenantRow).order_by(TenantRow.name))
@@ -404,6 +421,129 @@ class SqlApiKeyRepository:
                        ApiKeyRow.last_used_at
                        < func.now() - bindparam("minute", timedelta(minutes=1), type_=Interval)))
             .values(last_used_at=func.now()))
+
+
+def _user(row: UserRow) -> User:
+    return User(id=row.id, email=row.email, name=row.name, created_at=row.created_at,
+                last_login_at=row.last_login_at)
+
+
+class SqlUserRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, *, email: str, name: str, password_hash: str) -> User | None:
+        row = await self.session.scalar(
+            pg_insert(UserRow).values(email=email, name=name, password_hash=password_hash)
+            .on_conflict_do_nothing(index_elements=["email"]).returning(UserRow))
+        return _user(row) if row else None
+
+    async def get(self, user_id: int) -> User | None:
+        row = await self.session.get(UserRow, user_id)
+        return _user(row) if row else None
+
+    async def login(self, email: str) -> UserLogin | None:
+        row = await self.session.scalar(select(UserRow).where(UserRow.email == email))
+        if row is None:
+            return None
+        return UserLogin(user=_user(row), password_hash=row.password_hash,
+                         failed_logins=row.failed_logins, locked_until=row.locked_until)
+
+    async def login_failed(self, user_id: int, *, lock_after: int,
+                           lock_for: timedelta) -> None:
+        # The lock_after-th failure in a row locks the account, and starts the count again.
+        locks = UserRow.failed_logins + 1 >= lock_after
+        await self.session.execute(
+            update(UserRow).where(UserRow.id == user_id).values(
+                failed_logins=case((locks, 0), else_=UserRow.failed_logins + 1),
+                locked_until=case(
+                    (locks, func.now() + bindparam("lock_for", lock_for, type_=Interval)),
+                    else_=UserRow.locked_until)))
+
+    async def logged_in(self, user_id: int) -> None:
+        await self.session.execute(
+            update(UserRow).where(UserRow.id == user_id)
+            .values(failed_logins=0, locked_until=None, last_login_at=func.now()))
+
+    async def set_password(self, user_id: int, password_hash: str) -> None:
+        await self.session.execute(
+            update(UserRow).where(UserRow.id == user_id).values(password_hash=password_hash))
+
+
+def _membership(row: MembershipRow, tenant_name: str) -> Membership:
+    return Membership(user_id=row.user_id, tenant_id=row.tenant_id, tenant_name=tenant_name,
+                      role=row.role, created_at=row.created_at)
+
+
+class SqlMembershipRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def add(self, *, user_id: int, tenant_id: int, role: str) -> Membership:
+        await self.session.execute(
+            pg_insert(MembershipRow).values(user_id=user_id, tenant_id=tenant_id, role=role)
+            .on_conflict_do_update(index_elements=["user_id", "tenant_id"], set_={"role": role}))
+        membership = await self.get(user_id, tenant_id)
+        assert membership is not None
+        return membership
+
+    async def get(self, user_id: int, tenant_id: int) -> Membership | None:
+        row = (await self.session.execute(
+            select(MembershipRow, TenantRow.name).join(TenantRow)
+            .where(MembershipRow.user_id == user_id, MembershipRow.tenant_id == tenant_id))
+               ).one_or_none()
+        return _membership(*row) if row else None
+
+    async def list_for_user(self, user_id: int) -> list[Membership]:
+        rows = await self.session.execute(
+            select(MembershipRow, TenantRow.name).join(TenantRow)
+            .where(MembershipRow.user_id == user_id).order_by(TenantRow.name))
+        return [_membership(row, name) for row, name in rows]
+
+
+def _user_session(row: UserSessionRow) -> UserSession:
+    return UserSession(id=row.id, user_id=row.user_id, tenant_id=row.tenant_id,
+                       created_at=row.created_at, expires_at=row.expires_at)
+
+
+class SqlUserSessionRepository:
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, *, user_id: int, tenant_id: int, token_hash: str,
+                     expires_at: datetime) -> UserSession:
+        row = (await self.session.execute(
+            insert(UserSessionRow).values(id=str(uuid.uuid4()), user_id=user_id,
+                                          tenant_id=tenant_id, token_hash=token_hash,
+                                          expires_at=expires_at)
+            .returning(UserSessionRow))).scalar_one()
+        return _user_session(row)
+
+    async def find_active(self, token_hash: str) -> UserSession | None:
+        row = await self.session.scalar(
+            select(UserSessionRow).where(UserSessionRow.token_hash == token_hash,
+                                         UserSessionRow.expires_at > func.now()))
+        return _user_session(row) if row else None
+
+    async def touch(self, session_id: str) -> None:
+        await self.session.execute(
+            update(UserSessionRow)
+            .where(UserSessionRow.id == session_id,
+                   or_(UserSessionRow.last_used_at.is_(None),
+                       UserSessionRow.last_used_at
+                       < func.now() - bindparam("minute", timedelta(minutes=1), type_=Interval)))
+            .values(last_used_at=func.now()))
+
+    async def switch_tenant(self, session_id: str, tenant_id: int) -> None:
+        await self.session.execute(
+            update(UserSessionRow).where(UserSessionRow.id == session_id)
+            .values(tenant_id=tenant_id))
+
+    async def delete(self, session_id: str) -> None:
+        await self.session.execute(delete(UserSessionRow).where(UserSessionRow.id == session_id))
 
 
 class SqlFileRepository:
@@ -1152,11 +1292,13 @@ class SqlWidgetRepository:
         return _affected(result) > 0
 
 
-def _audit_event(row: AuditEventRow, key_name: str | None) -> AuditEvent:
+def _audit_event(row: AuditEventRow, key_name: str | None,
+                 user_email: str | None) -> AuditEvent:
     return AuditEvent(id=row.id, tenant_id=row.tenant_id, action=row.action, target=row.target,
                       details=row.details, actor_key_id=row.actor_key_id,
                       actor_key_name=key_name, request_id=row.request_id,
-                      created_at=row.created_at)
+                      created_at=row.created_at, actor_user_id=row.actor_user_id,
+                      actor_user_email=user_email)
 
 
 class SqlAuditRepository:
@@ -1166,11 +1308,11 @@ class SqlAuditRepository:
 
     async def add(self, *, tenant_id: int, action: str, target: str | None,
                   details: Mapping[str, Any], actor_key_id: str | None,
-                  request_id: str | None) -> None:
+                  request_id: str | None, actor_user_id: int | None = None) -> None:
         await self.session.execute(
             insert(AuditEventRow).values(tenant_id=tenant_id, action=action, target=target,
                                          details=dict(details), actor_key_id=actor_key_id,
-                                         request_id=request_id))
+                                         actor_user_id=actor_user_id, request_id=request_id))
 
     @staticmethod
     def _mine(tenant_id: int, action: str | None) -> list:
@@ -1182,12 +1324,13 @@ class SqlAuditRepository:
     async def list_for_tenant(self, tenant_id: int, *, action: str | None, offset: int,
                               limit: int) -> list[AuditEvent]:
         rows = await self.session.execute(
-            select(AuditEventRow, ApiKeyRow.name)
+            select(AuditEventRow, ApiKeyRow.name, UserRow.email)
             .outerjoin(ApiKeyRow, ApiKeyRow.id == AuditEventRow.actor_key_id)
+            .outerjoin(UserRow, UserRow.id == AuditEventRow.actor_user_id)
             .where(*self._mine(tenant_id, action))
             .order_by(AuditEventRow.created_at.desc(), AuditEventRow.id.desc())
             .offset(offset).limit(limit))
-        return [_audit_event(row, key_name) for row, key_name in rows]
+        return [_audit_event(row, key_name, email) for row, key_name, email in rows]
 
     async def count_for_tenant(self, tenant_id: int, *, action: str | None) -> int:
         return await _number(self.session, select(func.count()).select_from(AuditEventRow)
@@ -1467,6 +1610,9 @@ class SqlUnitOfWork:
         self.sources: SourceRepository = SqlSourceRepository(session)
         self.tenants: TenantRepository = SqlTenantRepository(session)
         self.api_keys: ApiKeyRepository = SqlApiKeyRepository(session)
+        self.users: UserRepository = SqlUserRepository(session)
+        self.memberships: MembershipRepository = SqlMembershipRepository(session)
+        self.user_sessions: UserSessionRepository = SqlUserSessionRepository(session)
         self.usage: UsageRepository = SqlUsageRepository(session)
         self.evaluations: EvaluationRunRepository = SqlEvaluationRunRepository(session)
         self.decks: DeckRepository = SqlDeckRepository(session)

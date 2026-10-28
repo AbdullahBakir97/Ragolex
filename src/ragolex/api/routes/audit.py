@@ -7,6 +7,7 @@ from ragolex.api.schemas import (
     AuditActor,
     AuditEventResponse,
     AuditListResponse,
+    AuditUser,
     Pagination,
 )
 from ragolex.domain.models import AuditEvent
@@ -18,9 +19,11 @@ router = APIRouter(prefix="/api/v1", tags=["audit"], dependencies=[ADMIN])
 def _event(event: AuditEvent) -> AuditEventResponse:
     actor = (AuditActor(key_id=event.actor_key_id, name=event.actor_key_name)
              if event.actor_key_id else None)
+    user = (AuditUser(id=event.actor_user_id, email=event.actor_user_email)
+            if event.actor_user_id else None)
     return AuditEventResponse(id=event.id, action=event.action, target=event.target,
                               details=event.details, actor=actor, request_id=event.request_id,
-                              created_at=event.created_at)
+                              created_at=event.created_at, user=user)
 
 
 @router.get(

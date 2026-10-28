@@ -10,6 +10,7 @@ from ragolex.api.dependencies import (
     LimitServiceDep,
     PrincipalDep,
     SettingsDep,
+    UnitOfWorkDep,
 )
 from ragolex.api.schemas import (
     ApiKeyCreatedResponse,
@@ -23,6 +24,7 @@ from ragolex.api.schemas import (
     ProjectShareResponse,
     TenantUsageResponse,
     UsageHistoryResponse,
+    UserResponse,
     error_responses,
 )
 from ragolex.core.errors import ApiKeyNotFound
@@ -38,10 +40,15 @@ def _key(key: ApiKey) -> dict:
             "revoked_at": key.revoked_at}
 
 
-@router.get("/me", summary="The tenant and scopes of the API key used")
-async def me(principal: PrincipalDep, settings: SettingsDep) -> MeResponse:
+@router.get("/me", summary="Who the request acts for: the tenant and scopes of the API key "
+                           "used, or the signed-in user with their role")
+async def me(principal: PrincipalDep, settings: SettingsDep, uow: UnitOfWorkDep) -> MeResponse:
+    user = await uow.users.get(principal.user_id) if principal.user_id else None
     return MeResponse(tenant=principal.tenant_name, scopes=sorted(principal.scopes),
-                      key_id=principal.key_id, auth_enabled=settings.AUTH_ENABLED)
+                      key_id=principal.key_id, auth_enabled=settings.AUTH_ENABLED,
+                      user=UserResponse(id=user.id, email=user.email, name=user.name)
+                      if user else None,
+                      role=principal.role)  # type: ignore[arg-type]
 
 
 @router.get("/keys", dependencies=[ADMIN], summary="The tenant's API keys, newest first")

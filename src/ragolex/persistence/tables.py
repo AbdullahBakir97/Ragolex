@@ -119,6 +119,55 @@ class ApiKeyRow(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class UserRow(Base):
+    """A person's account: an email and an Argon2 hash of their password."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    # Stored in lower case, so one address has one account.
+    email: Mapped[str] = mapped_column(String(254), unique=True)
+    name: Mapped[str] = mapped_column(String(100))
+    password_hash: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = _created_at()
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Failed sign-ins since the last good one; too many lock the account for a while.
+    failed_logins: Mapped[int] = mapped_column(Integer, server_default="0")
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MembershipRow(Base):
+    """A user's role in a tenant (workspace)."""
+
+    __tablename__ = "memberships"
+    __table_args__ = (
+        CheckConstraint("role IN ('owner', 'admin', 'editor', 'viewer')", name="role"),
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True, index=True)
+    role: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = _created_at()
+
+
+class UserSessionRow(Base):
+    """A signed-in browser: only a SHA-256 of its token is kept."""
+
+    __tablename__ = "user_sessions"
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # The workspace the session works in; deleting it signs the session out.
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = _created_at()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class SourceRow(Base):
     """A website a project's documents are crawled from and kept in sync with."""
 
@@ -176,6 +225,9 @@ class AuditEventRow(Base):
     # The API key that did it; NULL for the server's own operators.
     actor_key_id: Mapped[str | None] = mapped_column(
         ForeignKey("api_keys.id", ondelete="SET NULL"))
+    # The signed-in user that did it; NULL for API keys and the server's operators.
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"))
     request_id: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = _created_at()
 

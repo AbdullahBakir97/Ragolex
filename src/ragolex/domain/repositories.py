@@ -5,7 +5,7 @@ fakes. Nothing here knows about SQL.
 """
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Protocol
 
 from .models import (
@@ -25,6 +25,7 @@ from .models import (
     Job,
     JobStage,
     JobStatus,
+    Membership,
     Project,
     RatedAnswer,
     Schedule,
@@ -38,6 +39,9 @@ from .models import (
     UnembeddedChunk,
     UsageHistory,
     UsageTotals,
+    User,
+    UserLogin,
+    UserSession,
     Webhook,
     WebhookDelivery,
     Widget,
@@ -51,6 +55,10 @@ class TenantRepository(Protocol):
     async def get_by_id(self, tenant_id: int) -> Tenant | None: ...
 
     async def get_or_create(self, name: str) -> Tenant: ...
+
+    async def create(self, name: str) -> Tenant | None:
+        """A new tenant; None when one has the name already."""
+        ...
 
     async def list_all(self) -> list[Tenant]:
         """In name order."""
@@ -108,6 +116,61 @@ class ApiKeyRepository(Protocol):
     async def touch(self, key_id: str) -> None:
         """Note that the key was used, at most once a minute."""
         ...
+
+
+class UserRepository(Protocol):
+
+    async def create(self, *, email: str, name: str, password_hash: str) -> User | None:
+        """A new account; None when the email (in lower case) already has one."""
+        ...
+
+    async def get(self, user_id: int) -> User | None: ...
+
+    async def login(self, email: str) -> UserLogin | None:
+        """What signing in with ``email`` checks; None when no account has it."""
+        ...
+
+    async def login_failed(self, user_id: int, *, lock_after: int,
+                           lock_for: timedelta) -> None:
+        """Count a failed sign-in; the ``lock_after``-th in a row locks the account."""
+        ...
+
+    async def logged_in(self, user_id: int) -> None:
+        """Note a good sign-in: forget the failed ones and any lock."""
+        ...
+
+    async def set_password(self, user_id: int, password_hash: str) -> None: ...
+
+
+class MembershipRepository(Protocol):
+
+    async def add(self, *, user_id: int, tenant_id: int, role: str) -> Membership:
+        """Make the user a member of the tenant, or change the role they have there."""
+        ...
+
+    async def get(self, user_id: int, tenant_id: int) -> Membership | None: ...
+
+    async def list_for_user(self, user_id: int) -> list[Membership]:
+        """The user's workspaces, in name order."""
+        ...
+
+
+class UserSessionRepository(Protocol):
+
+    async def create(self, *, user_id: int, tenant_id: int, token_hash: str,
+                     expires_at: datetime) -> UserSession: ...
+
+    async def find_active(self, token_hash: str) -> UserSession | None:
+        """The session with this hash, unless it has expired."""
+        ...
+
+    async def touch(self, session_id: str) -> None:
+        """Note that the session was used, at most once a minute."""
+        ...
+
+    async def switch_tenant(self, session_id: str, tenant_id: int) -> None: ...
+
+    async def delete(self, session_id: str) -> None: ...
 
 
 class ProjectRepository(Protocol):
@@ -403,7 +466,7 @@ class AuditRepository(Protocol):
 
     async def add(self, *, tenant_id: int, action: str, target: str | None,
                   details: Mapping[str, Any], actor_key_id: str | None,
-                  request_id: str | None) -> None: ...
+                  request_id: str | None, actor_user_id: int | None = None) -> None: ...
 
     async def list_for_tenant(self, tenant_id: int, *, action: str | None, offset: int,
                               limit: int) -> list[AuditEvent]:
@@ -526,6 +589,9 @@ class UnitOfWork(Protocol):
     sources: SourceRepository
     tenants: TenantRepository
     api_keys: ApiKeyRepository
+    users: UserRepository
+    memberships: MembershipRepository
+    user_sessions: UserSessionRepository
     usage: UsageRepository
     evaluations: EvaluationRunRepository
     decks: DeckRepository

@@ -75,6 +75,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -197,6 +200,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -323,6 +329,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -391,6 +400,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -459,6 +471,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -522,6 +537,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -591,6 +609,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -671,6 +692,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -741,6 +765,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -865,6 +892,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -963,6 +993,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1033,6 +1066,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1149,6 +1185,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1231,6 +1270,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1358,6 +1400,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1441,6 +1486,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1562,6 +1610,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1649,6 +1700,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1754,6 +1808,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1822,6 +1879,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1892,6 +1952,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1977,6 +2040,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2069,6 +2135,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2184,6 +2253,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2272,6 +2344,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2340,6 +2415,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2437,6 +2515,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2522,6 +2603,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2602,6 +2686,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2689,6 +2776,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2804,6 +2894,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2889,6 +2982,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -2959,6 +3055,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -3045,6 +3144,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -3148,6 +3250,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -3612,12 +3717,401 @@
         }
       }
     },
+    "/api/v1/auth/signup": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Create an account with a workspace of its own, and sign in",
+        "description": "The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.",
+        "operationId": "sign_up",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`, `email_taken`, `workspace_taken`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  },
+                  "email_taken": {
+                    "value": {
+                      "signal": "email_taken"
+                    }
+                  },
+                  "workspace_taken": {
+                    "value": {
+                      "signal": "workspace_taken"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `signup_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "signup_disabled": {
+                    "value": {
+                      "signal": "signup_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Sign in with an email and password",
+        "description": "Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.",
+        "operationId": "sign_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `login_failed`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "login_failed": {
+                    "value": {
+                      "signal": "login_failed"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Signal: `account_locked`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "account_locked": {
+                    "value": {
+                      "signal": "account_locked"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `workspace_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "workspace_not_found": {
+                    "value": {
+                      "signal": "workspace_not_found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Sign out: end the session and remove its cookie",
+        "operationId": "sign_out",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/session": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "The signed-in user and their workspaces",
+        "operationId": "current_session",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `session_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "session_required": {
+                    "value": {
+                      "signal": "session_required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/session/workspace": {
+      "put": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Work in another of the user's workspaces",
+        "operationId": "switch_workspace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `accounts_disabled`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "accounts_disabled": {
+                    "value": {
+                      "signal": "accounts_disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signal: `session_required`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "session_required": {
+                    "value": {
+                      "signal": "session_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `workspace_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "workspace_not_found": {
+                    "value": {
+                      "signal": "workspace_not_found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
           "keys"
         ],
-        "summary": "The tenant and scopes of the API key used",
+        "summary": "Who the request acts for: the tenant and scopes of the API key used, or the signed-in user with their role",
         "operationId": "me",
         "responses": {
           "200": {
@@ -3637,6 +4131,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -3670,6 +4167,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       },
@@ -3718,6 +4218,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -3736,6 +4239,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -3811,6 +4317,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -3829,6 +4338,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -3883,6 +4395,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -3971,6 +4486,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4067,6 +4585,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -4095,6 +4616,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -4130,6 +4654,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -4148,6 +4675,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4268,6 +4798,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4403,6 +4936,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4534,6 +5070,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4619,6 +5158,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4716,6 +5258,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4801,6 +5346,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4882,6 +5430,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -4994,6 +5545,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5091,6 +5645,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5211,6 +5768,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5347,6 +5907,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5420,6 +5983,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5500,6 +6066,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5585,6 +6154,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5665,6 +6237,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5778,6 +6353,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5893,6 +6471,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -5993,6 +6574,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -6108,6 +6692,9 @@
           },
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -6690,6 +7277,17 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditUser"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The signed-in user that did it; null for API keys and the server's operators."
           }
         },
         "type": "object",
@@ -6734,6 +7332,32 @@
           "items"
         ],
         "title": "AuditListResponse"
+      },
+      "AuditUser": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "The user's email; null once the account is gone."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email"
+        ],
+        "title": "AuditUser"
       },
       "Body_upload_data": {
         "properties": {
@@ -8191,6 +8815,30 @@
         ],
         "title": "KeyPointResponse"
       },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "title": "Email",
+            "examples": [
+              "ada@example.com"
+            ]
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
       "MeResponse": {
         "properties": {
           "tenant": {
@@ -8214,11 +8862,40 @@
               }
             ],
             "title": "Key Id",
-            "description": "Null when authentication is off."
+            "description": "The API key used; null for a signed-in user and when authentication is off."
           },
           "auth_enabled": {
             "type": "boolean",
             "title": "Auth Enabled"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The signed-in user; null for API keys and when authentication is off."
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "admin",
+                  "editor",
+                  "viewer"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role",
+            "description": "The signed-in user's role in the workspace."
           }
         },
         "type": "object",
@@ -8747,6 +9424,14 @@
           "api_key_invalid",
           "api_key_scope_missing",
           "api_key_not_found",
+          "accounts_disabled",
+          "signup_disabled",
+          "email_taken",
+          "workspace_taken",
+          "login_failed",
+          "account_locked",
+          "session_required",
+          "workspace_not_found",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",
@@ -9154,6 +9839,85 @@
           "results"
         ],
         "title": "SearchStepResponse"
+      },
+      "SessionResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/WorkspaceResponse",
+            "description": "The workspace the session works in."
+          },
+          "workspaces": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceResponse"
+            },
+            "type": "array",
+            "title": "Workspaces",
+            "description": "Every workspace the user is a member of, by name."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "When the sign-in ends."
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "workspace",
+          "workspaces",
+          "expires_at"
+        ],
+        "title": "SessionResponse"
+      },
+      "SignupRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "examples": [
+              "ada@example.com"
+            ]
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Password",
+            "description": "At least 10 characters. Only an Argon2 hash is stored."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "examples": [
+              "Ada Lovelace"
+            ]
+          },
+          "workspace": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{1,63}$",
+            "title": "Workspace",
+            "description": "The new workspace's name: 2 to 64 lower-case letters, digits, `-` and `_`. You become its owner.",
+            "examples": [
+              "acme"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "name",
+          "workspace"
+        ],
+        "title": "SignupRequest"
       },
       "SourceListResponse": {
         "properties": {
@@ -9783,6 +10547,29 @@
         ],
         "title": "UsageResponse"
       },
+      "UserResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "name"
+        ],
+        "title": "UserResponse"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -10399,6 +11186,48 @@
         "type": "object",
         "title": "WidgetUpdateRequest",
         "description": "Only the fields sent are changed."
+      },
+      "WorkspaceRequest": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace",
+            "examples": [
+              "acme"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace"
+        ],
+        "title": "WorkspaceRequest"
+      },
+      "WorkspaceResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "role"
+        ],
+        "title": "WorkspaceResponse"
       }
     },
     "securitySchemes": {
@@ -10412,6 +11241,12 @@
         "description": "An API key, for clients that cannot set Authorization",
         "in": "header",
         "name": "X-API-Key"
+      },
+      "APIKeyCookie": {
+        "type": "apiKey",
+        "description": "A signed-in user's session, set by signing in",
+        "in": "cookie",
+        "name": "ragolex_session"
       }
     }
   }

@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import getpass
 import json
 import re
 import sys
@@ -20,7 +21,7 @@ from ragolex.core.errors import AppError
 from ragolex.core.logging_config import configure_logging
 from ragolex.core.tracing import setup_tracing
 from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
-from ragolex.domain.models import DEFAULT_TENANT, SCOPES
+from ragolex.domain.models import DEFAULT_TENANT, MEMBER_ROLES, SCOPES
 from ragolex.embeddings.factory import create_embedder
 from ragolex.evaluation.dataset import Dataset, DatasetError, load_dataset
 from ragolex.evaluation.report import (
@@ -51,6 +52,7 @@ from ragolex.persistence.repositories import (
 )
 from ragolex.rerankers.factory import create_reranker
 from ragolex.scanners.factory import create_scanner
+from ragolex.services.account_service import AccountService
 from ragolex.services.answer_service import AnswerService
 from ragolex.services.audit import AuditService, record
 from ragolex.services.auth_service import AuthService
@@ -637,7 +639,8 @@ async def _tenants_and_keys(args: argparse.Namespace) -> int:
                 page = await AuditService(uow).list(owner.id, action=args.action, offset=0,
                                                     limit=args.limit)
                 for event in page.items:
-                    who = event.actor_key_name or event.actor_key_id or "operator"
+                    who = (event.actor_user_email or event.actor_key_name or event.actor_key_id
+                           or "operator")
                     details = json.dumps(event.details, ensure_ascii=False, sort_keys=True)
                     print(f"{event.created_at:%Y-%m-%d %H:%M:%S}\t{event.action}\t"
                           f"{event.target or '-'}\t{who}\t{details}")
@@ -659,6 +662,48 @@ async def _tenants_and_keys(args: argparse.Namespace) -> int:
             print(f"Key {args.key_id} is revoked.")
             return 0
     except AppError as exc:
+        print(f"{exc}", file=sys.stderr)
+        return 1
+    finally:
+        await engine.dispose()
+
+
+def _read_password(from_stdin: bool) -> str:
+    """A new account's password: the first line of stdin, or typed twice at a prompt."""
+    if from_stdin:
+        return sys.stdin.readline().rstrip("\n")
+    password = getpass.getpass("Password (at least 10 characters): ")
+    if getpass.getpass("Again: ") != password:
+        raise ValueError("The passwords differ")
+    return password
+
+
+async def _users(args: argparse.Namespace) -> int:
+    """`ragolex users add`: an account with a role in a tenant, e.g. its first owner."""
+    settings = get_settings()
+    engine = create_engine(settings.DATABASE_URL)
+    try:
+        async with create_session_factory(engine)() as session:
+            uow = SqlUnitOfWork(session)
+            accounts = AccountService(uow, session_days=settings.SESSION_DAYS)
+            if await uow.tenants.get_by_name(args.tenant) is None:
+                print(f"There is no tenant {args.tenant!r}; create it with "
+                      f"`ragolex tenants create {args.tenant}`.", file=sys.stderr)
+                return 1
+            existing = await uow.users.login(args.email.strip().lower())
+            password = None
+            if existing is None:
+                password = _read_password(args.password_stdin)
+                if len(password) < 10:
+                    print("The password needs at least 10 characters.", file=sys.stderr)
+                    return 1
+            user, created = await accounts.add_member(
+                email=args.email, tenant_name=args.tenant, role=args.role, name=args.name,
+                password=password)
+            account = "New account" if created else "Account"
+            print(f"{account} {user.email} is {args.role} of {args.tenant}.")
+            return 0
+    except (AppError, ValueError) as exc:
         print(f"{exc}", file=sys.stderr)
         return 1
     finally:
@@ -831,6 +876,23 @@ def main(argv: list[str] | None = None) -> int:
     revoke_key = key_actions.add_parser("revoke", help="revoke a key at once")
     revoke_key.add_argument("--tenant", required=True)
     revoke_key.add_argument("key_id", type=_key_id, help="the id `keys list` shows")
+    users = commands.add_parser("users", help="give people accounts in a tenant",
+                                description="People sign in to the web app with an email and "
+                                            "password; their role in a tenant says what they "
+                                            "may do there.")
+    user_actions = users.add_subparsers(dest="action", required=True, metavar="action")
+    add_user = user_actions.add_parser(
+        "add", help="give an account a role in a tenant, making the account if it is new",
+        description="A new account asks for its password (or reads it from stdin with "
+                    "--password-stdin). An existing one keeps its password and gets the role.")
+    add_user.add_argument("email")
+    add_user.add_argument("--tenant", required=True)
+    add_user.add_argument("--role", required=True, choices=MEMBER_ROLES,
+                          help="owner and admin: everything; editor: read, write and ask; "
+                               "viewer: read and ask")
+    add_user.add_argument("--name", help="the person's name (default: their email)")
+    add_user.add_argument("--password-stdin", action="store_true",
+                          help="read a new account's password from the first line of stdin")
     openapi = commands.add_parser(
         "openapi",
         help="write the API's OpenAPI schema, which the SDKs are generated from",
@@ -859,6 +921,8 @@ def main(argv: list[str] | None = None) -> int:
         return _write_openapi(args.output)
     if args.command in ("tenants", "keys", "audit"):
         return asyncio.run(_tenants_and_keys(args))
+    if args.command == "users":
+        return asyncio.run(_users(args))
     if args.command == "worker":
         workers = args.workers or get_settings().JOB_WORKERS or 1
         try:
