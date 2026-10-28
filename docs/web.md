@@ -21,7 +21,7 @@ The web app in `frontend/` is the interface for people: create projects, upload 
 | **Bots** | Let people ask the project in Telegram, Slack or WhatsApp: pick the chat app, follow its setup steps, paste its credentials and give the bot a name and optionally tags, so it answers only from the documents that have them. A Telegram bot connects itself; a Slack or WhatsApp bot shows the webhook URL (and, for WhatsApp, the verify token) to paste into the app's settings, with buttons to copy them. Each bot shows its account in the chat app, when it last got a message and its last problem, if any; it can be turned off and on, or removed after a confirmation (its conversations stay). |
 | **Usage** | The tenant's limits, when it has any: answers this month, storage and cost against their quotas and monthly budget. Its spending over the last 7, 30 or 90 days: a chart of cost or answers per day, and what each project and model cost. Questions asked, how many were answered, tokens and cost for the project, and the rated answers: how many were good and bad, each with its question, the note on it and a link to its conversation. |
 
-![The Sources card: a form to add a website, feed or GitHub repository with its page limit, schedule and tags, then a website opened to list its pages and a feed, each with when it was synced and is next due](media/web-sources.png)
+![The Sources card: a form to add a source with its type, address, page limit, schedule and tags, then a Notion source read through a connection opened to list its pages, a website and a feed, each with when it was synced and is next due](media/web-sources.png)
 
 ![The Search page: a query with its filters (results, minimum score, documents, tags, pages, one per document) and the matching passages, best first, with their scores and the query's words highlighted](media/web-search.png)
 
@@ -37,7 +37,17 @@ The web app in `frontend/` is the interface for people: create projects, upload 
 
 ![The Usage page: questions, answer rate, tokens and cost for the project, the tenant's limits and monthly budget, and a chart of spending per day with the cost per project and model](media/web-usage.png)
 
-![The Admin page: usage this month, the tenant's API keys with their scopes and a form to create one, the evaluation scores of the latest run and every run, and the audit log](media/web-admin.png)
+![The Admin page: usage this month, the workspace's members with their roles, last sign-ins and an open invitation, and its domains with the DNS records to add](media/web-admin.png)
+
+![The Members section: inviting by email with a role, the members with their roles and when they last signed in, and an invitation not accepted yet](media/web-members.png)
+
+![The Domains section: a domain waiting for its TXT record and a verified one, each with the TXT and CNAME records to add and buttons to copy them](media/web-domains.png)
+
+![The Connections section: buttons to connect Notion and Google Drive, the redirect URI to register with each app, and a Google account and a Notion workspace connected, with how many sources use each](media/web-connections.png)
+
+![The Bots page: Slack chosen with its setup steps and fields, and a Slack, a Telegram and a WhatsApp bot with their accounts, tags, last messages and webhook URLs; the WhatsApp bot shows its verify token and its last problem](media/web-bots.png)
+
+![The sign-in page: email and password, a link for a forgotten password, signing in with an API key instead, and a link to create an account](media/web-signin.png)
 
 When the server requires authentication (`AUTH_ENABLED=true`), a page that needs it sends people to **Sign in**, and back to that page after. They sign in with their email and password; with **Sign in with single sign-on**, with only their email, through their organisation's identity provider (offered by itself when a password is refused because the workspace requires it); or create an account (with a workspace of their own) on **Create an account**. The server keeps the session in an HttpOnly cookie, which the app never sees. **Forgot your password?** emails a link (when the server can send email) to the **Choose a new password** page. An invitation link opens **Join a workspace**: it says who invited whom to which workspace, and joins with a new account, or with the invited email's account once signed in. Tokens from these links are read from the address's `#` part, which browsers never send to a server, and taken out of the address bar at once.
 

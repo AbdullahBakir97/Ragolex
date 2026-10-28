@@ -77,11 +77,19 @@ Everything above in the browser: projects, drag-and-drop uploads, conversations 
   </tr>
   <tr>
     <td width="50%"><img src="docs/media/web-usage.png" alt="The Usage page: questions, answer rate, tokens and cost, the tenant's limits and monthly budget, and a chart of spending per day with the cost per project and model."></td>
-    <td width="50%"><img src="docs/media/web-admin.png" alt="The Admin page: usage this month, the tenant's API keys with their scopes, evaluation scores with every run, and the audit log."></td>
+    <td width="50%"><img src="docs/media/web-admin.png" alt="The Admin page: usage this month, the workspace's members with their roles and an open invitation, and its domains with the DNS records to add."></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Usage</b>: spending, limits and budget</sub></td>
-    <td align="center"><sub><b>Admin</b>: API keys, evaluation and audit log</sub></td>
+    <td align="center"><sub><b>Admin</b>: members, domains, keys and audit log</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/media/web-bots.png" alt="The Bots page: Slack chosen with its setup steps and fields, and three bots (Slack, Telegram and WhatsApp) with their accounts, tags, last messages, webhook URLs and a WhatsApp bot's last problem."></td>
+    <td width="50%"><img src="docs/media/web-connections.png" alt="The Connections section of the Admin page: buttons to connect Notion and Google Drive, the redirect URI to register, and a Notion workspace and a Google account connected, with how many sources use each."></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Bots</b>: answers in Telegram, Slack and WhatsApp</sub></td>
+    <td align="center"><sub><b>Connections</b>: Notion and Google Drive as sources</sub></td>
   </tr>
 </table>
 
@@ -190,10 +198,4 @@ Full-Stack Developer based in Germany - Python · Django · Vue · Nuxt.
 
 Copyright (C) 2024-2026 Abdullah Bakir.
 
-Ragolex is released under the [GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0-only). You may use, change and share it, including to run it as a service, as long as you:
-
-- keep the copyright and the [NOTICE](./NOTICE) file in every copy,
-- keep the "Ragolex by Abdullah Bakir" credit in the web app and say in your documentation that your work is based on Ragolex,
-- publish the complete source code of your version, under the same license, to everyone who uses it, also when they only use it over a network.
-
-To use Ragolex under other terms, for example in a closed-source product, contact [Abdullah Bakir](https://github.com/AbdullahBakir97).
+Ragolex is released under the [GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0-only). You may use, change and share it, including to run it as a service.

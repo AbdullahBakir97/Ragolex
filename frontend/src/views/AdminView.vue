@@ -65,7 +65,7 @@ function ratio(used: number, limit: number | null): number | null {
 
 <template>
   <div class="page">
-    <PageHeader title="Admin" :subtitle="me ? `Workspace ${me.tenant}: usage, members, API keys, evaluation scores and the audit log.` : 'Usage, members, API keys, evaluation scores and the audit log.'">
+    <PageHeader title="Admin" :subtitle="me ? `Workspace ${me.tenant}: usage, members, domains, connections, API keys, evaluation scores and the audit log.` : 'Usage, members, domains, connections, API keys, evaluation scores and the audit log.'">
       <template v-if="me" #meta>
         <p class="subtle small">{{ signedInAs }}</p>
       </template>
@@ -90,7 +90,7 @@ function ratio(used: number, limit: number | null): number | null {
 
     <div v-if="me && !isAdmin" class="alert">
       <ShieldAlert :size="18" class="subtle" />
-      <span class="muted">Members, API keys, evaluation scores and the audit log need the <strong>admin</strong> scope: an owner's or an admin's role, or a key with it.</span>
+      <span class="muted">Members, domains, connections, API keys, evaluation scores and the audit log need the <strong>admin</strong> scope: an owner's or an admin's role, or a key with it.</span>
     </div>
     <template v-else-if="me">
       <AdminMembers v-if="me.auth_enabled" :my-role="me.role ?? null" :my-user-id="me.user?.id ?? null" @changed="audit?.refresh()" />
