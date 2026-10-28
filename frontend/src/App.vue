@@ -1,15 +1,29 @@
 <script setup lang="ts">
 import { Menu } from "@lucide/vue";
-import { ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
-import ApiKeyDialog from "@/components/ApiKeyDialog.vue";
+import { signInNeeded } from "@/api/auth";
 import AppSidebar from "@/components/AppSidebar.vue";
 import BrandMark from "@/components/BrandMark.vue";
 import ToastHost from "@/components/ToastHost.vue";
 
 const route = useRoute();
+const router = useRouter();
 const menuOpen = ref(false);
+// Sign-in, sign-up and the links from emails show on their own, without the app around them.
+const bare = computed(() => route.meta.public === true);
+// Nothing shows until the first page is known: the app around a public page would
+// load data, and its refusal would send that page to sign in.
+const ready = ref(false);
+void router.isReady().then(() => (ready.value = true));
+
+// The server wants a key or a session: sign in, then come back here.
+watch(signInNeeded, (needed) => {
+  if (!needed) return;
+  signInNeeded.value = false;
+  if (!bare.value) void router.replace({ name: "signin", query: { next: route.fullPath } });
+});
 
 // On small screens the sidebar is a drawer: close it after navigating.
 watch(
@@ -19,7 +33,12 @@ watch(
 </script>
 
 <template>
-  <div class="shell" :class="{ 'menu-open': menuOpen }">
+  <template v-if="!ready" />
+  <div v-else-if="bare" class="bare">
+    <main><RouterView /></main>
+    <ToastHost />
+  </div>
+  <div v-else class="shell" :class="{ 'menu-open': menuOpen }">
     <header class="topbar">
       <button class="btn btn-ghost btn-icon" aria-label="Open navigation" @click="menuOpen = true">
         <Menu :size="20" />
@@ -34,7 +53,6 @@ watch(
       <RouterView />
     </main>
     <ToastHost />
-    <ApiKeyDialog />
   </div>
 </template>
 

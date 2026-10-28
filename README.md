@@ -44,8 +44,9 @@
 ### Serve several apps
 
 - **Tenants** keep their projects apart on one deployment. API keys with scopes (`read`, `write`, `ask`, `admin`) say what each app may do, within its own rate limit, monthly quotas and budget.
+- **Teams** sign in with an email and password, each with a role in a workspace (owner, admin, editor or viewer): invite people by link or email, change their roles, and reset forgotten passwords.
 - **Track cost**: the tokens and cost of every answer, spending per day, project and model, and a monthly budget that alerts at 80% and stops answers at 100%.
-- **Administer** a tenant in the web app: its API keys, usage, cost, evaluation scores over time and the audit log of who changed what.
+- **Administer** a tenant in the web app: its members and invitations, API keys, usage, cost, evaluation scores over time and the audit log of who changed what.
 - **Export** everything a tenant has as one ZIP archive, or delete it all.
 
 ### Quality, security and operations
@@ -57,7 +58,7 @@
 - **Deploy** automatically: every merge runs on staging and every release tag on production, from images built once, going back to the previous release on its own when a deployment isn't healthy.
 - **Tested** by more than 1,200 backend tests with a 95% coverage threshold, Vitest unit tests, and Playwright end-to-end and accessibility checks of every page; dependencies and secrets are scanned in CI.
 
-Next on the [roadmap](docs/roadmap.md): user accounts with roles per tenant, a custom domain per tenant, OAuth connectors for Notion and Google Drive, and Telegram, Slack and WhatsApp bots.
+Next on the [roadmap](docs/roadmap.md): a custom domain per tenant, OAuth connectors for Notion and Google Drive, and Telegram, Slack and WhatsApp bots.
 
 ## Web app
 
