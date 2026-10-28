@@ -20,6 +20,7 @@ from ragolex.core.encryption import EncryptionError, new_key
 from ragolex.core.errors import AppError
 from ragolex.core.logging_config import configure_logging
 from ragolex.core.tracing import setup_tracing
+from ragolex.dns.resolver import DnsTxtResolver
 from ragolex.domain.chunking import DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_SIZE
 from ragolex.domain.models import DEFAULT_TENANT, MEMBER_ROLES, SCOPES
 from ragolex.embeddings.factory import create_embedder
@@ -56,6 +57,12 @@ from ragolex.services.account_service import AccountService
 from ragolex.services.answer_service import AnswerService
 from ragolex.services.audit import AuditService, record
 from ragolex.services.auth_service import AuthService
+from ragolex.services.domain_service import (
+    DomainService,
+    normalise_domain,
+    record_name,
+    record_value,
+)
 from ragolex.services.evaluation_service import (
     AnswerSettings,
     EvaluationService,
@@ -678,6 +685,51 @@ def _read_password(from_stdin: bool) -> str:
     return password
 
 
+async def _domains(args: argparse.Namespace) -> int:
+    """`ragolex domains`: a tenant's own domains, added, verified, listed or removed."""
+    settings = get_settings()
+    engine = create_engine(settings.DATABASE_URL)
+    try:
+        async with create_session_factory(engine)() as session:
+            uow = SqlUnitOfWork(session)
+            service = DomainService(uow, DnsTxtResolver(), app_url=settings.APP_URL)
+            tenant = await uow.tenants.get_by_name(args.tenant)
+            if tenant is None:
+                print(f"There is no tenant {args.tenant!r}.", file=sys.stderr)
+                return 1
+            if args.action == "list":
+                for domain in await service.domains(tenant.id):
+                    state = "verified" if domain.verified_at else "not verified"
+                    print(f"{domain.domain}\t{state}\t{record_name(domain.domain)} TXT "
+                          f"{record_value(domain.token)}")
+                return 0
+            if args.action == "add":
+                added = await service.add(tenant.id, args.domain, verified=args.verified)
+                if added.verified_at:
+                    print(f"{added.domain} serves {tenant.name} now.")
+                else:
+                    print(f"Add this TXT record, then run `ragolex domains verify`:\n"
+                          f"{record_name(added.domain)} TXT {record_value(added.token)}")
+                return 0
+            name = normalise_domain(args.domain)
+            found = next((d for d in await service.domains(tenant.id) if d.domain == name), None)
+            if found is None:
+                print(f"{tenant.name} has no domain {name}.", file=sys.stderr)
+                return 1
+            if args.action == "verify":
+                await service.verify(tenant.id, found.id)
+                print(f"{name} is verified: it serves {tenant.name}.")
+            else:
+                await service.remove(tenant.id, found.id)
+                print(f"{name} no longer serves {tenant.name}.")
+            return 0
+    except AppError as exc:
+        print(f"{exc}", file=sys.stderr)
+        return 1
+    finally:
+        await engine.dispose()
+
+
 async def _users(args: argparse.Namespace) -> int:
     """`ragolex users add`: an account with a role in a tenant, e.g. its first owner;
     `ragolex users reset-password`: a link that sets a new password."""
@@ -885,6 +937,23 @@ def main(argv: list[str] | None = None) -> int:
     revoke_key = key_actions.add_parser("revoke", help="revoke a key at once")
     revoke_key.add_argument("--tenant", required=True)
     revoke_key.add_argument("key_id", type=_key_id, help="the id `keys list` shows")
+    domains = commands.add_parser(
+        "domains", help="a tenant's own domains, such as help.acme.com",
+        description="A tenant serves on a domain once a TXT record proves it owns it; "
+                    "requests to that domain then act for the tenant.")
+    domain_actions = domains.add_subparsers(dest="action", required=True, metavar="action")
+    list_domains = domain_actions.add_parser("list", help="the tenant's domains and their TXT records")
+    list_domains.add_argument("--tenant", required=True)
+    add_domain = domain_actions.add_parser("add", help="add a domain, and say which TXT record proves it")
+    add_domain.add_argument("domain")
+    add_domain.add_argument("--tenant", required=True)
+    add_domain.add_argument("--verified", action="store_true",
+                            help="trust it without a TXT record (for your own domains)")
+    for action, help_text in [("verify", "look up its TXT record now"),
+                              ("remove", "stop serving the tenant on it")]:
+        command = domain_actions.add_parser(action, help=help_text)
+        command.add_argument("domain")
+        command.add_argument("--tenant", required=True)
     users = commands.add_parser("users", help="give people accounts in a tenant",
                                 description="People sign in to the web app with an email and "
                                             "password; their role in a tenant says what they "
@@ -935,6 +1004,8 @@ def main(argv: list[str] | None = None) -> int:
         return _write_openapi(args.output)
     if args.command in ("tenants", "keys", "audit"):
         return asyncio.run(_tenants_and_keys(args))
+    if args.command == "domains":
+        return asyncio.run(_domains(args))
     if args.command == "users":
         return asyncio.run(_users(args))
     if args.command == "worker":

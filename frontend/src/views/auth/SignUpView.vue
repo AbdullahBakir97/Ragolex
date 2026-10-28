@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { LoaderCircle } from "@lucide/vue";
-import { ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 
 import { ApiError, api } from "@/api/client";
 import AuthCard from "@/components/AuthCard.vue";
+import { useSite } from "@/composables/useSite";
 import { reloadAt } from "@/lib/navigate";
+
+// Off on a workspace's own domain, and on servers that do not let people sign up.
+const { site, load } = useSite();
+onMounted(load);
 
 const name = ref("");
 const email = ref("");
@@ -38,7 +43,11 @@ async function signUp() {
 
 <template>
   <AuthCard title="Create an account" subtitle="You get a workspace of your own; invite your team to it later.">
-    <form @submit.prevent="signUp">
+    <p v-if="site && !site.signup_enabled" class="alert" role="status">
+      {{ site.workspace ? `People join ${site.workspace} by invitation.` : "This server does not let people sign up." }}
+      Ask an administrator for an invitation.
+    </p>
+    <form v-else @submit.prevent="signUp">
       <label class="field">
         <span>Your name</span>
         <input v-model="name" class="input" autocomplete="name" required maxlength="100" />

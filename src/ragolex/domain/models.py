@@ -226,6 +226,25 @@ class UserSession:
 
 
 @dataclass(frozen=True)
+class TenantDomain:
+    """A domain a workspace serves on, such as help.acme.com.
+
+    A workspace proves it owns the domain with a TXT record holding ``token``;
+    until then (``verified_at`` None) the domain serves nothing. Only one
+    workspace can have a domain verified.
+    """
+
+    id: str
+    tenant_id: int
+    tenant_name: str
+    domain: str
+    token: str
+    created_at: datetime
+    verified_at: datetime | None = None
+    checked_at: datetime | None = None  # When its TXT record was last looked up.
+
+
+@dataclass(frozen=True)
 class Member:
     """A workspace's member, as its admins see them: the account and its role there."""
 

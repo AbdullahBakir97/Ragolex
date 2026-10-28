@@ -580,7 +580,7 @@ export interface paths {
         put?: never;
         /**
          * Create an account with a workspace of its own, and sign in
-         * @description The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.
+         * @description The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is, and on a workspace's own domain, where people are invited.
          */
         post: operations["sign_up"];
         delete?: never;
@@ -600,7 +600,7 @@ export interface paths {
         put?: never;
         /**
          * Sign in with an email and password
-         * @description Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.
+         * @description Sets the session cookie, working in the first of the user's workspaces, or on a workspace's own domain, in that one. The 10th wrong password in a row locks the account for 15 minutes.
          */
         post: operations["sign_in"];
         delete?: never;
@@ -633,7 +633,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in user and their workspaces */
+        /**
+         * The signed-in user and their workspaces
+         * @description On a workspace's own domain, the session works in that workspace.
+         */
         get: operations["current_session"];
         put?: never;
         post?: never;
@@ -651,7 +654,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Work in another of the user's workspaces */
+        /**
+         * Work in another of the user's workspaces
+         * @description Not on a workspace's own domain, which always works in its own.
+         */
         put: operations["switch_workspace"];
         post?: never;
         delete?: never;
@@ -935,6 +941,107 @@ export interface paths {
          * @description Its link stops working at once.
          */
         delete: operations["revoke_invitation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's own domains, by name */
+        get: operations["list_domains"];
+        put?: never;
+        /**
+         * Add a domain for the workspace to serve on
+         * @description It serves nothing until verified: add the TXT record it returns at the domain's DNS provider, then `POST …/verify`. Point the domain at this server with the CNAME (or an A record).
+         */
+        post: operations["add_domain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/domains/{domain_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check the domain's TXT record
+         * @description Looks the record up now, without caching. Once found, the domain serves the workspace: requests to it act for it, and invitation links use it.
+         */
+        post: operations["verify_domain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/domains/{domain_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a domain
+         * @description It stops serving the workspace at once.
+         */
+        delete: operations["remove_domain"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/domains/allowed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether a domain is a verified workspace's
+         * @description For a reverse proxy's on-demand certificates, such as Caddy's `on_demand_tls` `ask`: `200` for a verified domain, `404` otherwise. Needs no key.
+         */
+        get: operations["domain_allowed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What this domain serves, for the web app before sign-in
+         * @description The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.
+         */
+        get: operations["site"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1930,6 +2037,56 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** DnsRecord */
+        DnsRecord: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "TXT" | "CNAME";
+            /** Name */
+            name: string;
+            /** Value */
+            value: string;
+        };
+        /** DomainRequest */
+        DomainRequest: {
+            /**
+             * Domain
+             * @description A host name, without `https://` or a path.
+             * @example help.acme.com
+             */
+            domain: string;
+        };
+        /** DomainResponse */
+        DomainResponse: {
+            /** Id */
+            id: string;
+            /** Domain */
+            domain: string;
+            /**
+             * Verified
+             * @description Whether its TXT record was found: only then does it serve the workspace.
+             */
+            verified: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Verified At */
+            verified_at: string | null;
+            /**
+             * Checked At
+             * @description When its TXT record was last looked up.
+             */
+            checked_at: string | null;
+            /**
+             * Records
+             * @description What to add at the domain's DNS provider: the TXT record that proves it, and a CNAME that points it at this server.
+             */
+            records: components["schemas"]["DnsRecord"][];
+        };
         /** ErrorResponse */
         ErrorResponse: {
             signal: components["schemas"]["ResponseSignal"];
@@ -2668,7 +2825,7 @@ export interface components {
          * ResponseSignal
          * @enum {string}
          */
-        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "current_password_wrong" | "member_not_found" | "owner_required" | "last_owner" | "already_member" | "invitation_not_found" | "invitation_invalid" | "invitation_for_someone_else" | "account_details_required" | "password_reset_invalid" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
+        ResponseSignal: "file_type_not_supported" | "file_size_exceeded" | "file_uploaded_successfully" | "file_already_uploaded" | "file_upload_failed" | "file_not_found" | "project_not_found" | "file_has_no_text" | "file_not_processed" | "deck_not_found" | "card_not_found" | "deck_full" | "processing_success" | "processing_failed" | "indexing_success" | "search_success" | "answer_success" | "no_answer" | "conversation_not_found" | "message_not_found" | "embedding_not_configured" | "embedding_failed" | "llm_not_configured" | "llm_failed" | "ocr_failed" | "rerank_failed" | "job_not_found" | "job_not_failed" | "job_abandoned" | "job_failed" | "webhook_not_found" | "webhook_url_not_allowed" | "source_not_found" | "source_url_not_allowed" | "widget_not_found" | "widget_origin_invalid" | "tag_invalid" | "origin_not_allowed" | "api_key_required" | "api_key_invalid" | "api_key_scope_missing" | "api_key_not_found" | "accounts_disabled" | "signup_disabled" | "email_taken" | "workspace_taken" | "login_failed" | "account_locked" | "session_required" | "workspace_not_found" | "current_password_wrong" | "member_not_found" | "owner_required" | "last_owner" | "already_member" | "invitation_not_found" | "invitation_invalid" | "invitation_for_someone_else" | "account_details_required" | "password_reset_invalid" | "domain_invalid" | "domain_not_found" | "domain_exists" | "domain_taken" | "domain_not_verified" | "wrong_domain" | "dns_lookup_failed" | "rate_limited" | "answer_quota_exceeded" | "budget_exceeded" | "storage_quota_exceeded" | "internal_error" | "file_content_mismatch" | "file_infected" | "malware_scan_failed";
         /** ReviewCardResponse */
         ReviewCardResponse: {
             /** Id */
@@ -2898,6 +3055,24 @@ export interface components {
              * @example acme
              */
             workspace: string;
+        };
+        /** SiteResponse */
+        SiteResponse: {
+            /**
+             * Workspace
+             * @description The workspace whose own domain this is; null on the server's own domain.
+             */
+            workspace: string | null;
+            /**
+             * Accounts Enabled
+             * @description Whether people sign in (`AUTH_ENABLED`).
+             */
+            accounts_enabled: boolean;
+            /**
+             * Signup Enabled
+             * @description Whether people may sign up here: never on a workspace's own domain, where they are invited.
+             */
+            signup_enabled: boolean;
         };
         /** SourceListResponse */
         SourceListResponse: {
@@ -5478,6 +5653,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Signal: `wrong_domain` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Signal: `accounts_disabled` */
             409: {
                 headers: {
@@ -5513,6 +5697,15 @@ export interface operations {
             };
             /** @description Signal: `session_required` */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `wrong_domain` */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6263,6 +6456,228 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_domains: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainResponse"][];
+                };
+            };
+        };
+    };
+    add_domain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainResponse"];
+                };
+            };
+            /** @description Signal: `domain_exists` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `domain_invalid` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verify_domain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain's id. */
+                domain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainResponse"];
+                };
+            };
+            /** @description Signal: `domain_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signal: `domain_not_verified`, `domain_taken` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Signal: `dns_lookup_failed` */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_domain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain's id. */
+                domain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Signal: `domain_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    domain_allowed: {
+        parameters: {
+            query: {
+                domain: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Signal: `domain_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    site: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteResponse"];
                 };
             };
         };

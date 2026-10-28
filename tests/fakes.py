@@ -15,7 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from itertools import count
 
-from ragolex.core.errors import EmbeddingFailed, LLMFailed, MailFailed
+from ragolex.core.errors import DnsLookupFailed, EmbeddingFailed, LLMFailed, MailFailed
 from ragolex.domain.llm import Completion, Message, TokenUsage
 from ragolex.domain.models import (
     AnswerRecord,
@@ -45,6 +45,7 @@ from ragolex.domain.models import (
     SourcePage,
     TagCount,
     Tenant,
+    TenantDomain,
     TenantUsage,
     UnembeddedChunk,
     UsageHistory,
@@ -765,6 +766,66 @@ class FakeInvitations:
         return bool(found)
 
 
+class FakeDomains:
+
+    def __init__(self, tenants: "FakeTenants"):
+        self.tenants = tenants
+        self.by_id: dict[str, TenantDomain] = {}
+
+    async def add(self, *, tenant_id, domain, token) -> TenantDomain | None:
+        if any((d.tenant_id, d.domain) == (tenant_id, domain) for d in self.by_id.values()):
+            return None
+        tenant = await self.tenants.get_by_id(tenant_id)
+        assert tenant is not None
+        added = TenantDomain(id=str(uuid.uuid4()), tenant_id=tenant_id, tenant_name=tenant.name,
+                             domain=domain, token=token, created_at=datetime.now(UTC))
+        self.by_id[added.id] = added
+        return added
+
+    async def list_for_tenant(self, tenant_id: int) -> list[TenantDomain]:
+        return sorted((d for d in self.by_id.values() if d.tenant_id == tenant_id),
+                      key=lambda d: d.domain)
+
+    async def get(self, tenant_id: int, domain_id: str) -> TenantDomain | None:
+        found = self.by_id.get(domain_id)
+        return found if found and found.tenant_id == tenant_id else None
+
+    async def find_verified(self, domain: str) -> TenantDomain | None:
+        return next((d for d in self.by_id.values() if d.domain == domain and d.verified_at),
+                    None)
+
+    async def checked(self, domain_id: str, *, verified: bool) -> bool:
+        found = self.by_id[domain_id]
+        now = datetime.now(UTC)
+        taken = verified and any(d.domain == found.domain and d.verified_at and d.id != domain_id
+                                 for d in self.by_id.values())
+        if verified and not taken:
+            found = replace(found, verified_at=found.verified_at or now)
+        self.by_id[domain_id] = replace(found, checked_at=now)
+        return not taken
+
+    async def delete(self, tenant_id: int, domain_id: str) -> bool:
+        if await self.get(tenant_id, domain_id) is None:
+            return False
+        del self.by_id[domain_id]
+        return True
+
+
+class FakeTxtResolver:
+    """TXT records by name; with ``fail``, the DNS servers do not answer."""
+
+    def __init__(self, records: dict[str, list[str]] | None = None, fail: bool = False):
+        self.records = records or {}
+        self.fail = fail
+        self.asked: list[str] = []
+
+    async def txt(self, name: str) -> list[str]:
+        self.asked.append(name)
+        if self.fail:
+            raise DnsLookupFailed("Timeout")
+        return self.records.get(name, [])
+
+
 class FakePasswordResets:
 
     def __init__(self):
@@ -1066,6 +1127,7 @@ class FakeUnitOfWork:
         self.user_sessions = FakeUserSessions()
         self.invitations = FakeInvitations(self.tenants)
         self.password_resets = FakePasswordResets()
+        self.domains = FakeDomains(self.tenants)
         self.usage = FakeUsage()
         self.evaluations = FakeEvaluationRuns()
         self.decks = FakeDecks()

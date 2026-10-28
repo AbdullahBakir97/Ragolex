@@ -20,6 +20,7 @@ from ragolex.api.routes import (
     conversations,
     data,
     decks,
+    domains,
     evaluations,
     export,
     index,
@@ -40,6 +41,7 @@ from ragolex.connectors.factory import create_crawlers
 from ragolex.core.config import Settings, get_settings
 from ragolex.core.logging_config import configure_logging
 from ragolex.core.tracing import setup_tracing
+from ragolex.dns.resolver import DnsTxtResolver
 from ragolex.embeddings.factory import create_embedder
 from ragolex.llm.factory import create_llm
 from ragolex.mail.factory import create_mailer
@@ -90,6 +92,7 @@ def _lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextMan
         app.state.reranker = reranker = create_reranker(settings)
         app.state.scanner = scanner = create_scanner(settings)
         app.state.mailer = create_mailer(settings)
+        app.state.txt_resolver = DnsTxtResolver()
         sender = create_webhook_sender(settings)
         crawlers = create_crawlers(settings)
         workers: list[asyncio.Task] = []
@@ -165,6 +168,8 @@ def create_app() -> FastAPI:
     app.include_router(accounts.router)
     app.include_router(keys.router)
     app.include_router(members.router)
+    app.include_router(domains.router)
+    app.include_router(domains.public_router)
     app.include_router(audit.router)
     app.include_router(evaluations.router)
     app.include_router(export.router)

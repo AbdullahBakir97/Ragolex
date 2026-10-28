@@ -3731,7 +3731,7 @@
           "accounts"
         ],
         "summary": "Create an account with a workspace of its own, and sign in",
-        "description": "The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is.",
+        "description": "The new user owns the new workspace. Sets the session cookie. Off when the server's `SIGNUP_ENABLED` is, and on a workspace's own domain, where people are invited.",
         "operationId": "sign_up",
         "requestBody": {
           "content": {
@@ -3817,7 +3817,7 @@
           "accounts"
         ],
         "summary": "Sign in with an email and password",
-        "description": "Sets the session cookie, working in the first of the user's workspaces. The 10th wrong password in a row locks the account for 15 minutes.",
+        "description": "Sets the session cookie, working in the first of the user's workspaces, or on a workspace's own domain, in that one. The 10th wrong password in a row locks the account for 15 minutes.",
         "operationId": "sign_in",
         "requestBody": {
           "content": {
@@ -3963,6 +3963,7 @@
           "accounts"
         ],
         "summary": "The signed-in user and their workspaces",
+        "description": "On a workspace's own domain, the session works in that workspace.",
         "operationId": "current_session",
         "responses": {
           "200": {
@@ -4008,6 +4009,23 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Signal: `wrong_domain`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "wrong_domain": {
+                    "value": {
+                      "signal": "wrong_domain"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4023,6 +4041,7 @@
           "accounts"
         ],
         "summary": "Work in another of the user's workspaces",
+        "description": "Not on a workspace's own domain, which always works in its own.",
         "operationId": "switch_workspace",
         "requestBody": {
           "content": {
@@ -4090,6 +4109,23 @@
                   "workspace_not_found": {
                     "value": {
                       "signal": "workspace_not_found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signal: `wrong_domain`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "wrong_domain": {
+                    "value": {
+                      "signal": "wrong_domain"
                     }
                   }
                 }
@@ -5312,6 +5348,384 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains": {
+      "get": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "The workspace's own domains, by name",
+        "operationId": "list_domains",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DomainResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Domains"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "Add a domain for the workspace to serve on",
+        "description": "It serves nothing until verified: add the TXT record it returns at the domain's DNS provider, then `POST …/verify`. Point the domain at this server with the CNAME (or an A record).",
+        "operationId": "add_domain",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signal: `domain_invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "domain_invalid": {
+                    "value": {
+                      "signal": "domain_invalid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `domain_exists`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "domain_exists": {
+                    "value": {
+                      "signal": "domain_exists"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/domains/{domain_id}/verify": {
+      "post": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "Check the domain's TXT record",
+        "description": "Looks the record up now, without caching. Once found, the domain serves the workspace: requests to it act for it, and invitation links use it.",
+        "operationId": "verify_domain",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The domain's id.",
+              "title": "Domain Id"
+            },
+            "description": "The domain's id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `domain_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "domain_not_found": {
+                    "value": {
+                      "signal": "domain_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signal: `domain_not_verified`, `domain_taken`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "domain_not_verified": {
+                    "value": {
+                      "signal": "domain_not_verified"
+                    }
+                  },
+                  "domain_taken": {
+                    "value": {
+                      "signal": "domain_taken"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Signal: `dns_lookup_failed`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "dns_lookup_failed": {
+                    "value": {
+                      "signal": "dns_lookup_failed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains/{domain_id}": {
+      "delete": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "Remove a domain",
+        "description": "It stops serving the workspace at once.",
+        "operationId": "remove_domain",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The domain's id.",
+              "title": "Domain Id"
+            },
+            "description": "The domain's id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Signal: `domain_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "domain_not_found": {
+                    "value": {
+                      "signal": "domain_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains/allowed": {
+      "get": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "Whether a domain is a verified workspace's",
+        "description": "For a reverse proxy's on-demand certificates, such as Caddy's `on_demand_tls` `ask`: `200` for a verified domain, `404` otherwise. Needs no key.",
+        "operationId": "domain_allowed",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 253,
+              "title": "Domain"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Domain Allowed"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signal: `domain_not_found`",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "domain_not_found": {
+                    "value": {
+                      "signal": "domain_not_found"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/site": {
+      "get": {
+        "tags": [
+          "domains"
+        ],
+        "summary": "What this domain serves, for the web app before sign-in",
+        "description": "The workspace whose own domain the request came to, and whether people sign in and may sign up here. Needs no key.",
+        "operationId": "site",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteResponse"
                 }
               }
             }
@@ -9133,6 +9547,118 @@
         ],
         "title": "DeliveryResponse"
       },
+      "DnsRecord": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TXT",
+              "CNAME"
+            ],
+            "title": "Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "name",
+          "value"
+        ],
+        "title": "DnsRecord"
+      },
+      "DomainRequest": {
+        "properties": {
+          "domain": {
+            "type": "string",
+            "maxLength": 253,
+            "minLength": 3,
+            "title": "Domain",
+            "description": "A host name, without `https://` or a path.",
+            "examples": [
+              "help.acme.com"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "domain"
+        ],
+        "title": "DomainRequest"
+      },
+      "DomainResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "domain": {
+            "type": "string",
+            "title": "Domain"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified",
+            "description": "Whether its TXT record was found: only then does it serve the workspace."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At",
+            "description": "When its TXT record was last looked up."
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/DnsRecord"
+            },
+            "type": "array",
+            "title": "Records",
+            "description": "What to add at the domain's DNS provider: the TXT record that proves it, and a CNAME that points it at this server."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "domain",
+          "verified",
+          "created_at",
+          "verified_at",
+          "checked_at",
+          "records"
+        ],
+        "title": "DomainResponse"
+      },
       "ErrorResponse": {
         "properties": {
           "signal": {
@@ -10766,6 +11292,13 @@
           "invitation_for_someone_else",
           "account_details_required",
           "password_reset_invalid",
+          "domain_invalid",
+          "domain_not_found",
+          "domain_exists",
+          "domain_taken",
+          "domain_not_verified",
+          "wrong_domain",
+          "dns_lookup_failed",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",
@@ -11272,6 +11805,39 @@
           "workspace"
         ],
         "title": "SignupRequest"
+      },
+      "SiteResponse": {
+        "properties": {
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "The workspace whose own domain this is; null on the server's own domain."
+          },
+          "accounts_enabled": {
+            "type": "boolean",
+            "title": "Accounts Enabled",
+            "description": "Whether people sign in (`AUTH_ENABLED`)."
+          },
+          "signup_enabled": {
+            "type": "boolean",
+            "title": "Signup Enabled",
+            "description": "Whether people may sign up here: never on a workspace's own domain, where they are invited."
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace",
+          "accounts_enabled",
+          "signup_enabled"
+        ],
+        "title": "SiteResponse"
       },
       "SourceListResponse": {
         "properties": {

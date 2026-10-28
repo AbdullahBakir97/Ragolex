@@ -135,6 +135,31 @@ export interface Me {
   role?: MemberRole | null;
 }
 
+/** What a domain serves, before anyone signs in. */
+export interface Site {
+  /** The workspace whose own domain this is; null on the server's own. */
+  workspace: string | null;
+  accounts_enabled: boolean;
+  signup_enabled: boolean;
+}
+
+export interface DnsRecord {
+  type: "TXT" | "CNAME";
+  name: string;
+  value: string;
+}
+
+/** A domain a workspace serves on, once its TXT record proves it. */
+export interface Domain {
+  id: string;
+  domain: string;
+  verified: boolean;
+  created_at: string;
+  verified_at: string | null;
+  checked_at: string | null;
+  records: DnsRecord[];
+}
+
 export type MemberRole = "owner" | "admin" | "editor" | "viewer";
 export const MEMBER_ROLES: MemberRole[] = ["owner", "admin", "editor", "viewer"];
 

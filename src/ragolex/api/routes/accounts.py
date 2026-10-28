@@ -16,6 +16,7 @@ from ragolex.api.dependencies import (
     AccountServiceDep,
     MailerDep,
     SettingsDep,
+    SiteDep,
     session_cookie,
 )
 from ragolex.api.schemas import (
@@ -48,6 +49,7 @@ from ragolex.core.errors import (
     SignupDisabled,
     WorkspaceNotFound,
     WorkspaceTaken,
+    WrongDomain,
 )
 from ragolex.domain.models import Membership
 from ragolex.services.account_service import SignedIn
@@ -81,12 +83,13 @@ def _set_cookie(response: Response, signed_in: SignedIn, settings: Settings) -> 
 @router.post("/signup", status_code=status.HTTP_201_CREATED,
              summary="Create an account with a workspace of its own, and sign in",
              description="The new user owns the new workspace. Sets the session cookie. "
-                         "Off when the server's `SIGNUP_ENABLED` is.",
+                         "Off when the server's `SIGNUP_ENABLED` is, and on a workspace's "
+                         "own domain, where people are invited.",
              responses=error_responses(AccountsDisabled, SignupDisabled, EmailTaken,
                                        WorkspaceTaken))
 async def sign_up(request: SignupRequest, response: Response, accounts: AccountServiceDep,
-                  settings: SettingsDep) -> SessionResponse:
-    if not settings.SIGNUP_ENABLED:
+                  settings: SettingsDep, site: SiteDep) -> SessionResponse:
+    if not settings.SIGNUP_ENABLED or site is not None:
         raise SignupDisabled()
     signed_in = await accounts.sign_up(email=request.email, password=request.password,
                                        name=request.name, workspace=request.workspace)
@@ -96,13 +99,14 @@ async def sign_up(request: SignupRequest, response: Response, accounts: AccountS
 
 @router.post("/login", summary="Sign in with an email and password",
              description="Sets the session cookie, working in the first of the user's "
-                         "workspaces. The 10th wrong password in a row locks the account "
-                         "for 15 minutes.",
+                         "workspaces, or on a workspace's own domain, in that one. The 10th "
+                         "wrong password in a row locks the account for 15 minutes.",
              responses=error_responses(AccountsDisabled, LoginFailed, AccountLocked,
                                        WorkspaceNotFound))
 async def sign_in(request: LoginRequest, response: Response, accounts: AccountServiceDep,
-                  settings: SettingsDep) -> SessionResponse:
-    signed_in = await accounts.sign_in(request.email, request.password)
+                  settings: SettingsDep, site: SiteDep) -> SessionResponse:
+    signed_in = await accounts.sign_in(request.email, request.password,
+                                       site.tenant_id if site else None)
     _set_cookie(response, signed_in, settings)
     return _session(signed_in)
 
@@ -118,15 +122,21 @@ async def sign_out(cookie: CookieDep, accounts: AccountServiceDep) -> Response:
 
 
 @router.get("/session", summary="The signed-in user and their workspaces",
-            responses=error_responses(AccountsDisabled, SessionRequired))
-async def current_session(cookie: CookieDep, accounts: AccountServiceDep) -> SessionResponse:
-    return _session(await accounts.current(cookie))
+            description="On a workspace's own domain, the session works in that workspace.",
+            responses=error_responses(AccountsDisabled, SessionRequired, WrongDomain))
+async def current_session(cookie: CookieDep, accounts: AccountServiceDep,
+                          site: SiteDep) -> SessionResponse:
+    return _session(await accounts.current(cookie, site.tenant_id if site else None))
 
 
 @router.put("/session/workspace", summary="Work in another of the user's workspaces",
-            responses=error_responses(AccountsDisabled, SessionRequired, WorkspaceNotFound))
+            description="Not on a workspace's own domain, which always works in its own.",
+            responses=error_responses(AccountsDisabled, SessionRequired, WorkspaceNotFound,
+                                      WrongDomain))
 async def switch_workspace(request: WorkspaceRequest, cookie: CookieDep,
-                           accounts: AccountServiceDep) -> SessionResponse:
+                           accounts: AccountServiceDep, site: SiteDep) -> SessionResponse:
+    if site is not None:
+        raise WrongDomain()
     return _session(await accounts.switch_workspace(cookie, request.workspace))
 
 

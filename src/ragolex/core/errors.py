@@ -316,6 +316,53 @@ class PasswordResetInvalid(AppError):
     status_code = HTTPStatus.NOT_FOUND
 
 
+class DomainInvalid(AppError):
+    """Not a domain a workspace can have: a host name with a dot, not this server's own."""
+
+    signal = ResponseSignal.DOMAIN_INVALID
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+class DomainNotFound(AppError):
+    signal = ResponseSignal.DOMAIN_NOT_FOUND
+    status_code = HTTPStatus.NOT_FOUND
+
+
+class DomainExists(AppError):
+    """The workspace has this domain already."""
+
+    signal = ResponseSignal.DOMAIN_EXISTS
+    status_code = HTTPStatus.CONFLICT
+
+
+class DomainTaken(AppError):
+    """Another workspace has this domain verified."""
+
+    signal = ResponseSignal.DOMAIN_TAKEN
+    status_code = HTTPStatus.CONFLICT
+
+
+class DomainNotVerified(AppError):
+    """The domain's TXT record was not found, or does not hold the token (yet)."""
+
+    signal = ResponseSignal.DOMAIN_NOT_VERIFIED
+    status_code = HTTPStatus.CONFLICT
+
+
+class WrongDomain(AppError):
+    """The request came to another workspace's domain than the key's or the user's."""
+
+    signal = ResponseSignal.WRONG_DOMAIN
+    status_code = HTTPStatus.FORBIDDEN
+
+
+class DnsLookupFailed(AppError):
+    """The DNS servers did not answer; the message says how (for the logs)."""
+
+    signal = ResponseSignal.DNS_LOOKUP_FAILED
+    status_code = HTTPStatus.SERVICE_UNAVAILABLE
+
+
 class RateLimited(AppError):
     """The tenant made too many requests this minute; Retry-After says when to try again."""
 

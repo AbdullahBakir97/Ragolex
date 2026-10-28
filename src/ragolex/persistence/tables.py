@@ -168,6 +168,29 @@ class UserSessionRow(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class TenantDomainRow(Base):
+    """A domain a tenant serves on, once a TXT record proves the tenant owns it."""
+
+    __tablename__ = "tenant_domains"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "domain"),
+        # Several tenants may claim a domain; only one can have it verified.
+        Index("uq_tenant_domains_verified_domain", "domain", unique=True,
+              postgresql_where=text("verified_at IS NOT NULL")),
+    )
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    # In lower case, without a trailing dot.
+    domain: Mapped[str] = mapped_column(String(253))
+    # What the TXT record must hold; public once it is in DNS, so not a secret.
+    token: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = _created_at()
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class InvitationRow(Base):
     """An invitation to a tenant for one email; only a SHA-256 of its token is kept."""
 

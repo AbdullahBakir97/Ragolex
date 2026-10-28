@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { KeyRound, LoaderCircle } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import { safeNext, signInReason } from "@/api/auth";
 import { ApiError, api } from "@/api/client";
 import ApiKeyDialog from "@/components/ApiKeyDialog.vue";
 import AuthCard from "@/components/AuthCard.vue";
+import { useSite } from "@/composables/useSite";
 import { reloadAt } from "@/lib/navigate";
 
 const route = useRoute();
 const next = computed(() => safeNext(route.query.next));
+// On a workspace's own domain, signing in opens that workspace, and nobody signs up.
+const { site, load } = useSite();
+onMounted(load);
 
 const email = ref("");
 const password = ref("");
@@ -37,7 +41,10 @@ async function signIn() {
 </script>
 
 <template>
-  <AuthCard title="Sign in" subtitle="With the email and password of your Ragolex account.">
+  <AuthCard
+    :title="site?.workspace ? `Sign in to ${site.workspace}` : 'Sign in'"
+    subtitle="With the email and password of your Ragolex account."
+  >
     <div v-if="reason" class="alert alert-warning small" role="status">{{ reason }}</div>
     <form @submit.prevent="signIn">
       <label class="field">
@@ -59,7 +66,7 @@ async function signIn() {
     <button type="button" class="btn btn-ghost key" @click="keyDialog?.open()">
       <KeyRound :size="16" /> Use an API key instead
     </button>
-    <template #footer>
+    <template v-if="!site || site.signup_enabled" #footer>
       <span>New here? <RouterLink :to="{ path: '/signup', query: route.query }">Create an account</RouterLink></span>
     </template>
     <ApiKeyDialog ref="keyDialog" :next="next" />
