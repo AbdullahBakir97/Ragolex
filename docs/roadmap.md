@@ -119,7 +119,7 @@ Phases are delivered in order, each as reviewed, tested pull requests. A phase i
 ### Phase 11: Enterprise sign-in
 
 - [x] Single sign-on with OpenID Connect per workspace (Microsoft Entra ID, Google Workspace, Okta, Keycloak): sign-in through the organisation's identity provider, accounts made on first sign-in for its verified email domain, with a default role ([API › Single sign-on](api.md#single-sign-on)).
-- [ ] SAML 2.0 for identity providers without OpenID Connect.
+- [x] SAML 2.0 for identity providers without OpenID Connect: signed assertions checked with the provider's certificate, reading only what the signature covers ([API › Single sign-on](api.md#single-sign-on)).
 - [x] Workspaces that require single sign-on: passwords and invitations off for their members, owners exempt so a broken provider cannot lock a workspace ([API › Single sign-on](api.md#single-sign-on)).
 - [ ] Two-factor authentication (TOTP) for password accounts, with recovery codes, and an option for owners to require it.
 - [ ] SCIM 2.0 provisioning: members added, changed and removed by the identity provider.

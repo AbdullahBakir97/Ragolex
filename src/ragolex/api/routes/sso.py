@@ -1,16 +1,19 @@
-"""Single sign-on: a workspace's OpenID Connect identity provider, and signing in through it.
+"""Single sign-on: a workspace's identity provider (OpenID Connect or SAML 2.0), and signing in
+through it.
 
 Admins set the provider. People find their workspace by their email's
 domain, are sent to the provider, and come back to the callback, which
 signs them in (making their account, or adding it to the workspace, the
-first time) and returns them to the web app.
+first time) and returns them to the web app. A SAML provider posts its
+response to the assertion consumer service first, which checks it and
+sends the browser on to the callback.
 """
 
 import logging
 from typing import Annotated
 from urllib.parse import quote, urlsplit
 
-from fastapi import APIRouter, Query, Request, Response, status
+from fastapi import APIRouter, Form, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from ragolex.api.dependencies import (
@@ -35,12 +38,14 @@ from ragolex.api.schemas import (
 from ragolex.core.errors import (
     AppError,
     OwnerRequired,
+    SsoCertificateInvalid,
     SsoFailed,
     SsoNeedsDomain,
     SsoNotConfigured,
     SsoRequestInvalid,
     SsoSecretRequired,
 )
+from ragolex.identity.saml import SignxmlSamlVerifier
 from ragolex.persistence.repositories import SqlUnitOfWork
 from ragolex.services.connection_service import with_query
 from ragolex.services.sso_service import CALLBACK_PATH, SsoService
@@ -58,14 +63,18 @@ public_router = APIRouter(prefix="/api/v1/auth/sso", tags=["single sign-on"],
 
 async def _settings(service: SsoService, tenant_id: int) -> SsoSettingsResponse:
     provider = await service.provider(tenant_id)
+    sp = service.service_provider
     return SsoSettingsResponse(
         provider=SsoProviderResponse(
-            issuer=provider.issuer, client_id=provider.client_id,
+            protocol=provider.protocol,  # type: ignore[arg-type]
+            issuer=provider.issuer, client_id=provider.client_id, sso_url=provider.sso_url,
+            certificate_expires_at=service.certificate_expiry(provider),
             default_role=provider.default_role,  # type: ignore[arg-type]
             enabled=provider.enabled, required=provider.required,
             created_at=provider.created_at,
             updated_at=provider.updated_at) if provider else None,
-        redirect_uri=service.redirect_uri, email_domains=await service.email_domains(tenant_id))
+        redirect_uri=service.redirect_uri, saml_entity_id=sp.entity_id, saml_acs_url=sp.acs_url,
+        email_domains=await service.email_domains(tenant_id))
 
 
 @router.get("", summary="The workspace's single sign-on")
@@ -73,15 +82,18 @@ async def get_sso(principal: PrincipalDep, service: SsoServiceDep) -> SsoSetting
     return await _settings(service, principal.tenant_id)
 
 
-@router.put("", summary="Set the workspace's OpenID Connect identity provider",
-            description="Its discovery document is read first, so a wrong issuer is refused.",
-            responses=error_responses(SsoFailed, SsoSecretRequired, OwnerRequired,
-                                      SsoNeedsDomain))
+@router.put("", summary="Set the workspace's identity provider (OpenID Connect or SAML)",
+            description="OpenID Connect: its discovery document is read first, so a wrong issuer "
+                        "is refused. SAML: its signing certificate must be one.",
+            responses=error_responses(SsoFailed, SsoSecretRequired, SsoCertificateInvalid,
+                                      OwnerRequired, SsoNeedsDomain))
 async def set_sso(body: SsoSettingsRequest, principal: PrincipalDep,
                   service: SsoServiceDep) -> SsoSettingsResponse:
-    await service.configure(principal.tenant_id, issuer=body.issuer, client_id=body.client_id,
-                            client_secret=body.client_secret, default_role=body.default_role,
-                            enabled=body.enabled, required=body.required, role=principal.role)
+    await service.configure(principal.tenant_id, protocol=body.protocol, issuer=body.issuer,
+                            client_id=body.client_id, client_secret=body.client_secret,
+                            sso_url=body.sso_url, certificate=body.certificate,
+                            default_role=body.default_role, enabled=body.enabled,
+                            required=body.required, role=principal.role)
     return await _settings(service, principal.tenant_id)
 
 
@@ -97,7 +109,8 @@ async def delete_sso(principal: PrincipalDep, service: SsoServiceDep) -> Respons
 def _service(request: Request, session: SessionDep, settings: SettingsDep) -> SsoService:
     """The service outside a signed-in request: the sign-in itself, or the provider's redirect."""
     return SsoService(SqlUnitOfWork(session), get_oidc_client(request), app_url=settings.APP_URL,
-                      session_days=settings.SESSION_DAYS)
+                      session_days=settings.SESSION_DAYS, saml=SignxmlSamlVerifier(),
+                      allow_private_urls=settings.SSO_ALLOW_PRIVATE_URLS)
 
 
 @public_router.post("/discover", summary="Which workspace signs this email in",
@@ -166,6 +179,34 @@ async def callback(request: Request, session: SessionDep, settings: SettingsDep,
     response = _back(finished.next_url)
     _set_cookie(response, signed_in, settings)
     return response
+
+
+@public_router.get("/saml/metadata", include_in_schema=False)
+async def saml_metadata(request: Request, session: SessionDep,
+                        settings: SettingsDep) -> Response:
+    """This server's SAML service provider metadata, for identity providers to import."""
+    service = _service(request, session, settings)
+    return Response(SignxmlSamlVerifier().metadata(service.service_provider),
+                    media_type="application/samlmetadata+xml")
+
+
+@public_router.post("/saml/acs", include_in_schema=False)
+async def saml_acs(request: Request, session: SessionDep, settings: SettingsDep,
+                   saml_response: Annotated[str, Form(alias="SAMLResponse",
+                                                      max_length=400_000)] = "",
+                   relay_state: Annotated[str, Form(alias="RelayState",
+                                                    max_length=200)] = "") -> Response:
+    """Where a SAML provider posts its response. Checked here, the browser then goes on to the
+    callback, which its binding cookie (not sent with another site's POST) comes back to."""
+    service = _service(request, session, settings)
+    try:
+        pending = await service.take_saml_response(relay_state, saml_response)
+    except AppError as exc:
+        logger.info("A SAML sign-in failed: %s", exc)
+        return _back(f"{service.app_url}/signin", sso_error=exc.signal.value)
+    return RedirectResponse(with_query(f"{_origin(pending.next_url)}{CALLBACK_PATH}",
+                                       state=relay_state),
+                            status_code=status.HTTP_303_SEE_OTHER)
 
 
 def _back(url: str, **params: str) -> RedirectResponse:

@@ -930,17 +930,20 @@ class Operations:
         self,
         *,
         issuer: str,
-        client_id: str,
+        protocol: Literal['oidc', 'saml'] | str | Unset = UNSET,
+        client_id: str | None | Unset = UNSET,
         client_secret: str | None | Unset = UNSET,
+        sso_url: str | None | Unset = UNSET,
+        certificate: str | None | Unset = UNSET,
         default_role: Literal['admin', 'editor', 'viewer'] | str | Unset = UNSET,
         enabled: bool | Unset = UNSET,
         required: bool | Unset = UNSET,
     ) -> SsoSettingsResponse:
-        """Set the workspace's OpenID Connect identity provider
+        """Set the workspace's identity provider (OpenID Connect or SAML)
 
-        Its discovery document is read first, so a wrong issuer is refused.
+        OpenID Connect: its discovery document is read first, so a wrong issuer is refused. SAML: its signing certificate must be one.
         """
-        return self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled, 'required': required}, optional=False), response=SsoSettingsResponse.model_validate)
+        return self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'protocol': protocol, 'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'sso_url': sso_url, 'certificate': certificate, 'default_role': default_role, 'enabled': enabled, 'required': required}, optional=False), response=SsoSettingsResponse.model_validate)
 
     def delete_sso(
         self,
@@ -2059,17 +2062,20 @@ class AsyncOperations:
         self,
         *,
         issuer: str,
-        client_id: str,
+        protocol: Literal['oidc', 'saml'] | str | Unset = UNSET,
+        client_id: str | None | Unset = UNSET,
         client_secret: str | None | Unset = UNSET,
+        sso_url: str | None | Unset = UNSET,
+        certificate: str | None | Unset = UNSET,
         default_role: Literal['admin', 'editor', 'viewer'] | str | Unset = UNSET,
         enabled: bool | Unset = UNSET,
         required: bool | Unset = UNSET,
     ) -> SsoSettingsResponse:
-        """Set the workspace's OpenID Connect identity provider
+        """Set the workspace's identity provider (OpenID Connect or SAML)
 
-        Its discovery document is read first, so a wrong issuer is refused.
+        OpenID Connect: its discovery document is read first, so a wrong issuer is refused. SAML: its signing certificate must be one.
         """
-        return await self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'default_role': default_role, 'enabled': enabled, 'required': required}, optional=False), response=SsoSettingsResponse.model_validate)
+        return await self._request('PUT', '/api/v1/sso', query={}, json=_body(SsoSettingsRequest, {'protocol': protocol, 'issuer': issuer, 'client_id': client_id, 'client_secret': client_secret, 'sso_url': sso_url, 'certificate': certificate, 'default_role': default_role, 'enabled': enabled, 'required': required}, optional=False), response=SsoSettingsResponse.model_validate)
 
     async def delete_sso(
         self,
