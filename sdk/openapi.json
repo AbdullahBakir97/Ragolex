@@ -2,6 +2,14 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Ragolex",
+    "contact": {
+      "name": "Abdullah Bakir",
+      "url": "https://github.com/AbdullahBakir97"
+    },
+    "license": {
+      "name": "AGPL-3.0-only",
+      "identifier": "AGPL-3.0-only"
+    },
     "version": "0.1.0"
   },
   "paths": {

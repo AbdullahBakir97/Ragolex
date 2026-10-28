@@ -17,7 +17,13 @@ def response_schema(schema, path, status):
 
 
 def test_app_metadata_comes_from_settings(schema):
-    assert schema["info"] == {"title": "Ragolex-test", "version": "0.0.1"}
+    assert schema["info"]["title"] == "Ragolex-test"
+    assert schema["info"]["version"] == "0.0.1"
+
+
+def test_schema_names_the_author_and_license(schema):
+    assert schema["info"]["contact"]["name"] == "Abdullah Bakir"
+    assert schema["info"]["license"]["identifier"] == "AGPL-3.0-only"
 
 
 def test_success_responses_are_documented(schema):

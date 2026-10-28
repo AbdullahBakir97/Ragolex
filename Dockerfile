@@ -12,7 +12,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /src
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml README.md LICENSE NOTICE ./
 COPY src ./src
 # With tracing, so TRACING_ENABLED works in the image.
 RUN pip install ".[tracing]"

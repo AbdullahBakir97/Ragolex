@@ -7,8 +7,8 @@ name = "ragolex"
 version = "0.1.0"
 description = "A retrieval-augmented generation (RAG) service built with FastAPI, PostgreSQL and pgvector."
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "AGPL-3.0-only"
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Abdullah Bakir" }]
 requires-python = ">=3.11"
 classifiers = [
