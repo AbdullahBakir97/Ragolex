@@ -1,5 +1,6 @@
 """Request and response models, and the shared ID types used by routes."""
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
@@ -645,18 +646,31 @@ class SignupRequest(BaseModel):
 
 
 SsoRole = Literal["admin", "editor", "viewer"]
+SsoProtocol = Literal["oidc", "saml"]
 
 
 class SsoSettingsRequest(BaseModel):
-    issuer: str = Field(max_length=500, pattern=r"^https?://\S+$",
-                        description="The identity provider's issuer URL, whose "
-                                    "`/.well-known/openid-configuration` is read.",
+    protocol: SsoProtocol = Field(
+        default="oidc", description="`oidc` (OpenID Connect) or `saml` (SAML 2.0).")
+    issuer: str = Field(max_length=500,
+                        description="OpenID Connect: the identity provider's issuer URL, whose "
+                                    "`/.well-known/openid-configuration` is read. SAML: its "
+                                    "entity ID, which its assertions name as their issuer.",
                         examples=["https://login.microsoftonline.com/<tenant id>/v2.0"])
-    client_id: str = Field(min_length=1, max_length=255)
+    client_id: str | None = Field(default=None, min_length=1, max_length=255,
+                                  description="OpenID Connect only, and needed there.")
     client_secret: str | None = Field(
         default=None, min_length=1, max_length=1000,
-        description="Needed the first time; leave it out to keep the one already set. "
-                    "Stored encrypted and never returned.")
+        description="OpenID Connect: needed the first time; leave it out to keep the one "
+                    "already set. Stored encrypted and never returned.")
+    sso_url: str | None = Field(
+        default=None, max_length=2000, pattern=r"^https?://\S+$",
+        description="SAML only, and needed there: the identity provider's sign-in URL "
+                    "(its single sign-on service, HTTP-Redirect binding).")
+    certificate: str | None = Field(
+        default=None, min_length=1, max_length=20000,
+        description="SAML: the identity provider's signing certificate, as PEM or the base64 "
+                    "in its metadata. Needed the first time; leave it out to keep it.")
     default_role: SsoRole = Field(default="viewer",
                                   description="The role of people added by their first sign-in.")
     enabled: bool = True
@@ -666,10 +680,26 @@ class SsoSettingsRequest(BaseModel):
                     "password, nor by invitation. Only an owner changes it, and it needs a "
                     "verified domain.")
 
+    @model_validator(mode="after")
+    def _protocol_fields(self) -> "SsoSettingsRequest":
+        if not re.fullmatch(r"\S+", self.issuer):
+            raise ValueError("issuer must be one word, without spaces")
+        if self.protocol == "oidc" and not re.match(r"https?://", self.issuer):
+            raise ValueError("an OpenID Connect issuer is an http(s) URL")
+        if self.protocol == "oidc" and not self.client_id:
+            raise ValueError("OpenID Connect needs client_id")
+        if self.protocol == "saml" and not self.sso_url:
+            raise ValueError("SAML needs sso_url")
+        return self
+
 
 class SsoProviderResponse(BaseModel):
-    issuer: str
-    client_id: str
+    protocol: SsoProtocol
+    issuer: str = Field(description="The OpenID Connect issuer, or the SAML entity ID.")
+    client_id: str = Field(description="OpenID Connect's; empty for SAML.")
+    sso_url: str | None = Field(description="SAML's sign-in URL; null for OpenID Connect.")
+    certificate_expires_at: datetime | None = Field(
+        description="When SAML's signing certificate expires; null for OpenID Connect.")
     default_role: SsoRole
     enabled: bool
     required: bool
@@ -680,6 +710,12 @@ class SsoProviderResponse(BaseModel):
 class SsoSettingsResponse(BaseModel):
     provider: SsoProviderResponse | None = Field(description="Null until one is set.")
     redirect_uri: str = Field(description="The redirect URI to register with the provider.")
+    saml_entity_id: str = Field(
+        description="For SAML: this server's entity ID (its metadata's address), the audience "
+                    "the provider must name.")
+    saml_acs_url: str = Field(
+        description="For SAML: where the provider posts its responses (the assertion consumer "
+                    "service URL).")
     email_domains: list[str] = Field(
         description="The workspace's verified domains: only emails on them sign in through "
                     "the provider. Add the company's email domain (`acme.com`) under domains "

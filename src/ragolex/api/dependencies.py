@@ -31,6 +31,7 @@ from ragolex.domain.models import Principal, Scope, TenantDomain
 from ragolex.domain.oauth import OAuthProvider
 from ragolex.domain.oidc import OidcClient
 from ragolex.domain.repositories import UnitOfWork
+from ragolex.identity.saml import SignxmlSamlVerifier
 from ragolex.loaders.registry import LoaderRegistry, default_loader_registry
 from ragolex.ocr.factory import create_ocr
 from ragolex.persistence.repositories import SqlUnitOfWork
@@ -423,7 +424,9 @@ def get_oidc_client(request: Request) -> OidcClient:
 
 def get_sso_service(uow: UnitOfWorkDep, settings: SettingsDep,
                     client: Annotated[OidcClient, Depends(get_oidc_client)]) -> SsoService:
-    return SsoService(uow, client, app_url=settings.APP_URL, session_days=settings.SESSION_DAYS)
+    return SsoService(uow, client, app_url=settings.APP_URL, session_days=settings.SESSION_DAYS,
+                      saml=SignxmlSamlVerifier(),
+                      allow_private_urls=settings.SSO_ALLOW_PRIVATE_URLS)
 
 
 SsoServiceDep = Annotated[SsoService, Depends(get_sso_service)]

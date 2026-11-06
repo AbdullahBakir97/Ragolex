@@ -624,6 +624,10 @@ class SsoProvider:
     workspace, with ``default_role``. ``client_secret`` is stored encrypted.
     With ``required`` (and ``enabled``), its members other than owners work
     in it only through the provider: not with a password, nor by invitation.
+
+    With ``protocol`` "saml", ``issuer`` is the provider's SAML entity ID,
+    ``sso_url`` where it signs people in, and ``certificate`` (PEM) what its
+    responses are signed with; ``client_id`` and ``client_secret`` are empty.
     """
 
     tenant_id: int
@@ -635,6 +639,9 @@ class SsoProvider:
     created_at: datetime
     updated_at: datetime
     required: bool = False
+    protocol: str = "oidc"
+    sso_url: str | None = None
+    certificate: str | None = None
 
     @property
     def enforced(self) -> bool:
@@ -648,7 +655,9 @@ class SsoRequest:
     Like a connection's: the ``state`` is kept as a hash, ``code_verifier`` is
     PKCE's, ``nonce`` ties the ID token to this sign-in, and only the browser
     holding the cookie behind ``browser_hash`` can finish it. ``next_url`` is
-    where the web app opens after.
+    where the web app opens after. With SAML, the state is the AuthnRequest's
+    ID, and the provider's checked response leaves the email (and name) it
+    vouched for, for that browser to finish with.
     """
 
     state_hash: str
@@ -658,6 +667,8 @@ class SsoRequest:
     next_url: str
     browser_hash: str
     expires_at: datetime
+    vouched_email: str | None = None
+    vouched_name: str | None = None
 
 
 @dataclass(frozen=True)

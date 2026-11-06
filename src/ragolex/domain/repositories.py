@@ -718,7 +718,9 @@ class SsoRepository(Protocol):
         ...
 
     async def save(self, *, tenant_id: int, issuer: str, client_id: str, client_secret: str,
-                   default_role: str, enabled: bool, required: bool = False) -> SsoProvider:
+                   default_role: str, enabled: bool, required: bool = False,
+                   protocol: str = "oidc", sso_url: str | None = None,
+                   certificate: str | None = None) -> SsoProvider:
         """Set the workspace's identity provider, in place of any it had."""
         ...
 
@@ -733,6 +735,11 @@ class SsoRepository(Protocol):
     async def take_request(self, state_hash: str) -> SsoRequest | None:
         """The sign-in with this state, removed so it is finished once; None when unknown or
         expired. Expired ones are removed too."""
+        ...
+
+    async def vouch(self, state_hash: str, *, email: str, name: str | None) -> bool:
+        """Keep the email a SAML provider vouched for on a pending sign-in, once: False when
+        it is unknown, expired, or vouched for already."""
         ...
 
 

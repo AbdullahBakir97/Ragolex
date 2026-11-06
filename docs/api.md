@@ -155,7 +155,7 @@ Invitation and reset tokens are sent in request bodies and kept in the link's fr
 
 ### Single sign-on
 
-A workspace can have people sign in with their organisation's account, through any OpenID Connect identity provider: Microsoft Entra ID, Google Workspace, Okta, Keycloak and others.
+A workspace can have people sign in with their organisation's account, through any OpenID Connect or SAML 2.0 identity provider: Microsoft Entra ID, Google Workspace, Okta, Keycloak, AD FS and others.
 
 1. Add the organisation's email domain, such as `acme.com`, under [your own domains](#your-own-domains) and verify it with its TXT record. A workspace's provider signs in only emails on its verified domains, so no workspace can sign in someone else's account.
 2. Register an app (a "web" client) with the provider, with the redirect URI that `GET /api/v1/sso` shows (`APP_URL` + `/api/v1/auth/sso/callback`) and the scopes `openid email profile`.
@@ -164,6 +164,20 @@ A workspace can have people sign in with their organisation's account, through a
 People then choose **Sign in with single sign-on** in the web app and give their email: `POST /api/v1/auth/sso/discover` finds the workspace that verified its domain (`404` `{"signal": "sso_not_configured"}` when none has single sign-on on), and the browser goes through the provider and back to the callback, which signs them in and opens the page they were going to. Their first sign-in makes their account (named as the provider names them), or adds an existing account with that email to the workspace, with `default_role`; members keep their roles. Accounts made this way can set a password with a reset link.
 
 The sign-in uses the authorization code flow with PKCE, a single-use state and a nonce, and only the browser that started it can finish it. The ID token's signature is checked with the provider's published keys (never with the client secret, nor unsigned), as are its issuer, audience, expiry and nonce. An email the provider marks unverified, or one outside the workspace's verified domains, is refused (`sso_email_not_allowed`). With Entra ID, the sign-in name (`preferred_username`) counts as the email when there is no `email` claim. Errors come back to the sign-in page as `?sso_error=<signal>`. The provider must be on a public address, unless `SSO_ALLOW_PRIVATE_URLS` is on (a Keycloak on the server's own network). Single sign-on needs `AUTH_ENABLED`.
+
+**SAML 2.0**, for providers without OpenID Connect (or by choice), takes the same steps with other settings:
+
+1. Give the provider this server's entity ID and reply URL, both shown by `GET /api/v1/sso` (`saml_entity_id`, which is also the address of this server's metadata, `APP_URL` + `/api/v1/auth/sso/saml/metadata`; and `saml_acs_url`, `APP_URL` + `/api/v1/auth/sso/saml/acs`), or have it import the metadata from that address. Have it send the email as the NameID (email format) or as an `email` attribute, sign the assertion or the response with SHA-256 or stronger, and not encrypt the assertion.
+2. `PUT /api/v1/sso` with `{"protocol": "saml", "issuer": "<the provider's entity ID>", "sso_url": "https://…", "certificate": "-----BEGIN CERTIFICATE-----…", "default_role": "viewer"}`. The certificate is the provider's signing certificate, as PEM or the base64 in its metadata (`422` `{"signal": "sso_certificate_invalid"}` otherwise); leaving it out later keeps it. The response says when it expires (`certificate_expires_at`); a new one is pasted in the same way. `sso_url` must be https (http only on `localhost` with `SSO_ALLOW_PRIVATE_URLS`).
+
+People sign in the same way. The browser goes to the provider with an AuthnRequest, and the provider posts its response back to the reply URL, which checks it before the browser goes on to the callback to finish:
+
+- The response must be signed with the workspace's certificate. Only what that signature covers is read, so an assertion slipped in beside a signed one is ignored, and text is read without XML comments.
+- Its issuer, its audience (this server's entity ID), its recipient (the reply URL) and its validity times are checked.
+- It must answer a sign-in started here (`InResponseTo`), once. Sign-ins the provider starts by itself are not accepted.
+- As with OpenID Connect, only the browser that started a sign-in can finish it, and only emails on the workspace's verified domains sign in.
+
+Refused responses come back to the sign-in page as `?sso_error=sso_failed` (or `sso_email_not_allowed`).
 
 **Requiring it.** With `"required": true`, the workspace's members sign in only through its provider:
 
@@ -218,7 +232,7 @@ Administrative actions are recorded in their tenant's audit log, in the same tra
 |---|---|---|
 | `tenant.created`, `tenant.limits_changed` | The tenant's name | The new limits (`changes`) |
 | `member.added`, `member.role_changed`, `member.removed` | The member's email | Their `role` (and `previous_role`); `"via": "sso"` for someone added by their first single sign-on |
-| `sso.configured`, `sso.removed` | The identity provider's issuer | Its client id, default role, whether it is on and whether it is required; never the secret |
+| `sso.configured`, `sso.removed` | The identity provider's issuer | Its protocol, client id (or SAML sign-in URL), default role, whether it is on and whether it is required; never the secret |
 | `invitation.created`, `invitation.revoked`, `invitation.accepted` | The invited email | The invitation's id and `role` |
 | `domain.added`, `domain.verified`, `domain.removed` | The domain | |
 | `bot.created`, `bot.updated`, `bot.deleted` | The bot's id | Project, kind, name and what changed; never its credentials |
@@ -263,7 +277,7 @@ curl -H "Authorization: Bearer ragolex_…" -o acme.zip http://localhost:8000/ap
 | `invitations.json` | Each open invitation's email, role and dates; never its link |
 | `domains.json` | The workspace's own domains, and when each was verified |
 | `connections.json` | Its Notion and Google Drive connections: kind, account, who connected it and when; never their tokens |
-| `sso.json` | Its single sign-on provider (issuer, client id, default role, on or off, required or not), or `null`; never the secret |
+| `sso.json` | Its single sign-on provider (protocol, issuer, client id or SAML sign-in URL, default role, on or off, required or not), or `null`; never the secret |
 | `audit.jsonl` | The [audit log](#audit-log), oldest first, one event per line |
 | `projects/<project>/project.json` | The project, and its [answer usage](#token-usage-and-cost) added up |
 | `projects/<project>/files.json` | Each file's id, name, type, size, SHA-256, tags and date, and its path in the archive |
@@ -349,7 +363,7 @@ A `model` of `null` counts the questions that matched no source, for which no mo
 | `POST` | `/api/v1/auth/invitation/accept` | Accept an invitation, making the account if it has none, and work in its workspace |
 | `POST` | `/api/v1/auth/password-reset` | Email a link to choose a new password (always `202`) |
 | `POST` | `/api/v1/auth/sso/discover` | Which workspace signs an email in with single sign-on, and where to start |
-| `GET`, `PUT`, `DELETE` | `/api/v1/sso` | The workspace's OpenID Connect identity provider (`admin`) |
+| `GET`, `PUT`, `DELETE` | `/api/v1/sso` | The workspace's identity provider, OpenID Connect or SAML 2.0 (`admin`) |
 | `POST` | `/api/v1/auth/password-reset/confirm` | Choose a new password with a reset link |
 | `PUT` | `/api/v1/auth/password` | Change the signed-in user's password |
 | `GET` | `/api/v1/members` | The workspace's members (`admin`) |

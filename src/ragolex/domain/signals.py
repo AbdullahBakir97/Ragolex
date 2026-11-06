@@ -88,6 +88,7 @@ class ResponseSignal(Enum):
     SSO_SECRET_REQUIRED = "sso_secret_required"
     SSO_REQUIRED = "sso_required"
     SSO_NEEDS_DOMAIN = "sso_needs_domain"
+    SSO_CERTIFICATE_INVALID = "sso_certificate_invalid"
     RATE_LIMITED = "rate_limited"
     ANSWER_QUOTA_EXCEEDED = "answer_quota_exceeded"
     BUDGET_EXCEEDED = "budget_exceeded"

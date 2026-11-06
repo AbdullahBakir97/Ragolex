@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import AdminSso from "@/components/AdminSso.vue";
 
 const PROVIDER = {
+  protocol: "oidc",
+  sso_url: null,
+  certificate_expires_at: null,
   issuer: "https://login.microsoftonline.com/t/v2.0",
   client_id: "ragolex",
   default_role: "editor",
@@ -16,7 +19,13 @@ const PROVIDER = {
 afterEach(() => vi.unstubAllGlobals());
 
 function serve(provider: unknown, domains = ["acme.com"]) {
-  const settings = (p: unknown) => ({ provider: p, redirect_uri: "https://r.example/api/v1/auth/sso/callback", email_domains: domains });
+  const settings = (p: unknown) => ({
+    provider: p,
+    redirect_uri: "https://r.example/api/v1/auth/sso/callback",
+    saml_entity_id: "https://r.example/api/v1/auth/sso/saml/metadata",
+    saml_acs_url: "https://r.example/api/v1/auth/sso/saml/acs",
+    email_domains: domains,
+  });
   const fetch = vi.fn((_url: string, init?: RequestInit) => {
     if (init?.method === "PUT") return Promise.resolve(Response.json(settings(PROVIDER)));
     if (init?.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
@@ -44,6 +53,7 @@ describe("AdminSso", () => {
 
     const [, init] = fetch.mock.calls.find(([, i]) => i?.method === "PUT")!;
     expect(JSON.parse(String(init!.body))).toEqual({
+      protocol: "oidc",
       issuer: PROVIDER.issuer,
       client_id: "ragolex",
       client_secret: "s3cret",
@@ -65,6 +75,34 @@ describe("AdminSso", () => {
     await flushPromises();
     const [, init] = fetch.mock.calls.find(([, i]) => i?.method === "PUT")!;
     expect(JSON.parse(String(init!.body))).not.toHaveProperty("client_secret");
+  });
+
+  it("sets a SAML provider, with the addresses to give it", async () => {
+    const fetch = serve(null);
+    const wrapper = mount(AdminSso, { props: { myRole: "admin" } });
+    await flushPromises();
+
+    await wrapper.find('input[type="radio"][value="saml"]').setValue(true);
+    expect(wrapper.find('input[type="password"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain("https://r.example/api/v1/auth/sso/saml/metadata");
+    expect(wrapper.text()).toContain("https://r.example/api/v1/auth/sso/saml/acs");
+    expect(wrapper.text()).not.toContain("/api/v1/auth/sso/callback");
+    await wrapper.find("input.saml-entity").setValue("https://sts.windows.net/t/");
+    await wrapper.find("input.saml-url").setValue("https://login.microsoftonline.com/t/saml2");
+    await wrapper.find("textarea.certificate").setValue("MIIC...");
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    const [, init] = fetch.mock.calls.find(([, i]) => i?.method === "PUT")!;
+    expect(JSON.parse(String(init!.body))).toEqual({
+      protocol: "saml",
+      issuer: "https://sts.windows.net/t/",
+      sso_url: "https://login.microsoftonline.com/t/saml2",
+      certificate: "MIIC...",
+      default_role: "viewer",
+      enabled: true,
+      required: false,
+    });
   });
 
   it("lets only an owner require it", async () => {

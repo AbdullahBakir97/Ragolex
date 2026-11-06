@@ -11,6 +11,7 @@ import type {
   ConnectionKind,
   ConnectionList,
   SsoRole,
+  SsoProtocol,
   SsoSettings,
   ChatWidget,
   ChatWidgetSettings,
@@ -341,7 +342,17 @@ export const api = {
     }),
   sso: () => get<SsoSettings>("/sso"),
   /** Without `client_secret`, the one already set is kept. */
-  saveSso: (body: { issuer: string; client_id: string; client_secret?: string; default_role: SsoRole; enabled: boolean; required: boolean }) =>
+  saveSso: (body: {
+    protocol: SsoProtocol;
+    issuer: string;
+    client_id?: string;
+    client_secret?: string;
+    sso_url?: string;
+    certificate?: string;
+    default_role: SsoRole;
+    enabled: boolean;
+    required: boolean;
+  }) =>
     put<SsoSettings>("/sso", body),
   deleteSso: () => remove("/sso"),
   /** The workspace that signs this email in, and where to start. */

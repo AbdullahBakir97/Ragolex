@@ -279,6 +279,7 @@ class SsoProviderRow(Base):
     __tablename__ = "sso_providers"
     __table_args__ = (
         CheckConstraint("default_role IN ('admin', 'editor', 'viewer')", name="default_role"),
+        CheckConstraint("protocol IN ('oidc', 'saml')", name="protocol"),
     )
 
     tenant_id: Mapped[int] = mapped_column(
@@ -291,6 +292,10 @@ class SsoProviderRow(Base):
     enabled: Mapped[bool] = mapped_column(Boolean)
     # Members other than owners sign in only through it.
     required: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # "oidc", or "saml" with the provider's sign-in URL and signing certificate (PEM).
+    protocol: Mapped[str] = mapped_column(String(8), server_default="oidc")
+    sso_url: Mapped[str | None] = mapped_column(Text)
+    certificate: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _created_at()
 
@@ -308,6 +313,9 @@ class SsoRequestRow(Base):
     next_url: Mapped[str] = mapped_column(Text)
     browser_hash: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # What a SAML provider's checked response vouched for, until the browser finishes.
+    vouched_email: Mapped[str | None] = mapped_column(String(254))
+    vouched_name: Mapped[str | None] = mapped_column(String(200))
 
 
 class SourceRow(Base):

@@ -51,7 +51,7 @@ Settings are read from `.env` in the repository root (copy it from `.env.example
 | `CRAWLER_DELAY_SECONDS` | `0.5` | Pause between a crawl's requests (0–10); a site's robots.txt `Crawl-delay` can make it longer |
 | `CRAWLER_TIMEOUT_SECONDS` | `15` | How long one page may take to arrive (up to 120) |
 | `GITHUB_TOKEN` | unset | A GitHub token for [GitHub sources](api.md#feeds-and-github-repositories): reads private repositories (fine-grained, with *Contents: read*) and raises the rate limit from 60 requests an hour to 5000 |
-| `SSO_ALLOW_PRIVATE_URLS` | `false` | Let a workspace's [single sign-on](api.md#single-sign-on) provider be on this server's network (a Keycloak on the intranet). Off, it must be a public address |
+| `SSO_ALLOW_PRIVATE_URLS` | `false` | Let a workspace's [single sign-on](api.md#single-sign-on) provider be on this server's network (a Keycloak on the intranet). Off, it must be a public address; it also lets a SAML provider's sign-in URL be http on `localhost` |
 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | unset | This server's Notion public integration, so workspaces can connect Notion for [Notion sources](api.md#notion-and-google-drive); see [below](#notion-and-google-drive) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | This server's Google OAuth client, so workspaces can connect Google Drive for [Drive sources](api.md#notion-and-google-drive); see [below](#notion-and-google-drive) |
 | `WEB_CONCURRENCY` | `1` | API processes uvicorn starts; raise it towards the number of CPU cores (see [Operations › Capacity](operations.md#capacity-and-load-testing)) |

@@ -483,6 +483,14 @@ class SsoRequired(AppError):
     status_code = HTTPStatus.FORBIDDEN
 
 
+class SsoCertificateInvalid(AppError):
+    """A SAML identity provider's signing certificate is not an X.509 certificate (PEM, or the
+    base64 of a metadata file)."""
+
+    signal = ResponseSignal.SSO_CERTIFICATE_INVALID
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+
+
 class SsoNeedsDomain(AppError):
     """Single sign-on can be required only once the workspace has a verified domain, or no
     one but its owners could sign in."""

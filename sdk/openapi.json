@@ -6658,8 +6658,8 @@
         "tags": [
           "single sign-on"
         ],
-        "summary": "Set the workspace's OpenID Connect identity provider",
-        "description": "Its discovery document is read first, so a wrong issuer is refused.",
+        "summary": "Set the workspace's identity provider (OpenID Connect or SAML)",
+        "description": "OpenID Connect: its discovery document is read first, so a wrong issuer is refused. SAML: its signing certificate must be one.",
         "operationId": "set_sso",
         "requestBody": {
           "content": {
@@ -6700,7 +6700,7 @@
             }
           },
           "422": {
-            "description": "Signal: `sso_secret_required`",
+            "description": "Signal: `sso_secret_required`, `sso_certificate_invalid`",
             "content": {
               "application/json": {
                 "schema": {
@@ -6710,6 +6710,11 @@
                   "sso_secret_required": {
                     "value": {
                       "signal": "sso_secret_required"
+                    }
+                  },
+                  "sso_certificate_invalid": {
+                    "value": {
+                      "signal": "sso_certificate_invalid"
                     }
                   }
                 }
@@ -12866,6 +12871,7 @@
           "sso_secret_required",
           "sso_required",
           "sso_needs_domain",
+          "sso_certificate_invalid",
           "rate_limited",
           "answer_quota_exceeded",
           "budget_exceeded",
@@ -13717,13 +13723,48 @@
       },
       "SsoProviderResponse": {
         "properties": {
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "oidc",
+              "saml"
+            ],
+            "title": "Protocol"
+          },
           "issuer": {
             "type": "string",
-            "title": "Issuer"
+            "title": "Issuer",
+            "description": "The OpenID Connect issuer, or the SAML entity ID."
           },
           "client_id": {
             "type": "string",
-            "title": "Client Id"
+            "title": "Client Id",
+            "description": "OpenID Connect's; empty for SAML."
+          },
+          "sso_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sso Url",
+            "description": "SAML's sign-in URL; null for OpenID Connect."
+          },
+          "certificate_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificate Expires At",
+            "description": "When SAML's signing certificate expires; null for OpenID Connect."
           },
           "default_role": {
             "type": "string",
@@ -13755,8 +13796,11 @@
         },
         "type": "object",
         "required": [
+          "protocol",
           "issuer",
           "client_id",
+          "sso_url",
+          "certificate_expires_at",
           "default_role",
           "enabled",
           "required",
@@ -13767,21 +13811,38 @@
       },
       "SsoSettingsRequest": {
         "properties": {
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "oidc",
+              "saml"
+            ],
+            "title": "Protocol",
+            "description": "`oidc` (OpenID Connect) or `saml` (SAML 2.0).",
+            "default": "oidc"
+          },
           "issuer": {
             "type": "string",
             "maxLength": 500,
-            "pattern": "^https?://\\S+$",
             "title": "Issuer",
-            "description": "The identity provider's issuer URL, whose `/.well-known/openid-configuration` is read.",
+            "description": "OpenID Connect: the identity provider's issuer URL, whose `/.well-known/openid-configuration` is read. SAML: its entity ID, which its assertions name as their issuer.",
             "examples": [
               "https://login.microsoftonline.com/<tenant id>/v2.0"
             ]
           },
           "client_id": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Client Id"
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id",
+            "description": "OpenID Connect only, and needed there."
           },
           "client_secret": {
             "anyOf": [
@@ -13795,7 +13856,35 @@
               }
             ],
             "title": "Client Secret",
-            "description": "Needed the first time; leave it out to keep the one already set. Stored encrypted and never returned."
+            "description": "OpenID Connect: needed the first time; leave it out to keep the one already set. Stored encrypted and never returned."
+          },
+          "sso_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^https?://\\S+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sso Url",
+            "description": "SAML only, and needed there: the identity provider's sign-in URL (its single sign-on service, HTTP-Redirect binding)."
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificate",
+            "description": "SAML: the identity provider's signing certificate, as PEM or the base64 in its metadata. Needed the first time; leave it out to keep it."
           },
           "default_role": {
             "type": "string",
@@ -13822,8 +13911,7 @@
         },
         "type": "object",
         "required": [
-          "issuer",
-          "client_id"
+          "issuer"
         ],
         "title": "SsoSettingsRequest"
       },
@@ -13845,6 +13933,16 @@
             "title": "Redirect Uri",
             "description": "The redirect URI to register with the provider."
           },
+          "saml_entity_id": {
+            "type": "string",
+            "title": "Saml Entity Id",
+            "description": "For SAML: this server's entity ID (its metadata's address), the audience the provider must name."
+          },
+          "saml_acs_url": {
+            "type": "string",
+            "title": "Saml Acs Url",
+            "description": "For SAML: where the provider posts its responses (the assertion consumer service URL)."
+          },
           "email_domains": {
             "items": {
               "type": "string"
@@ -13858,6 +13956,8 @@
         "required": [
           "provider",
           "redirect_uri",
+          "saml_entity_id",
+          "saml_acs_url",
           "email_domains"
         ],
         "title": "SsoSettingsResponse"
